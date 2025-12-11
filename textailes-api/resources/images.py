@@ -26,7 +26,7 @@ IMAGE_AVRO_SCHEMA = """
         {"name": "location", "type": "string"},
         {"name": "public_url", "type": ["null", "string"], "default": null},
         {"name": "timestamp", "type": "string"},
-        {"name": "robot_pose", "type": ["null", "string"], "default": null},
+        {"name": "robot_pose", "type": ["null", "string"], "default": null}
     ]
 }
 """
