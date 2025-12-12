@@ -8,18 +8,18 @@ from middleware.security import require_api_key
 from services.messaging import (
     send_avro_message,
     send_simple_message,
-    TOPIC_IMAGE_CAPTURES,
-    TOPIC_IMAGE_CAPTURES_UPLOADED
+    TOPIC_ROBOT_IMAGES,
+    TOPIC_ROBOT_UPLOADED
 )
 
 logger = logging.getLogger(__name__)
 
 # Avro Schema Definition
-IMAGE_AVRO_SCHEMA = """
+ROBOT_AVRO_SCHEMA = """
 {
     "type": "record",
-    "name": "ImageCapture",
-    "namespace": "com.textailes.images",
+    "name": "RobotImage",
+    "namespace": "com.textailes.robot",
     "fields": [
         {"name": "image_id", "type": "string"},
         {"name": "filename", "type": "string"},
@@ -32,12 +32,12 @@ IMAGE_AVRO_SCHEMA = """
 """
 
 
-class ImageCapturesResource(Resource):
+class RobotImageResource(Resource):
     method_decorators = [require_api_key]
 
     def post(self):
         """
-        Handle image uploads.
+        Ingests a new robot image, validates via Avro, and streams to Kafka.
         """
 
         data = request.get_json()
@@ -56,21 +56,21 @@ class ImageCapturesResource(Resource):
 
         # 1. Send to Storage Topic (Avro)
         success = send_avro_message(
-            TOPIC_IMAGE_CAPTURES,
+            TOPIC_ROBOT_IMAGES,
             message_key,
             data,
-            IMAGE_AVRO_SCHEMA
+            ROBOT_AVRO_SCHEMA
         )
 
         if success:
             # 2. Notify Listeners (Simple JSON)
             notification = {
                 "image_id": data['image_id'],
-                "event_type": "image_captures_received",
+                "event_type": "robot_image_received",
                 "event_timestamp": datetime.now(timezone.utc).isoformat()
             }
-            send_simple_message(TOPIC_IMAGE_CAPTURES_UPLOADED,
+            send_simple_message(TOPIC_ROBOT_UPLOADED,
                                 message_key, notification)
-            return {'message': 'Image captures received', 'id': message_key}, 201
+            return {'message': 'Image(s) received', 'id': message_key}, 201
 
-        return {'error': 'Failed to process captures'}, 500
+        return {'error': 'Failed to process image(s)'}, 500

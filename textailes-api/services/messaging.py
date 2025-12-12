@@ -18,9 +18,9 @@ TOPIC_ARTIFACTS = 'artifacts'
 TOPIC_SENSOR_READINGS = 'sensor_readings'
 TOPIC_ARTIFACT_UPLOADED = 'artifact_uploaded'
 TOPIC_SENSOR_UPLOADED = 'sensor_reading_uploaded'
-TOPIC_IMAGE_CAPTURES = 'image_captures'
+TOPIC_ROBOT_IMAGES = 'robot_images'
 TOPIC_RECONSTRUCTIONS = 'reconstructions'
-TOPIC_IMAGE_CAPTURES_UPLOADED = 'image_captures_uploaded'
+TOPIC_ROBOT_UPLOADED = 'robot_image_uploaded'
 
 # Clients
 simple_producer = Producer({'bootstrap.servers': KAFKA_BROKER})
