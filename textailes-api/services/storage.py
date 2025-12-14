@@ -12,6 +12,7 @@ MINIO_ENDPOINT = os.environ.get('MINIO_ENDPOINT', 'minio:9000')
 MINIO_ACCESS_KEY = os.environ.get('MINIO_ACCESS_KEY')
 MINIO_SECRET_KEY = os.environ.get('MINIO_SECRET_KEY')
 MINIO_ARTIFACT_BUCKET = 'artifacts'
+MINIO_ROBOT_BUCKET = 'robot-images'
 PUBLIC_MINIO_ENDPOINT = os.environ.get("PUBLIC_MINIO_ENDPOINT", "localhost:9000")
 PUBLIC_MINIO_SCHEME = os.environ.get("PUBLIC_MINIO_SCHEME", "https")
 
@@ -42,12 +43,13 @@ def set_public_read_policy() -> None:
 
 def init_minio_bucket() -> None:
     """
-    Ensures the default artifact bucket exists.
+    Ensures the default buckets exists.
     """
     try:
-        if not minio_client.bucket_exists(MINIO_ARTIFACT_BUCKET):
-            minio_client.make_bucket(MINIO_ARTIFACT_BUCKET)
-            logger.info(f"Created bucket: {MINIO_ARTIFACT_BUCKET}")
+        for minio_bucket in [MINIO_ARTIFACT_BUCKET, MINIO_ROBOT_BUCKET]:
+            if not minio_client.bucket_exists(minio_bucket):
+                minio_client.make_bucket(minio_bucket)
+                logger.info(f"Created bucket: {minio_bucket}")
     except S3Error as e:
         logger.error(f"MinIO Error during init: {e}")
 

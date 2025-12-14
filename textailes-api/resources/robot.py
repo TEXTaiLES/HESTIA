@@ -1,10 +1,18 @@
 from flask import request  # , jsonify
 from flask_restful import Resource
 from datetime import datetime, timezone
+import uuid
+import io
+import json
 import logging
 
 from middleware.security import require_api_key
 # from services.database import get_db_connection
+from services.storage import (
+    minio_client,
+    build_public_url,
+    MINIO_ROBOT_BUCKET
+)
 from services.messaging import (
     send_avro_message,
     send_simple_message,
@@ -37,40 +45,113 @@ class RobotImageResource(Resource):
 
     def post(self):
         """
-        Ingests a new robot image, validates via Avro, and streams to Kafka.
+        Handle file uploads in batch, validates via Avro, and streams to Kafka.
         """
 
-        data = request.get_json()
-        if not data:
-            return {'error': 'No data provided'}, 400
+        files = request.files.getlist('file')
+
+        if not files or files[0].filename == '':
+            return {'error': "No file(s) provided."}, 400
+        if 'metadata_map' not in request.form:
+            return {'error': "No 'metadata_map' provided."}, 400
+
+        try:
+            metadata_map = json.loads(request.form.get('metadata_map'))
+        except json.JSONDecodeError:
+            return {'error': "Invalid JSON in 'metadata_map' field."}, 400
 
         # Validate
-        required_fields = ['image_id', 'filename', 'location']
-        if not all(k in data for k in required_fields):
-            return {'error': f'Missing required fields. Must include: {required_fields}'}, 400
 
-        if 'timestamp' not in data:
-            data['timestamp'] = datetime.now(timezone.utc).isoformat()
+        # QUESTION: Is this necessary?
+        # Default values can be set later
+        #   (image_id = filename, location = 'unknown_location')
+        required_fields = ['image_id', 'location']
+        for metadata in metadata_map.values():
+            if not all(field in metadata for field in required_fields):
+                return {
+                    'error': f"'metadata_map' is missing required fields. Must include: {required_fields}."
+                }, 400
+            if 'timestamp' not in metadata:
+                metadata['timestamp'] = datetime.now(timezone.utc).isoformat()
 
-        message_key = f"{data['image_id']}_{data['timestamp']}"
+        # Upload
+        uploaded_images = []
 
-        # 1. Send to Storage Topic (Avro)
-        success = send_avro_message(
-            TOPIC_ROBOT_IMAGES,
-            message_key,
-            data,
-            ROBOT_AVRO_SCHEMA
+        for file in files:
+            filename = file.filename
+
+            # QUESTION: Which logic should be used?
+            # if filename not in metadata_map:
+            #     return {'error': f"{filename} was not specified in 'metadata_map'."}, 400
+            metadata = metadata_map.get(filename, {})
+
+            try:
+                result = self.upload_single_file(file, metadata)
+                if result:
+                    uploaded_images.append(result)
+            except Exception as e:
+                logger.error(f"Failed to upload file {filename}: {str(e)}")
+
+        if not uploaded_images:
+            return {'error': 'File upload failed.'}, 500
+
+        return {
+            'message': f"Successfully processed {len(uploaded_images)} file(s).",
+            'uploaded_files': uploaded_images
+        }, 201
+
+    def upload_single_file(self, file, metadata: dict[str, str]) -> json:
+        """Helper function to process a single file upload."""
+        image_id = metadata.get('image_id', str(uuid.uuid4()))
+        # QUESTION: Why do we need 'timestamp_millis' here?
+        timestamp_millis = int(datetime.now(timezone.utc).timestamp() * 1000)
+
+        # STEP 1: Upload to MinIO
+        file_data = file.read()
+        object_name = f"{image_id}/{file.filename}"
+
+        minio_client.put_object(
+            MINIO_ROBOT_BUCKET,
+            object_name,
+            io.BytesIO(file_data),
+            len(file_data),
+            content_type=file.content_type or 'application/octet-stream'
         )
 
-        if success:
-            # 2. Notify Listeners (Simple JSON)
-            notification = {
-                "image_id": data['image_id'],
-                "event_type": "robot_image_received",
-                "event_timestamp": datetime.now(timezone.utc).isoformat()
-            }
-            send_simple_message(TOPIC_ROBOT_UPLOADED,
-                                message_key, notification)
-            return {'message': 'Image(s) received', 'id': message_key}, 201
+        # STEP 2: Prepare Metadata
 
-        return {'error': 'Failed to process image(s)'}, 500
+        # QUESTION: What does 'location' refer to?
+        # QUESTION: What about unused data in artifact.py?
+
+        location = f"s3://{MINIO_ROBOT_BUCKET}/{object_name}"
+        public_url = build_public_url(MINIO_ROBOT_BUCKET, object_name)
+        robot_pose = metadata.get('robot_pose', 'unknown_pose')
+
+        record = {
+            'image_id': image_id,
+            'filename': file.filename,
+            'location': location,
+            'public_url': public_url,
+            'timestamp': timestamp_millis,
+            'robot_pose': robot_pose
+        }
+
+        # STEP 3: Send to Kafka (Storage)
+        if not send_avro_message(TOPIC_ROBOT_IMAGES, image_id, record, ROBOT_AVRO_SCHEMA):
+            raise Exception(f"Failed to send robot image {image_id} to Kafka.")
+
+        # STEP 4: Notify Listeners
+        notification = {
+            'image_id': image_id,
+            'event_type': TOPIC_ROBOT_UPLOADED,
+            'event_timestamp': datetime.now(timezone.utc).isoformat()
+        }
+        send_simple_message(TOPIC_ROBOT_UPLOADED, image_id, notification)
+
+        return {
+            'image_id': image_id,
+            'robot_pose': robot_pose,
+            'location': location,
+            'filename': file.filename,
+            'public_url': public_url
+        }
