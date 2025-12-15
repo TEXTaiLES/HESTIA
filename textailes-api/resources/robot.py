@@ -60,29 +60,12 @@ class RobotImageResource(Resource):
         except json.JSONDecodeError:
             return {'error': "Invalid JSON in 'metadata_map' field."}, 400
 
-        # Validate
-
-        # QUESTION: Is this necessary?
-        # Default values can be set later
-        #   (image_id = filename, location = 'unknown_location')
-        required_fields = ['image_id', 'location']
-        for metadata in metadata_map.values():
-            if not all(field in metadata for field in required_fields):
-                return {
-                    'error': f"'metadata_map' is missing required fields. Must include: {required_fields}."
-                }, 400
-            if 'timestamp' not in metadata:
-                metadata['timestamp'] = datetime.now(timezone.utc).isoformat()
-
         # Upload
         uploaded_images = []
 
         for file in files:
             filename = file.filename
 
-            # QUESTION: Which logic should be used?
-            # if filename not in metadata_map:
-            #     return {'error': f"{filename} was not specified in 'metadata_map'."}, 400
             metadata = metadata_map.get(filename, {})
 
             try:
@@ -100,11 +83,9 @@ class RobotImageResource(Resource):
             'uploaded_files': uploaded_images
         }, 201
 
-    def upload_single_file(self, file, metadata: dict[str, str]) -> json:
+    def upload_single_file(self, file, metadata: dict) -> dict:
         """Helper function to process a single file upload."""
-        image_id = metadata.get('image_id', str(uuid.uuid4()))
-        # QUESTION: Why do we need 'timestamp_millis' here?
-        timestamp_millis = int(datetime.now(timezone.utc).timestamp() * 1000)
+        image_id = str(uuid.uuid4())
 
         # STEP 1: Upload to MinIO
         file_data = file.read()
@@ -120,19 +101,17 @@ class RobotImageResource(Resource):
 
         # STEP 2: Prepare Metadata
 
-        # QUESTION: What does 'location' refer to?
-        # QUESTION: What about unused data in artifact.py?
-
         location = f"s3://{MINIO_ROBOT_BUCKET}/{object_name}"
         public_url = build_public_url(MINIO_ROBOT_BUCKET, object_name)
-        robot_pose = metadata.get('robot_pose', 'unknown_pose')
+        robot_pose = metadata.get('robot_pose')
+        timestamp = datetime.now(timezone.utc).isoformat()
 
         record = {
             'image_id': image_id,
             'filename': file.filename,
             'location': location,
             'public_url': public_url,
-            'timestamp': timestamp_millis,
+            'timestamp': timestamp,
             'robot_pose': robot_pose
         }
 
@@ -144,7 +123,7 @@ class RobotImageResource(Resource):
         notification = {
             'image_id': image_id,
             'event_type': TOPIC_ROBOT_UPLOADED,
-            'event_timestamp': datetime.now(timezone.utc).isoformat()
+            'event_timestamp': timestamp
         }
         send_simple_message(TOPIC_ROBOT_UPLOADED, image_id, notification)
 
@@ -153,5 +132,6 @@ class RobotImageResource(Resource):
             'robot_pose': robot_pose,
             'location': location,
             'filename': file.filename,
-            'public_url': public_url
+            'public_url': public_url,
+            'status': 'uploaded'
         }
