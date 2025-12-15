@@ -182,10 +182,10 @@ services:
       - ./directus_uploads:/directus/uploads
       - ./directus_extensions:/directus/extensions
     environment:
-      KEY: "your_directus_key"
-      SECRET: "your_directus_secret"
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      KEY: ${DIRECTUS_KEY}
+      SECRET: ${DIRECTUS_SECRET}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
       
       # PostgreSQL Configuration
       DB_CLIENT: "pg"
