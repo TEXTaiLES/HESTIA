@@ -130,7 +130,8 @@ class ArtifactResource(Resource):
 
         # 4. Notify Listeners
         notification = {
-            "artifact_id": artifact_id, "event_type": "artifact_uploaded",
+            # QUESTION: Should 'artifact_uploaded' get replaced with TOPIC_ARTIFACT_UPLOADED ?
+            "artifact_id": artifact_id, "event_type": TOPIC_ARTIFACT_UPLOADED,
             "event_timestamp": datetime.now(timezone.utc).isoformat()
         }
         send_simple_message(TOPIC_ARTIFACT_UPLOADED, artifact_id, notification)
