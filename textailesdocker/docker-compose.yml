@@ -173,6 +173,41 @@ services:
     networks:
       - app-network
 
+  directus:
+    image: directus/directus:9.22.0
+    container_name: directus
+    ports:
+      - "8055:8055"
+    volumes:
+      - ./directus_uploads:/directus/uploads
+      - ./directus_extensions:/directus/extensions
+    environment:
+      KEY: ${DIRECTUS_KEY}
+      SECRET: ${DIRECTUS_SECRET}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
+      
+      # PostgreSQL Configuration
+      DB_CLIENT: "pg"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_DATABASE: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      
+      # Storage Configuration  
+      STORAGE_LOCATIONS: "local"
+      STORAGE_LOCAL_ROOT: "./uploads"
+      
+      # Content Security Policy - Allow MinIO images
+      CONTENT_SECURITY_POLICY_DIRECTIVES__IMG_SRC: "'self' data: blob: https://cdn.directus.io http://localhost:9000"
+      
+    restart: always
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge
@@ -183,3 +218,5 @@ volumes:
   kafka_data:
   connectors:
   plugins:
+  directus_uploads:
+  directus_extensions:
