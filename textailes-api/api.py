@@ -4,7 +4,6 @@ from flasgger import Swagger
 from datetime import datetime, timezone
 
 # Resources
-from resources.artifact import ArtifactResource, ArtifactItemResource
 from resources.sensor import SensorReadingResource
 
 app = Flask(__name__)
@@ -28,8 +27,6 @@ Swagger(app, config={
 api = Api(app)
 
 # Route Registration
-api.add_resource(ArtifactResource, '/artifacts')
-api.add_resource(ArtifactItemResource, '/artifacts/<string:artifact_id>')
 api.add_resource(SensorReadingResource, '/sensor-readings')
 
 @app.route('/health')

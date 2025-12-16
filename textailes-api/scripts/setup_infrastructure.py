@@ -24,31 +24,7 @@ def wait_for_postgres(retries=10, delay=2):
 def run_migrations():
     """Runs database schema changes."""
     print("Running migrations...")
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-
-        # Check and Add 'timestamp_update'
-        cur.execute("""
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name='artifacts' AND column_name='timestamp_update'
-        """)
-        if not cur.fetchone():
-            print("Migration: Adding 'timestamp_update' column.")
-            cur.execute("""
-                ALTER TABLE artifacts
-                ADD COLUMN timestamp_update TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            """)
-        else:
-            print("Migration: 'timestamp_update' column already exists.")
-
-        conn.commit()
-        cur.close()
-        conn.close()
-        print("Migrations complete.")
-    except Exception as e:
-        print(f"Migration failed: {e}")
+    print("No active migrations.")
 
 def setup_minio():
     """Initializes MinIO buckets and policies."""

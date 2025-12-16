@@ -14,9 +14,7 @@ KAFKA_BROKER = os.environ.get('KAFKA_BROKER', 'kafka:29092')
 SCHEMA_REGISTRY_URL = os.environ.get('SCHEMA_REGISTRY_URL', 'http://schema-registry:8081')
 
 # Topic Constants
-TOPIC_ARTIFACTS = 'artifacts'
 TOPIC_SENSOR_READINGS = 'sensor_readings'
-TOPIC_ARTIFACT_UPLOADED = 'artifact_uploaded'
 TOPIC_SENSOR_UPLOADED = 'sensor_reading_uploaded'
 TOPIC_IMAGE_CAPTURES = 'image_captures'
 TOPIC_RECONSTRUCTIONS = 'reconstructions'

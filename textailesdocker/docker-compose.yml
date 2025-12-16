@@ -36,18 +36,6 @@ services:
     networks:
       - app-network
 
-  # schema-registry:
-  #   image: confluentinc/cp-schema-registry:latest
-  #   container_name: schema-registry
-  #   depends_on:
-  #     - kafka
-  #   ports:
-  #     - "8081:8081"
-  #   environment:
-  #     SCHEMA_REGISTRY_HOST_NAME: schema-registry
-  #     SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
-  #     SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
-
   kafka:
     image: confluentinc/cp-kafka:latest
     container_name: kafka
@@ -155,24 +143,6 @@ services:
     networks:
       - app-network
 
-  artifact_consumer:
-    build:
-      context: ../textailes-api
-      dockerfile: Dockerfile.consumer
-    container_name: artifact_consumer
-    environment:
-      - PG_HOST=postgres
-      - PG_PORT=5432
-      - PG_DB=${POSTGRES_DB}
-      - PG_USER=${POSTGRES_USER}
-      - PG_PASSWORD=${POSTGRES_PASSWORD}
-      - KAFKA_BROKER=kafka:29092
-    depends_on:
-      - kafka
-      - postgres
-    networks:
-      - app-network
-
   directus:
     image: directus/directus:9.22.0
     container_name: directus
@@ -186,7 +156,7 @@ services:
       SECRET: ${DIRECTUS_SECRET}
       ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
       ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
-      
+
       # PostgreSQL Configuration
       DB_CLIENT: "pg"
       DB_HOST: "postgres"
@@ -194,14 +164,14 @@ services:
       DB_DATABASE: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
-      
-      # Storage Configuration  
+
+      # Storage Configuration
       STORAGE_LOCATIONS: "local"
       STORAGE_LOCAL_ROOT: "./uploads"
-      
+
       # Content Security Policy - Allow MinIO images
       CONTENT_SECURITY_POLICY_DIRECTIVES__IMG_SRC: "'self' data: blob: https://cdn.directus.io http://localhost:9000"
-      
+
     restart: always
     depends_on:
       - postgres
