@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   minio:
     image: quay.io/minio/minio:latest
@@ -159,6 +157,10 @@ services:
       - minio
     networks:
       - textailes
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.textailes.athenarc.gr`)"
+      - "traefik.http.routers.api.entrypoints=web"
 
   artifact_consumer:
     build:
@@ -213,10 +215,14 @@ services:
       - postgres
     networks:
       - textailes
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.directus.rule=Host(`textailes.athenarc.gr`)"
+      - "traefik.http.routers.directus.entrypoints=web"
 
 networks:
   textailes:
-    driver: bridge
+    external: true
 
 volumes:
   minio_data:
