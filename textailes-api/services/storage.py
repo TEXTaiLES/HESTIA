@@ -24,7 +24,7 @@ minio_client = Minio(
     secure=False
 )
 
-def set_public_read_policy() -> None:
+def set_public_read_policy(bucket_name: str) -> None:
     """
     Sets the bucket policy to allow public read (download) access.
     Required for generating public URLs for artifacts.
@@ -33,25 +33,31 @@ def set_public_read_policy() -> None:
         policy = {
             "Version": "2012-10-17",
             "Statement": [
-                {"Effect": "Allow", "Principal": {"AWS": "*"}, "Action": "s3:GetObject", "Resource": f"arn:aws:s3:::{MINIO_ARTIFACT_BUCKET}/*"}
+                {
+                    "Effect": "Allow",
+                    "Principal": {"AWS": "*"},
+                    "Action": "s3:GetObject",
+                    "Resource": f"arn:aws:s3:::{bucket_name}/*"
+                }
             ]
         }
-        minio_client.set_bucket_policy(MINIO_ARTIFACT_BUCKET, json.dumps(policy))
-        logger.info(f"Public read policy applied to bucket: {MINIO_ARTIFACT_BUCKET}")
+        minio_client.set_bucket_policy(bucket_name, json.dumps(policy))
+        logger.info(f"Public read policy applied to: {bucket_name}")
     except S3Error as e:
-        logger.error(f"Error setting bucket policy: {e}")
+        logger.error(f"Error setting policy for {bucket_name}: {e}")
 
-def init_minio_bucket() -> None:
+def init_minio_bucket(bucket_name: str) -> None:
     """
     Ensures the default buckets exists.
     """
     try:
-        for minio_bucket in [MINIO_ARTIFACT_BUCKET, MINIO_ROBOT_BUCKET]:
-            if not minio_client.bucket_exists(minio_bucket):
-                minio_client.make_bucket(minio_bucket)
-                logger.info(f"Created bucket: {minio_bucket}")
+        if not minio_client.bucket_exists(bucket_name):
+            minio_client.make_bucket(bucket_name)
+            logger.info(f"Created bucket: {bucket_name}")
+        else:
+            logger.info(f"Bucket already exists: {bucket_name}")
     except S3Error as e:
-        logger.error(f"MinIO Error during init: {e}")
+        logger.error(f"Error checking/creating bucket {bucket_name}: {e}")
 
 def build_public_url(bucket_name: str, object_name: str) -> str:
     """
