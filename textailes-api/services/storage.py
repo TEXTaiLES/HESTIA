@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 MINIO_ENDPOINT = os.environ.get('MINIO_ENDPOINT', 'minio:9000')
 MINIO_ACCESS_KEY = os.environ.get('MINIO_ACCESS_KEY')
 MINIO_SECRET_KEY = os.environ.get('MINIO_SECRET_KEY')
-MINIO_BUCKET = 'artifacts'
+MINIO_ARTIFACT_BUCKET = 'artifacts'
+MINIO_ROBOT_BUCKET = 'robot-images'
 PUBLIC_MINIO_ENDPOINT = os.environ.get("PUBLIC_MINIO_ENDPOINT", "localhost:9000")
 PUBLIC_MINIO_SCHEME = os.environ.get("PUBLIC_MINIO_SCHEME", "https")
 
@@ -32,22 +33,23 @@ def set_public_read_policy() -> None:
         policy = {
             "Version": "2012-10-17",
             "Statement": [
-                {"Effect": "Allow", "Principal": {"AWS": "*"}, "Action": "s3:GetObject", "Resource": f"arn:aws:s3:::{MINIO_BUCKET}/*"}
+                {"Effect": "Allow", "Principal": {"AWS": "*"}, "Action": "s3:GetObject", "Resource": f"arn:aws:s3:::{MINIO_ARTIFACT_BUCKET}/*"}
             ]
         }
-        minio_client.set_bucket_policy(MINIO_BUCKET, json.dumps(policy))
-        logger.info(f"Public read policy applied to bucket: {MINIO_BUCKET}")
+        minio_client.set_bucket_policy(MINIO_ARTIFACT_BUCKET, json.dumps(policy))
+        logger.info(f"Public read policy applied to bucket: {MINIO_ARTIFACT_BUCKET}")
     except S3Error as e:
         logger.error(f"Error setting bucket policy: {e}")
 
 def init_minio_bucket() -> None:
     """
-    Ensures the default artifact bucket exists.
+    Ensures the default buckets exists.
     """
     try:
-        if not minio_client.bucket_exists(MINIO_BUCKET):
-            minio_client.make_bucket(MINIO_BUCKET)
-            logger.info(f"Created bucket: {MINIO_BUCKET}")
+        for minio_bucket in [MINIO_ARTIFACT_BUCKET, MINIO_ROBOT_BUCKET]:
+            if not minio_client.bucket_exists(minio_bucket):
+                minio_client.make_bucket(minio_bucket)
+                logger.info(f"Created bucket: {minio_bucket}")
     except S3Error as e:
         logger.error(f"MinIO Error during init: {e}")
 

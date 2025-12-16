@@ -11,7 +11,7 @@ from services.database import get_db_connection
 from services.storage import (
     minio_client,
     build_public_url,
-    MINIO_BUCKET
+    MINIO_ARTIFACT_BUCKET
 )
 from services.messaging import (
     send_avro_message,
@@ -110,13 +110,13 @@ class ArtifactResource(Resource):
         object_name = f"{artifact_id}/{filename}"
 
         minio_client.put_object(
-            MINIO_BUCKET, object_name, io.BytesIO(file_data), len(file_data),
+            MINIO_ARTIFACT_BUCKET, object_name, io.BytesIO(file_data), len(file_data),
             content_type=file.content_type or 'application/octet-stream'
         )
 
         # 2. Prepare Metadata
-        location = f"s3://{MINIO_BUCKET}/{object_name}"
-        public_url = build_public_url(MINIO_BUCKET, object_name)
+        location = f"s3://{MINIO_ARTIFACT_BUCKET}/{object_name}"
+        public_url = build_public_url(MINIO_ARTIFACT_BUCKET, object_name)
 
         record = {
             "artifact_id": artifact_id, "title": title, "filename": filename,
@@ -130,7 +130,8 @@ class ArtifactResource(Resource):
 
         # 4. Notify Listeners
         notification = {
-            "artifact_id": artifact_id, "event_type": "artifact_uploaded",
+            # QUESTION: Should 'artifact_uploaded' get replaced with TOPIC_ARTIFACT_UPLOADED ?
+            "artifact_id": artifact_id, "event_type": TOPIC_ARTIFACT_UPLOADED,
             "event_timestamp": datetime.now(timezone.utc).isoformat()
         }
         send_simple_message(TOPIC_ARTIFACT_UPLOADED, artifact_id, notification)

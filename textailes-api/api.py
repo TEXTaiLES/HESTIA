@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 # Resources
 from resources.artifact import ArtifactResource, ArtifactItemResource
 from resources.sensor import SensorReadingResource
+from resources.robot import RobotImageResource
 
 app = Flask(__name__)
 
@@ -31,6 +32,7 @@ api = Api(app)
 api.add_resource(ArtifactResource, '/artifacts')
 api.add_resource(ArtifactItemResource, '/artifacts/<string:artifact_id>')
 api.add_resource(SensorReadingResource, '/sensor-readings')
+api.add_resource(RobotImageResource, '/robot-images')
 
 @app.route('/health')
 def health_check():
