@@ -3,4 +3,5 @@
 textailesdocker/minio_data/
 textailesdocker/pg_data/
 textailesdocker/plugins/
+textailesdocker/directus_uploads
 textailesdocker/.env
