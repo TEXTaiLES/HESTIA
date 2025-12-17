@@ -8,9 +8,12 @@ def create_scene_object(urls, collaborative = True):
     if isinstance(urls, str):
         urls = [urls]
 
+    if not urls:
+        raise ValueError("No urls provided")
+
     # Mesh names
     name_list = [
-        urlparse(u).path.rstrip("/").split("/")[-1]
+        get_name_from_url(u)
         for u in urls
     ]
     
@@ -18,7 +21,7 @@ def create_scene_object(urls, collaborative = True):
     nodes = {}
 	
     for url in urls:
-        name = urlparse(url).path.rstrip("/").split[-1]
+        name = get_name_from_url(url)
         nodes.setdefault(name, {"urls": []})["urls"].append(url)
 
     # Rest of the logic is handled by THOTH
@@ -40,10 +43,18 @@ def create_scene_name(urls):
     if isinstance(urls, str):
         urls = [urls]
 
+    if not urls:
+        raise ValueError("No urls provided")
+    
     # Current datetime
     s = datetime.now().strftime("%Y%m%d%H%M")
 
     # Take the first url for the name
-    name = urlparse(urls[0]).path.rstrip("/").split("/")[-1]
+    name = get_name_from_url(urls[0])
 
-    return "${name}_${s}"
+    return str(f"${name}_${s}")
+
+
+def get_name_from_url(url):
+    """Get model name from model url"""
+    return str(urlparse(url).path.rstrip("/").split("/")[-1])
