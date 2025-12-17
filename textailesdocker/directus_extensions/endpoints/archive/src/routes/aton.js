@@ -24,23 +24,23 @@ export default (router, { services }) => {
 	 */
 	router.post('/aton/scene/:artefactId', async (req, res) => {
 		try {
-			const costumesService = new ItemsService('costumes', {
+			const artefactsService = new ItemsService('artefacts', {
 				schema: req.schema,
 				accountability: null,
 			});
 
-			const costumes = await costumesService.readByQuery({
+			const artefacts = await artefactsService.readByQuery({
 				fields: ['id', 'title', 'gltf_file', 'obj_file', 'obj_files.directus_files_id'],
 				filter: { id: { _eq: req.params.artefactId } },
 				limit: 1
 			});
 
-			if (!costumes || costumes.length === 0) {
+			if (!artefacts || artefacts.length === 0) {
 				return res.status(404).json({ error: 'Artefact not found' });
 			}
 
-			const costume = costumes[0];
-			const modelFile = costume.gltf_file || costume.obj_file;
+			const artefact = artefacts[0];
+			const modelFile = artefact.gltf_file || artefact.obj_file;
 			
 			if (!modelFile) {
 				return res.status(400).json({ error: 'No 3D model available for this artefact' });
@@ -48,23 +48,23 @@ export default (router, { services }) => {
 
 			// Construct the full URL to the model
 			const baseUrl = `${req.protocol}://${req.get('host')}`;
-			const relatedFileIds = costume.obj_files?.map(f => f.directus_files_id).filter(Boolean) || [];
+			const relatedFileIds = artefact.obj_files?.map(f => f.directus_files_id).filter(Boolean) || [];
 			let modelUrl = `${baseUrl}/archive/assets/${modelFile}`;
-			if (costume.obj_file && relatedFileIds.length > 0) {
+			if (artefact.obj_file && relatedFileIds.length > 0) {
 				modelUrl += `?obj_files=${relatedFileIds.join(',')}`;
 			}
 
 			// Call ATON API v2 to create the scene
 			const sceneData = await createAtonScene(
-				costume.id,
-				costume.title,
+				artefact.id,
+				artefact.title,
 				modelUrl
 			);
 
 			res.json({
 				...sceneData,
-				artefactId: costume.id,
-				artefactTitle: costume.title,
+				artefactId: artefact.id,
+				artefactTitle: artefact.title,
 				modelUrl: modelUrl
 			});
 
@@ -151,23 +151,23 @@ export default (router, { services }) => {
 	router.get('/aton/scene/:artefactId/url', async (req, res) => {
 		try {
 			// Get artefact data from Directus database
-			const costumesService = new ItemsService('costumes', {
+			const artefactsService = new ItemsService('artefacts', {
 				schema: req.schema,
 				accountability: null,
 			});
 
-			const costumes = await costumesService.readByQuery({
+			const artefacts = await artefactsService.readByQuery({
 				fields: ['id', 'title', 'gltf_file', 'obj_file', 'obj_files.directus_files_id'],
 				filter: { id: { _eq: req.params.artefactId } },
 				limit: 1
 			});
 
-			if (!costumes || costumes.length === 0) {
+			if (!artefacts || artefacts.length === 0) {
 				return res.status(404).json({ error: 'Artefact not found' });
 			}
 
-			const costume = costumes[0];
-			const sceneId = `artefact_${costume.id}`;
+			const artefact = artefacts[0];
+			const sceneId = `artefact_${artefact.id}`;
 			const user = req.query.user || ATON_CONFIG.DEFAULT_USER;
 
 			// Step 1: Try to get existing scene from ATON
@@ -175,26 +175,26 @@ export default (router, { services }) => {
 
 			// Step 2: If scene doesn't exist in ATON, create it
 			if (!sceneData) {
-				const modelFile = costume.gltf_file || costume.obj_file;
+				const modelFile = artefact.gltf_file || artefact.obj_file;
 				
 				if (!modelFile) {
 					return res.status(400).json({ error: 'No 3D model available' });
 				}
 
 				const baseUrl = `${req.protocol}://${req.get('host')}`;
-				const relatedFileIds = costume.obj_files?.map(f => f.directus_files_id).filter(Boolean) || [];
+				const relatedFileIds = artefact.obj_files?.map(f => f.directus_files_id).filter(Boolean) || [];
 				let modelUrl = `${baseUrl}/archive/assets/${modelFile}`;
-				if (costume.obj_file && relatedFileIds.length > 0) {
+				if (artefact.obj_file && relatedFileIds.length > 0) {
 					modelUrl += `?obj_files=${relatedFileIds.join(',')}`;
 				}
 
-				sceneData = await createAtonScene(costume.id, costume.title, modelUrl);
+				sceneData = await createAtonScene(artefact.id, artefact.title, modelUrl);
 			}
 
 			res.json({
 				...sceneData,
-				artefactId: costume.id,
-				artefactTitle: costume.title
+				artefactId: artefact.id,
+				artefactTitle: artefact.title
 			});
 
 		} catch (error) {
