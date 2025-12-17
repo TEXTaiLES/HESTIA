@@ -1,22 +1,23 @@
 from urllib.parse import urlparse
+from datetime import datetime
 
 
-def create_scene_object(url, collaborative = True):
+def create_scene_object(urls, collaborative = True):
     """Create an ATON/THOTH compatible scene json object"""
 
-    if isinstance(url, str):
-        url = [url]
+    if isinstance(urls, str):
+        urls = [urls]
 
     # Mesh names
     name_list = [
         urlparse(u).path.rstrip("/").split("/")[-1]
-        for u in url
+        for u in urls
     ]
     
     # Scene nodes
     nodes = {}
 	
-    for url in url:
+    for url in urls:
         name = urlparse(url).path.rstrip("/").split[-1]
         nodes.setdefault(name, {"urls": []})["urls"].append(url)
 
@@ -31,3 +32,18 @@ def create_scene_object(url, collaborative = True):
             }, 
         }
     }
+
+
+def create_scene_name(urls):
+    """Create scene name"""
+
+    if isinstance(urls, str):
+        urls = [urls]
+
+    # Current datetime
+    s = datetime.now().strftime("%Y%m%d%H%M")
+
+    # Take the first url for the name
+    name = urlparse(urls[0]).path.rstrip("/").split("/")[-1]
+
+    return "${name}_${s}"
