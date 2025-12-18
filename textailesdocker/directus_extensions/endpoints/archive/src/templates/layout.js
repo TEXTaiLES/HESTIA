@@ -11,13 +11,13 @@ export const renderFooter = () => `
                         <p>TEXTaiLES is a project funded by the European Commission under Grant Agreement n.101158328. The views and opinions expressed in this website are the sole responsibility of the author and do not necessarily reflect the views of the European Commission.</p>
                     </div>
                 </div>
-                <div class="col-lg-4 col-md-4 col-sm-12 vertical-line-right text-lg-start text-sm-center pt-4">
+                <div class="col-lg-4 col-md-4 col-sm-12 vertical-line-right text-center pt-4">
                     <p class="pt-4">
                         <img src="/archive/static/Logos/ECHOES_Logo_White_Horizontal_300x300-1024x221.png" style="max-width: 300px;">
                     </p>
 					<p>TEXTaiLES is part of the <a href="https://www.echoes-eccch.eu/">ECCCH initiative</a>.</p>
                 </div>
-                <div class="col-lg-4 col-md-4 col-sm-12 text-lg-start text-sm-center pt-4">
+                <div class="col-lg-4 col-md-4 col-sm-12 text-center pt-4">
                     <p class="pt-4">
                         <img src="/archive/static/Logos/WBF_SBFI_EU_Frameworkprogramme_E_RGB_neg_hoch.png" style="max-width: 350px;">
                     </p>

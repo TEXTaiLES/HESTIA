@@ -117,8 +117,14 @@
     /*margin-top: -5px;
    height: 70px;
    margin-left: 2em; */
-    margin-top:5px;
-    
+    margin: 10% 5px 10px 0;
+    vertical-align: bottom;
+  }
+
+  .navbar-brand span {
+    line-height: 45px;
+    font-size: 20px;
+    font-weight: 500;
   }
 
   .navbar-toggler {

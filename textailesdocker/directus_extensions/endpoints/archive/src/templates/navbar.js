@@ -35,7 +35,7 @@ export const renderNavbar = (activePage = 'home') => {
         <div class="row mt-1">
             <div class="col-md-2 col-sm-12">
                 <a class="navbar-brand" href="/archive">
-                    <img src="/archive/static/Logos/Logo-Textailes_Logo-Textailes-Colour-RGB-Hor.svg" alt="TEXTaiLES logo" style="margin-top: 10%;">Portal
+                    <img src="/archive/static/Logos/Logo-Textailes_Logo-Textailes-Colour-RGB-Hor.svg" alt="TEXTaiLES logo"><span>Portal</span>
                 </a>
             </div>
             <div class="col-md-10 col-sm-12 text-end">
@@ -54,7 +54,7 @@ export const renderNavbar = (activePage = 'home') => {
                             <a class="nav-link py-1 ${isActive('toolbox')}" href="/archive/toolbox">Toolbox</a>
                         </li>
                     </ul>
-                    <div class="d-flex align-items-center">
+                    <div class="d-flex align-items-center pb-5">
                         <a href="/admin/login" class="text-decoration-none">
                             <img src="/archive/static/Icons/header_login_icon.png" alt="Login" style="height: 30px;">
                         </a>
