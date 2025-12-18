@@ -6,7 +6,7 @@
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'Lexend Deca', sans-serif;
     color: #303032 !important;
   }
 
@@ -117,8 +117,14 @@
     /*margin-top: -5px;
    height: 70px;
    margin-left: 2em; */
-    margin-top:5px;
-    
+    margin: 10% 5px 10px 0;
+    vertical-align: bottom;
+  }
+
+  .navbar-brand span {
+    line-height: 45px;
+    font-size: 20px;
+    font-weight: 500;
   }
 
   .navbar-toggler {
@@ -1634,8 +1640,8 @@
     font-size: 24px;
   }
 
-  /* costume */
-  #costume-model {
+  /* Artefact */
+  #artefact-model {
     width: 80%;
     height: 500px;
     margin: auto;
@@ -1643,9 +1649,7 @@
     /* box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 40px rgba(0, 0, 0, 0.1) inset; */
   }
 
-  #costume-model:before
-  /* ,#costume-model:after */
-  {
+  #artefact-model:before {
     content: "";
     position: absolute;
     z-index: -1;
@@ -1658,7 +1662,7 @@
     border-radius: 100px / 10px;
   }
 
-  #costume-model:after {
+  #artefact-model:after {
     right: 10px;
     left: auto;
     transform: skew(8deg) rotate(3deg);

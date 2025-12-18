@@ -90,7 +90,7 @@ ${renderNavbar('collections')}
         <div class="col-0 col-lg-2"></div>
         <div class="col-12 col-lg-8">
             <div class="mt-3 mb-4">
-                <div id="costume-model" style="height: 555px;">
+                <div id="artefact-model" style="height: 555px;">
                    <model-viewer
                      src="${modelUrl}"
                      camera-controls
@@ -374,7 +374,7 @@ ${renderFooter()}`;
 				title: `${artefact.title || 'Artefact'} - Digital Textailes Archive`,
 				content,
 				includeModelViewer: true,
-				bodyClass: 'id="costume" tabindex="0"',
+				bodyClass: 'id="artefact" tabindex="0"',
 				cspPolicy: CSP_POLICY
 			});
 
