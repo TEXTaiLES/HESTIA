@@ -72,7 +72,7 @@ ${renderFooter()}`;
     // Connects to Directus database.
 	const artefactsService = new ItemsService('artefacts', {
 		schema: req.schema,
-		accountability: req.accountability,
+		accountability: null,
 	});
 
 	// Fetches all artefacts from database.
