@@ -27,7 +27,7 @@ export const renderFooter = () => `
     </div>
 </footer>`;
 
-export const renderHtmlPage = ({ title, content, includeModelViewer = false, bodyClass = '', cspPolicy }) => `<!DOCTYPE html>
+export const renderHtmlPage = ({ title, content, includeModelViewer = false, bodyClass = '', cspPolicy = '' }) => `<!DOCTYPE html>
 <html lang="en" dir="ltr" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">

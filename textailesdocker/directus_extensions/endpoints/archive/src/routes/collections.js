@@ -1,7 +1,7 @@
 import { CSP_POLICY, USE_CASES, USE_CASE_MAP } from '../utils/constants.js';
 import { matchesByUseCase } from '../utils/helpers.js';
 import { renderNavbar } from '../templates/navbar.js';
-import { renderLogin } from '../templates/login.js';
+import { renderLoginPage } from '../templates/login.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 
 export default (router, { services }) => {
@@ -9,6 +9,10 @@ export default (router, { services }) => {
 
 	router.get('/collections/:usecase?', async (req, res) => {
 		try {
+			// Set response headers.
+			res.set('Content-Type', 'text/html');
+			res.set('Content-Security-Policy', CSP_POLICY);
+
 			// Check if user is authenticated by checking the (default) 'directus_refresh_token' cookie.
 			// Validation is occured by refreshing the token.
 			// See: https://github.com/directus/directus/discussions/10841
@@ -29,6 +33,15 @@ export default (router, { services }) => {
 					}
 				} catch { }  // refresh will throw an exception for invalid credentials or a suspended user, so it should fail silenty.
 			}
+			// If not authenticated, show login message.
+			if (!isAuthenticated) {
+				const html = renderLoginPage({
+					navbar: 'collections',
+					title: 'Collections',
+					subtitle: 'Explore Our Cultural Heritage Archive',
+				});
+				return res.send(html);
+			}
 
 			const rawParam = req.params.usecase;
 			const showCards = !rawParam;
@@ -39,34 +52,6 @@ export default (router, { services }) => {
 			} else if (usecase.startsWith('use-case-')) {
 				const useCaseNum = usecase.replace('use-case-', '');
 				usecase = USE_CASE_MAP[useCaseNum] || usecase; // e.g., '1' -> '1. Textile Artefacts'
-			}
-
-			// If not authenticated, show login message.
-			if (!isAuthenticated) {
-				const content = `
-${renderNavbar('collections')}
-
-<!-- Hero Section -->
-<div class="hero-section">
-    <div class="container">
-        <h1>Collections</h1>
-        <p>Explore Our Cultural Heritage Archives</p>
-    </div>
-</div>
-
-${renderLogin()}
-${renderFooter()}`;
-
-				const html = renderHtmlPage({
-					title: 'Collections - Digital Textailes Archive',
-					content,
-					includeModelViewer: false,
-					cspPolicy: CSP_POLICY
-				});
-
-				res.set('Content-Type', 'text/html');
-				res.set('Content-Security-Policy', CSP_POLICY);
-				return res.send(html);
 			}
 
     // Connects to Directus database.
@@ -188,9 +173,6 @@ ${renderFooter()}`;
 				includeModelViewer: !showCards,
 				cspPolicy: CSP_POLICY
 			});
-
-			res.set('Content-Type', 'text/html');
-			res.set('Content-Security-Policy', CSP_POLICY);
 			res.send(html);
 		} catch (error) {
 			console.error('Collections error:', error);

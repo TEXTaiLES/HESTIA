@@ -1,11 +1,14 @@
-export const renderLogin = () => `
+import { renderNavbar } from './navbar.js';
+import { renderHtmlPage, renderFooter } from './layout.js';
+
+export const renderLoginBox = () => `
 <div class="container mb-5">
     <div class="row mt-5">
         <div class="col-12 text-center">
             <div class="alert alert-info" role="alert" style="max-width: 600px; margin: 0 auto;">
                 <i class="fas fa-lock fa-3x mb-3"></i>
                 <h4>Authentication Required</h4>
-                <p>Collections can be accessed with login</p>
+                <p>This page requires login to access.</p>
                 
                 <!-- Login Form -->
                 <form id="loginForm" class="mt-4">
@@ -62,3 +65,22 @@ export const renderLogin = () => `
         </div>
     </div>
 </div>`;
+
+export const renderLoginPage = ({ navbar = 'home', title = 'Please login', subtitle = 'This page requires login to access.' }) => {
+    const content = `
+${renderNavbar(navbar)}
+<!-- Hero Section -->
+<div class="hero-section">
+    <div class="container">
+        <h1>${title}</h1>
+        <p>${subtitle}</p>
+    </div>
+</div>
+${renderLoginBox()}
+${renderFooter()}
+`
+    return renderHtmlPage({
+        title: title + ' - Digital Textailes Archive',
+        content
+    });
+};
