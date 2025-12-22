@@ -1,6 +1,7 @@
 import { CSP_POLICY, USE_CASES, USE_CASE_MAP } from '../utils/constants.js';
 import { matchesByUseCase } from '../utils/helpers.js';
 import { renderNavbar } from '../templates/navbar.js';
+import { renderLogin } from '../templates/login.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 
 export default (router, { services }) => {
@@ -8,6 +9,10 @@ export default (router, { services }) => {
 
 	router.get('/collections/:usecase?', async (req, res) => {
 		try {
+			// Check if user is authenticated via accountability or access_token query param.
+			// Directus sets req.accountability when a valid auth token is present in headers or query.
+			let isAuthenticated = req.accountability && req.accountability.user;
+
 			const rawParam = req.params.usecase;
 			const showCards = !rawParam;
 			
@@ -19,10 +24,45 @@ export default (router, { services }) => {
 				usecase = USE_CASE_MAP[useCaseNum] || usecase; // e.g., '1' -> '1. Textile Artefacts'
 			}
 
+			// If not authenticated, show login message
+
+
+
+			if (!isAuthenticated) {
+				const content = `
+${renderNavbar('collections')}
+
+<!-- Hero Section -->
+<div class="hero-section">
+    <div class="container">
+        <h1>Collections</h1>
+        <p>Explore Our Cultural Heritage Archives</p>
+    </div>
+</div>
+
+${renderLogin('collections')}
+${renderFooter()}`;
+
+				const html = renderHtmlPage({
+					title: 'Collections - Digital Textailes Archive',
+					content,
+					includeModelViewer: false,
+					cspPolicy: CSP_POLICY
+				});
+
+				res.set('Content-Type', 'text/html');
+				res.set('Content-Security-Policy', CSP_POLICY);
+				return res.send(html);
+			}
+
+    // Get access token from query to pass to links.
+	const accessToken = req.query.access_token || '';
+	const tokenParam = accessToken ? `?access_token=${accessToken}` : '';
+
     // Connects to Directus database.
 	const artefactsService = new ItemsService('artefacts', {
 		schema: req.schema,
-		accountability: null,
+		accountability: req.accountability,
 	});
 
 	// Fetches all artefacts from database.
@@ -44,7 +84,7 @@ export default (router, { services }) => {
 	const artefactsHtml = filteredArtefacts.length
 				? filteredArtefacts.map(a => `
 					<div class="col-md-4 col-sm-6 mb-4">
-						<a href="/archive/artefacts/${a.id}" class="text-decoration-none">
+						<a href="/archive/artefacts/${a.id}${tokenParam}" class="text-decoration-none">
 							<div class="card h-100">
 								<div style="height: 200px; background: #f8f9fa; display: flex; align-items: center; justify-content: center;">
 									${a.gltf_file || a.obj_file ? `<model-viewer 
@@ -76,9 +116,10 @@ const allItemsHtml = artefactsHtml
 const useCaseMenu = USE_CASES.map(uc => {
 				const isActive = uc.key === usecase.toLowerCase();
 				const useCaseNumber = uc.key.match(/^(\d+)\./)?.[1];
-				const url = uc.key === 'all' 
+				const baseUrl = uc.key === 'all' 
 					? '/archive/collections/all-use-cases' 
 					: `/archive/collections/use-case-${useCaseNumber}`;
+				const url = baseUrl + tokenParam;
 				
 				const count = uc.key === 'all' 
 					? allArtefacts.length
@@ -124,7 +165,7 @@ ${renderNavbar('collections')}
 				<div class="row mt-4">
 					${allItemsHtml}
 				</div>
-				<p class="mt-3"><a href="/archive/collections">← Back to Collections</a></p>
+				<p class="mt-3"><a href="/archive/collections${tokenParam}">← Back to Collections</a></p>
 			`}
 		</div>
     </div>
