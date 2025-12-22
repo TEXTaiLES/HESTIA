@@ -1,13 +1,49 @@
 import { CSP_POLICY, ATON_CONFIG } from '../utils/constants.js';
+import { renderLoginPage } from '../templates/login.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 import { getAtonScene } from '../utils/helpers.js';
 
 export default (router, { services }) => {
-	const { ItemsService } = services;
+	const { AuthenticationService, ItemsService } = services;
 
 	router.get('/artefacts/:id', async (req, res) => {
 		try {
+            // Set response headers.
+            res.set('Content-Type', 'text/html');
+            res.set('Content-Security-Policy', CSP_POLICY);
+
+            // Check if user is authenticated by checking the (default) 'directus_refresh_token' cookie.
+            // Validation is occured by refreshing the token.
+            // See: https://github.com/directus/directus/discussions/10841
+            let isAuthenticated = false;
+            if (req.cookies.directus_refresh_token) {
+                const auth = new AuthenticationService({
+                    schema: req.schema,
+                    accountability: req.accountability,
+                });
+                try {
+                    const result = await auth.refresh(req.cookies.directus_refresh_token, { session: true });
+                    if (result.refreshToken) {
+                        isAuthenticated = true;
+                        res.cookie('directus_refresh_token', result.refreshToken, {
+                            maxAge: result.expires,
+                            httpOnly: true
+                        });
+                    }
+                } catch { }  // refresh will throw an exception for invalid credentials or a suspended user, so it should fail silenty.
+            }
+            // If not authenticated, show login message.
+            if (!isAuthenticated) {
+                const html = renderLoginPage({
+                    navbar: 'collections',
+                    title: 'Collections',
+                    subtitle: 'Explore Our Cultural Heritage Archive',
+                });
+                return res.send(html);
+            }
+
+            // Build the Artefact page.
 			const artefactsService = new ItemsService('artefacts', {
 				schema: req.schema,
 				accountability: null,
@@ -377,9 +413,6 @@ ${renderFooter()}`;
 				bodyClass: 'id="artefact" tabindex="0"',
 				cspPolicy: CSP_POLICY
 			});
-
-			res.set('Content-Type', 'text/html');
-			res.set('Content-Security-Policy', CSP_POLICY);
 			res.send(html);
 		} catch (error) {
 			console.error('Artefact view error:', error);
