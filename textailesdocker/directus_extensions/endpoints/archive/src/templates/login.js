@@ -1,4 +1,4 @@
-export const renderLogin = (url = '') => `
+export const renderLogin = () => `
 <div class="container mb-5">
     <div class="row mt-5">
         <div class="col-12 text-center">
@@ -38,28 +38,15 @@ export const renderLogin = (url = '') => `
                             const response = await fetch('/auth/login', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ email, password }),
-                                credentials: 'include'
+                                body: JSON.stringify({ email, password, mode: 'cookie' })
                             });
                             
                             if (response.ok) {
-                                const data = await response.json();
-                                // Check if we got an access token
-                                const token = data?.data?.access_token || data?.access_token;
-                                
-                                if (token) {
-                                    // Store token in sessionStorage and redirect with token as query param
-                                    sessionStorage.setItem('directus_token', token);
-                                    
-                                    successDiv.style.display = 'block';
-                                    // Redirect to same page with token to authenticate
-                                    setTimeout(() => {
-                                        window.location.href = '/archive/${url}?access_token=' + token;
-                                    }, 1000);
-                                } else {
-                                    errorDiv.textContent = 'Authentication succeeded but no access token was returned';
-                                    errorDiv.style.display = 'block';
-                                }
+                                successDiv.style.display = 'block';
+                                // Reload the page.
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 1000);
                             } else {
                                 const data = await response.json();
                                 errorDiv.textContent = data.errors?.[0]?.message || 'Invalid username or password';

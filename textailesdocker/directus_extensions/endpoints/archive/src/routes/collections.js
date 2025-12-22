@@ -5,13 +5,30 @@ import { renderLogin } from '../templates/login.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 
 export default (router, { services }) => {
-	const { ItemsService } = services;
+	const { AuthenticationService, ItemsService } = services;
 
 	router.get('/collections/:usecase?', async (req, res) => {
 		try {
-			// Check if user is authenticated via accountability or access_token query param.
-			// Directus sets req.accountability when a valid auth token is present in headers or query.
-			let isAuthenticated = req.accountability && req.accountability.user;
+			// Check if user is authenticated by checking the (default) 'directus_refresh_token' cookie.
+			// Validation is occured by refreshing the token.
+			// See: https://github.com/directus/directus/discussions/10841
+			let isAuthenticated = false;
+			if (req.cookies.directus_refresh_token) {
+				const auth = new AuthenticationService({
+					schema: req.schema,
+					accountability: req.accountability,
+				});
+				try {
+					const result = await auth.refresh(req.cookies.directus_refresh_token, { session: true });
+					if (result.refreshToken) {
+						isAuthenticated = true;
+						res.cookie('directus_refresh_token', result.refreshToken, {
+							maxAge: result.expires,
+							httpOnly: true
+						});
+					}
+				} catch { }  // refresh will throw an exception for invalid credentials or a suspended user, so it should fail silenty.
+			}
 
 			const rawParam = req.params.usecase;
 			const showCards = !rawParam;
@@ -24,10 +41,7 @@ export default (router, { services }) => {
 				usecase = USE_CASE_MAP[useCaseNum] || usecase; // e.g., '1' -> '1. Textile Artefacts'
 			}
 
-			// If not authenticated, show login message
-
-
-
+			// If not authenticated, show login message.
 			if (!isAuthenticated) {
 				const content = `
 ${renderNavbar('collections')}
@@ -40,7 +54,7 @@ ${renderNavbar('collections')}
     </div>
 </div>
 
-${renderLogin('collections')}
+${renderLogin()}
 ${renderFooter()}`;
 
 				const html = renderHtmlPage({
@@ -54,10 +68,6 @@ ${renderFooter()}`;
 				res.set('Content-Security-Policy', CSP_POLICY);
 				return res.send(html);
 			}
-
-    // Get access token from query to pass to links.
-	const accessToken = req.query.access_token || '';
-	const tokenParam = accessToken ? `?access_token=${accessToken}` : '';
 
     // Connects to Directus database.
 	const artefactsService = new ItemsService('artefacts', {
@@ -84,7 +94,7 @@ ${renderFooter()}`;
 	const artefactsHtml = filteredArtefacts.length
 				? filteredArtefacts.map(a => `
 					<div class="col-md-4 col-sm-6 mb-4">
-						<a href="/archive/artefacts/${a.id}${tokenParam}" class="text-decoration-none">
+						<a href="/archive/artefacts/${a.id}" class="text-decoration-none">
 							<div class="card h-100">
 								<div style="height: 200px; background: #f8f9fa; display: flex; align-items: center; justify-content: center;">
 									${a.gltf_file || a.obj_file ? `<model-viewer 
@@ -116,10 +126,9 @@ const allItemsHtml = artefactsHtml
 const useCaseMenu = USE_CASES.map(uc => {
 				const isActive = uc.key === usecase.toLowerCase();
 				const useCaseNumber = uc.key.match(/^(\d+)\./)?.[1];
-				const baseUrl = uc.key === 'all' 
+				const url = uc.key === 'all' 
 					? '/archive/collections/all-use-cases' 
 					: `/archive/collections/use-case-${useCaseNumber}`;
-				const url = baseUrl + tokenParam;
 				
 				const count = uc.key === 'all' 
 					? allArtefacts.length
@@ -165,7 +174,7 @@ ${renderNavbar('collections')}
 				<div class="row mt-4">
 					${allItemsHtml}
 				</div>
-				<p class="mt-3"><a href="/archive/collections${tokenParam}">← Back to Collections</a></p>
+				<p class="mt-3"><a href="/archive/collections">← Back to Collections</a></p>
 			`}
 		</div>
     </div>
