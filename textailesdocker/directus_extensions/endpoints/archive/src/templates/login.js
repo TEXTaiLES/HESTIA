@@ -80,7 +80,7 @@ ${renderLoginBox()}
 ${renderFooter()}
 `
     return renderHtmlPage({
-        title: title + ' - Digital Textailes Archive',
+        title: title + ' - Digital TEXTaiLES Archive',
         content
     });
 };

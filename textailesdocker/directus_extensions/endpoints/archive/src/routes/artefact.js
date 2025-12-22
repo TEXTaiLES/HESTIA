@@ -407,7 +407,7 @@ ${renderNavbar('collections')}
 ${renderFooter()}`;
 
 			const html = renderHtmlPage({
-				title: `${artefact.title || 'Artefact'} - Digital Textailes Archive`,
+				title: `${artefact.title || 'Artefact'} - Digital TEXTaiLES Archive`,
 				content,
 				includeModelViewer: true,
 				bodyClass: 'id="artefact" tabindex="0"',

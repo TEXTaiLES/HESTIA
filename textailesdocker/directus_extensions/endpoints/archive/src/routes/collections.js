@@ -168,7 +168,7 @@ ${renderNavbar('collections')}
 ${renderFooter()}`;
 
 			const html = renderHtmlPage({
-				title: 'Collections - Digital Textailes Archive',
+				title: 'Collections - Digital TEXTaiLES Archive',
 				content,
 				includeModelViewer: !showCards,
 				cspPolicy: CSP_POLICY

@@ -92,7 +92,7 @@ ${renderNavbar('toolbox')}
 ${renderFooter()}`;
 
 			const html = renderHtmlPage({
-				title: 'Toolbox - Digital Textailes Archive',
+				title: 'Toolbox - Digital TEXTaiLES Archive',
 				content,
 				cspPolicy: CSP_POLICY
 			});
