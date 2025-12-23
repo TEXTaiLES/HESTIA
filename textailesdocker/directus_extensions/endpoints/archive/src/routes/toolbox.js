@@ -14,31 +14,29 @@ export default (router, { services }) => {
 				{ name: 'AmalthAI', image: 'Logos/Tools/AmalthAI_Logo.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/AmalthAI-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/AmalthAI' },
-					{ label: 'Server', url: '#' }
+					{ label: 'Server', url: 'https://amalthai.textailes.athenarc.gr' }
 				]},
 				{ name: 'THOTH', image: 'Logos/Tools/thoth-logo.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/thoth-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/THOTH' },
-					{ label: 'Server', url: '#' }
+					{ label: 'Server', url: 'https://thoth.textailes.athenarc.gr' }
 				]},
 				{ name: 'ZEUSbot', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/UGV-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/ZEUSbot' },	
 				]},
-				{ name: 'NEFELE', image: 'Logos/Tools/nephele_logo_2.png', links: [
+				{ name: 'NEPHELE', image: 'Logos/Tools/nephele_logo_2.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/SAMplify_SuGaR-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/SAMplify_SuGaR' },
 					{ label: 'Server', url: '#' }
 				]},
 				{ name: 'HESTIA', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png', links: [
 					{ label: 'Documentation', url: 'http://textailes.athenarc.gr:5000/docs' },
-					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/HESTIA' },
-					{ label: 'Server', url: '#' }
+					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/HESTIA' }
 				]},
 				{ name: 'INDRA', image: 'Logos/Tools/env_cond_mon_logo.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/Environmental-Condition-Monitoring-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/Environmental-Condition-Monitoring' },
-					{ label: 'Server', url: '#' }
 				]}
 			];
 
