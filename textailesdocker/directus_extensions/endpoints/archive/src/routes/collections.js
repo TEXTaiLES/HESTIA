@@ -117,7 +117,7 @@ const useCaseMenu = USE_CASES.map(uc => {
 			}).join('\n');
 
 			const content = `
-${renderNavbar('collections')}
+${renderNavbar('collections', true)}
 
 <!-- Hero Section -->
 <div class="hero-section">

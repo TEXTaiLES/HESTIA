@@ -68,7 +68,7 @@ export const renderLoginBox = () => `
 
 export const renderLoginPage = ({ navbar = 'home', title = 'Please login', subtitle = 'This page requires login to access.' }) => {
     const content = `
-${renderNavbar(navbar)}
+${renderNavbar(navbar, false)}
 <!-- Hero Section -->
 <div class="hero-section">
     <div class="container">

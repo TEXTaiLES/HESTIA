@@ -1,5 +1,6 @@
-export const renderNavbar = (activePage = 'home') => {
+export const renderNavbar = (activePage = 'home', isAuthenticated = false) => {
 	const isActive = (page) => activePage === page ? 'active' : '';
+    const action = !isAuthenticated ? 'Login' : 'Logout';
 	
 	return `
 <!-- Social Media Bar -->
@@ -72,9 +73,10 @@ export const renderNavbar = (activePage = 'home') => {
                 </ul>
 
                 <!-- User icon -->
-                <div class="d-flex justify-content-center justify-content-lg-end pb-5">
-                    <a href="/admin/login" class="text-decoration-none">
-                        <img src="/archive/static/Icons/header_login_icon.png" alt="Login" style="height: 30px;">
+                <div class="d-flex justify-content-center justify-content-lg-end pb-4">
+                    <a href="/archive/user/${action.toLowerCase()}" class="text-decoration-none text-center">
+                        <img src="/archive/static/Icons/header_login_icon.png" alt="${action}" style="height: 30px;">
+                        <div class="text-black">${action}</div>
                     </a>
                 </div>
             </div>

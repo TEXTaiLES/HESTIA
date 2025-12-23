@@ -88,7 +88,7 @@ export default (router, { services }) => {
 			}
 
 			const content = `
-${renderNavbar('collections')}
+${renderNavbar('collections', true)}
 
 <div class="container mb-5">
     <div class="row mt-3">
