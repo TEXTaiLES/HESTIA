@@ -44,7 +44,7 @@ export default (router, { services }) => {
 
 	// Fetches all artefacts from database.
 	const allArtefacts = await artefactsService.readByQuery({
-		fields: ['id', 'title', 'gltf_file', 'obj_file', 'obj_files', 'use_case', 'collection', 'source', 'time_period'],
+		fields: ['id', 'title', 'thumbnail', 'use_case', 'collection', 'source', 'time_period'],
 		limit: -1
 	});
 
@@ -64,13 +64,9 @@ export default (router, { services }) => {
 						<a href="/archive/artefacts/${a.id}" class="text-decoration-none">
 							<div class="card h-100">
 								<div style="height: 200px; background: #f8f9fa; display: flex; align-items: center; justify-content: center;">
-									${a.gltf_file || a.obj_file ? `<model-viewer 
-										src="/archive/assets/${a.gltf_file || a.obj_file}${a.obj_file && a.obj_files ? '?obj_files=' + a.obj_files : ''}"
-										alt="${a.title || '3D Model'}"
-										auto-rotate
-										camera-controls
-										style="width: 100%; height: 100%;">
-									</model-viewer>` : `<div class="text-muted">No 3D model</div>`}
+									${a.thumbnail ? `<img src="/archive/assets/${a.thumbnail}"
+										alt="Thumbnail image of Artefact ${a.title}"
+										style="max-width:200px;max-height:200px;">` : `<div class="text-muted">No thumbnail</div>`}
 								</div>
 								<div class="card-body">
 					<h6 class="card-title">${a.title || 'Untitled'}</h6>
@@ -152,7 +148,7 @@ ${renderFooter()}`;
 			const html = renderHtmlPage({
 				title: 'Collections - Digital TEXTaiLES Archive',
 				content,
-				includeModelViewer: !showCards,
+				includeModelViewer: false,
 				cspPolicy: CSP_POLICY
 			});
 			res.send(html);
