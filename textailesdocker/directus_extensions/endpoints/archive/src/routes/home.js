@@ -8,21 +8,18 @@ export default (router, { services }) => {
 
 	router.get('/', async (req, res) => {
 		try {
+            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
+
+			// Get total artefact count.
             const artefactsService = new ItemsService('artefacts', {
                 schema: req.schema,
                 accountability: null,
             });
-            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
-
-			// Get total artefact count and a featured artefact.
 			const allArtefacts = await artefactsService.readByQuery({
-				fields: ['id', 'title', 'gltf_file', 'obj_file'],
+				fields: ['id'],
 				limit: -1
 			});
 			const totalArtefacts = allArtefacts.length;
-			
-			// Get a featured artefact (you can change the ID or make it random).
-			const featuredArtefact = allArtefacts[0] || {};
 
 			// TODO: Make renderHtmlPage take additional CSS and replace below.
             const html = `<!DOCTYPE html>
@@ -64,7 +61,7 @@ ${renderNavbar('home', isAuthenticated)}
     </div>
 
     <!-- Features Grid -->
-    <div class="row mb-5">
+    <div class="row mb-5 justify-content-center">
         <!-- Collections Card -->
         <div class="col-md-4 mb-4">
             <div class="card feature-card">
@@ -89,28 +86,6 @@ ${renderNavbar('home', isAuthenticated)}
                     <h3>Digital Toolbox</h3>
                     <p>Explore our comprehensive suite of tools, including our robotic imaging system, 3D reconstruction pipeline, annotation platform, and AI-powered detection, segmentation, and classification tools. Access GitHub repositories, detailed documentation, and live demos to test and implement these solutions for your own projects.</p>
                     <a href="/archive/toolbox" class="btn btn-primary">Explore Tools</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Featured Artefact Card -->
-        <div class="col-md-4 mb-4">
-            <div class="card feature-card">
-                <div class="card-body">
-                    <h3 class="text-center">Featured Artefact</h3>
-                    <div class="model-viewer-container">
-                        <model-viewer 
-                            src="/archive/assets/${featuredArtefact.gltf_file || featuredArtefact.obj_file || ''}"
-                            alt="Featured Artefact"
-                            auto-rotate
-                            camera-controls
-                            style="width: 100%; height: 100%;">
-                        </model-viewer>
-                    </div>
-                    <div class="text-center mt-3">
-                        <p class="mb-2"><strong>${featuredArtefact.title || 'Explore our collection'}</strong></p>
-                        <a href="/archive/artefacts/${featuredArtefact.id || '1'}" class="btn btn-primary btn-sm">View Details</a>
-                    </div>
                 </div>
             </div>
         </div>
