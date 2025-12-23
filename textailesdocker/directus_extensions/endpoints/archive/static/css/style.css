@@ -2579,3 +2579,21 @@ Policy
   vertical-align: top;
 }
 
+/* Alert boxes. */
+.alert.alert-info {
+  background-color: #f8f9fa;
+  border: none;
+}
+
+.alert.alert-info .btn {
+  background-color: #265d72;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: 500;
+  padding: 12px;
+  transition: all 0.3s ease;
+}
+.alert.alert-info .btn:hover, .alert.alert-info .btn:focus {
+  background-color: #467d88;
+}

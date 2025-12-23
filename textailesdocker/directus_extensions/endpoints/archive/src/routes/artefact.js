@@ -1,13 +1,31 @@
 import { CSP_POLICY, ATON_CONFIG } from '../utils/constants.js';
+import { userIsAuthenticated } from '../utils/auth.js';
+import { renderLoginPage } from '../templates/login.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 import { getAtonScene } from '../utils/helpers.js';
 
 export default (router, { services }) => {
-	const { ItemsService } = services;
+	const { AuthenticationService, ItemsService } = services;
 
 	router.get('/artefacts/:id', async (req, res) => {
 		try {
+            // Set response headers.
+            res.set('Content-Type', 'text/html');
+            res.set('Content-Security-Policy', CSP_POLICY);
+
+            // If the user is not authenticated, show the login message.
+            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
+            if (!isAuthenticated) {
+                const html = renderLoginPage({
+                    navbar: 'collections',
+                    title: 'Collections',
+                    subtitle: 'Explore Our Cultural Heritage Archive',
+                });
+                return res.send(html);
+            }
+
+            // Build the Artefact page.
 			const artefactsService = new ItemsService('artefacts', {
 				schema: req.schema,
 				accountability: null,
@@ -70,7 +88,7 @@ export default (router, { services }) => {
 			}
 
 			const content = `
-${renderNavbar('collections')}
+${renderNavbar('collections', true)}
 
 <div class="container mb-5">
     <div class="row mt-3">
@@ -371,15 +389,12 @@ ${renderNavbar('collections')}
 ${renderFooter()}`;
 
 			const html = renderHtmlPage({
-				title: `${artefact.title || 'Artefact'} - Digital Textailes Archive`,
+				title: `${artefact.title || 'Artefact'} - Digital TEXTaiLES Archive`,
 				content,
 				includeModelViewer: true,
 				bodyClass: 'id="artefact" tabindex="0"',
 				cspPolicy: CSP_POLICY
 			});
-
-			res.set('Content-Type', 'text/html');
-			res.set('Content-Security-Policy', CSP_POLICY);
 			res.send(html);
 		} catch (error) {
 			console.error('Artefact view error:', error);

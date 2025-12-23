@@ -1,17 +1,19 @@
 import { CSP_POLICY } from '../utils/constants.js';
+import { userIsAuthenticated } from '../utils/auth.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderFooter } from '../templates/layout.js';
 
 export default (router, { services }) => {
-	const { ItemsService } = services;
+	const { AuthenticationService, ItemsService } = services;
 
 	router.get('/', async (req, res) => {
-		const artefactsService = new ItemsService('artefacts', {
-			schema: req.schema,
-			accountability: null,
-		});
-
 		try {
+            const artefactsService = new ItemsService('artefacts', {
+                schema: req.schema,
+                accountability: null,
+            });
+            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
+
 			// Get total artefact count and a featured artefact.
 			const allArtefacts = await artefactsService.readByQuery({
 				fields: ['id', 'title', 'gltf_file', 'obj_file'],
@@ -44,7 +46,7 @@ export default (router, { services }) => {
 </head>
 <body>
 
-${renderNavbar('home')}
+${renderNavbar('home', isAuthenticated)}
 
 <!-- Hero Section -->
 <div class="hero-section">

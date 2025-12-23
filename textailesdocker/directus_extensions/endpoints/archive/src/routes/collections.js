@@ -1,13 +1,30 @@
 import { CSP_POLICY, USE_CASES, USE_CASE_MAP } from '../utils/constants.js';
 import { matchesByUseCase } from '../utils/helpers.js';
+import { userIsAuthenticated } from '../utils/auth.js';
+import { renderLoginPage } from '../templates/login.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 
 export default (router, { services }) => {
-	const { ItemsService } = services;
+	const { AuthenticationService, ItemsService } = services;
 
 	router.get('/collections/:usecase?', async (req, res) => {
 		try {
+			// Set response headers.
+			res.set('Content-Type', 'text/html');
+			res.set('Content-Security-Policy', CSP_POLICY);
+
+			// If the user is not authenticated, show the login message.
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
+			if (!isAuthenticated) {
+				const html = renderLoginPage({
+					navbar: 'collections',
+					title: 'Collections',
+					subtitle: 'Explore Our Cultural Heritage Archive',
+				});
+				return res.send(html);
+			}
+
 			const rawParam = req.params.usecase;
 			const showCards = !rawParam;
 			
@@ -100,7 +117,7 @@ const useCaseMenu = USE_CASES.map(uc => {
 			}).join('\n');
 
 			const content = `
-${renderNavbar('collections')}
+${renderNavbar('collections', true)}
 
 <!-- Hero Section -->
 <div class="hero-section">
@@ -133,14 +150,11 @@ ${renderNavbar('collections')}
 ${renderFooter()}`;
 
 			const html = renderHtmlPage({
-				title: 'Collections - Digital Textailes Archive',
+				title: 'Collections - Digital TEXTaiLES Archive',
 				content,
 				includeModelViewer: !showCards,
 				cspPolicy: CSP_POLICY
 			});
-
-			res.set('Content-Type', 'text/html');
-			res.set('Content-Security-Policy', CSP_POLICY);
 			res.send(html);
 		} catch (error) {
 			console.error('Collections error:', error);

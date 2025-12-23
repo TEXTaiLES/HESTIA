@@ -1,10 +1,15 @@
 import { CSP_POLICY } from '../utils/constants.js';
+import { userIsAuthenticated } from '../utils/auth.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 
-export default (router) => {
+export default (router, { services }) => {
+	const { AuthenticationService } = services;
+	
 	router.get('/toolbox', async (req, res) => {
 		try {
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
+
 			const tools = [
 				{ name: 'AmalthAI', image: 'Logos/Tools/AmalthAI_Logo.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/AmalthAI-documentation/' },
@@ -67,7 +72,7 @@ export default (router) => {
 			}).join('\n');
 
 			const content = `
-${renderNavbar('toolbox')}
+${renderNavbar('toolbox', isAuthenticated)}
 
 <!-- Hero Section -->
 <div class="hero-section">
@@ -92,7 +97,7 @@ ${renderNavbar('toolbox')}
 ${renderFooter()}`;
 
 			const html = renderHtmlPage({
-				title: 'Toolbox - Digital Textailes Archive',
+				title: 'Toolbox - Digital TEXTaiLES Archive',
 				content,
 				cspPolicy: CSP_POLICY
 			});
