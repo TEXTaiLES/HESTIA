@@ -160,7 +160,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.api.rule=Host(`api.textailes.athenarc.gr`)"
-      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=le"
 
   artifact_consumer:
     build:
@@ -218,7 +219,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.directus.rule=Host(`textailes.athenarc.gr`)"
-      - "traefik.http.routers.directus.entrypoints=web"
+      - "traefik.http.routers.directus.entrypoints=websecure"
+      - "traefik.http.routers.directus.tls.certresolver=le"
 
 networks:
   textailes:
