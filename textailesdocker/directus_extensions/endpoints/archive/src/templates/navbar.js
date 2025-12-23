@@ -32,47 +32,51 @@ export const renderNavbar = (activePage = 'home') => {
 
 <nav id="menu" class="ntnavbar navbar-expand-lg" aria-label="navbar">
     <div class="container">
-        <!-- Top row: logo + burger -->
-        <div class="row align-items-center mt-1">
-            <!-- Logo -->
-            <div class="col-8 col-lg-2">
-                <a class="navbar-brand d-flex align-items-center" href="/archive">
-                    <img src="/archive/static/Logos/Logo-Textailes_Logo-Textailes-Colour-RGB-Hor.svg" alt="TEXTaiLES logo" class="img-fluid">
-                    <span>Portal</span>
-                </a>
+        <div class="row mt-1">
+            <!-- Logo + burger -->
+            <div class="col-12 col-lg-2">
+                <div class="row align-items-center">
+                    <!-- Logo -->
+                    <div class="col-8 col-lg-12">
+                        <a class="navbar-brand d-flex align-items-center" href="/archive">
+                            <img src="/archive/static/Logos/Logo-Textailes_Logo-Textailes-Colour-RGB-Hor.svg" alt="TEXTaiLES logo" class="img-fluid">
+                            <span>Portal</span>
+                        </a>
+                    </div>
+                    <!-- Burger -->
+                    <div class="col-4 d-flex d-lg-none justify-content-end align-items-center">
+                        <button class="navbar-toggler d-flex align-items-center justify-content-center d-lg-none"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#navbarMenu"
+                                aria-controls="navbarMenu"
+                                aria-expanded="false"
+                                aria-label="Toggle navigation">
+                            <i class="fas fa-bars d-block"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
-            <!-- Burger -->
-            <div class="col-4 col-lg-10 d-flex justify-content-end align-items-center">
-                <button class="navbar-toggler d-flex align-items-center justify-content-center d-lg-none" 
-                        type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#navbarMenu"
-                        aria-controls="navbarMenu"
-                        aria-expanded="false"
-                        aria-label="Toggle navigation">
-                    <i class="fas fa-bars d-block"></i>
-                </button>
-            </div>
-        </div>
-        <!-- Collapsible menu -->
-        <div class="collapse navbar-collapse horizontal_border" id="navbarMenu">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0 nt_mtop text-uppercase text-center text-lg-start">
-                <li class="nav-item">
-                    <a class="nav-link py-1 ${isActive('home')}" href="/archive">Home</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link py-1 ${isActive('collections')}" href="/archive/collections">Collections</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link py-1 ${isActive('toolbox')}" href="/archive/toolbox">Toolbox</a>
-                </li>
-            </ul>
+            <!-- Collapsible menu -->
+            <div class="collapse navbar-collapse horizontal_border col-12 col-lg-10" id="navbarMenu">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 nt_mtop text-uppercase text-center text-lg-start">
+                    <li class="nav-item">
+                        <a class="nav-link py-1 ${isActive('home')}" href="/archive">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link py-1 ${isActive('collections')}" href="/archive/collections">Collections</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link py-1 ${isActive('toolbox')}" href="/archive/toolbox">Toolbox</a>
+                    </li>
+                </ul>
 
-            <!-- User icon -->
-            <div class="d-flex justify-content-center justify-content-lg-end pb-3 pb-lg-0">
-                <a href="/admin/login" class="text-decoration-none">
-                    <img src="/archive/static/Icons/header_login_icon.png" alt="Login" style="height: 30px;">
-                </a>
+                <!-- User icon -->
+                <div class="d-flex justify-content-center justify-content-lg-end pb-5">
+                    <a href="/admin/login" class="text-decoration-none">
+                        <img src="/archive/static/Icons/header_login_icon.png" alt="Login" style="height: 30px;">
+                    </a>
+                </div>
             </div>
         </div>
     </div>
