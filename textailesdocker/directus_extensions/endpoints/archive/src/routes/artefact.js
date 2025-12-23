@@ -1,4 +1,5 @@
 import { CSP_POLICY, ATON_CONFIG } from '../utils/constants.js';
+import { userIsAuthenticated } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
@@ -13,27 +14,8 @@ export default (router, { services }) => {
             res.set('Content-Type', 'text/html');
             res.set('Content-Security-Policy', CSP_POLICY);
 
-            // Check if user is authenticated by checking the (default) 'directus_refresh_token' cookie.
-            // Validation is occured by refreshing the token.
-            // See: https://github.com/directus/directus/discussions/10841
-            let isAuthenticated = false;
-            if (req.cookies.directus_refresh_token) {
-                const auth = new AuthenticationService({
-                    schema: req.schema,
-                    accountability: req.accountability,
-                });
-                try {
-                    const result = await auth.refresh(req.cookies.directus_refresh_token, { session: true });
-                    if (result.refreshToken) {
-                        isAuthenticated = true;
-                        res.cookie('directus_refresh_token', result.refreshToken, {
-                            maxAge: result.expires,
-                            httpOnly: true
-                        });
-                    }
-                } catch { }  // refresh will throw an exception for invalid credentials or a suspended user, so it should fail silenty.
-            }
-            // If not authenticated, show login message.
+            // If the user is not authenticated, show the login message.
+            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
             if (!isAuthenticated) {
                 const html = renderLoginPage({
                     navbar: 'collections',
