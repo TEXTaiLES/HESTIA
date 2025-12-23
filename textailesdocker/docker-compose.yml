@@ -195,7 +195,7 @@ services:
       SECRET: ${DIRECTUS_SECRET}
       ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
       ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
-      
+
       # PostgreSQL Configuration
       DB_CLIENT: "pg"
       DB_HOST: "postgres"
@@ -203,13 +203,16 @@ services:
       DB_DATABASE: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
-      
+
       # Storage Configuration  
       STORAGE_LOCATIONS: "local"
       STORAGE_LOCAL_ROOT: "./uploads"
-      
+
       # Content Security Policy - Allow MinIO images
       CONTENT_SECURITY_POLICY_DIRECTIVES__IMG_SRC: "'self' data: blob: https://cdn.directus.io http://localhost:9000"
+
+      # Other variables
+      ROOT_REDIRECT: "./archive"
       
     restart: always
     depends_on:
