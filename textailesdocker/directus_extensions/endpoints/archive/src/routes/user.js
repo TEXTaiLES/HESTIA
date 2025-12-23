@@ -37,7 +37,14 @@ export default (router, { services }) => {
                     accountability: req.accountability,
                 });
                 await auth.logout(req.cookies.directus_refresh_token);
+
+                // Remove the cookie by making it expire.
+                res.cookie('directus_refresh_token', req.cookies.directus_refresh_token, {
+                    maxAge: 0,
+                    httpOnly: true
+                });
             }
+            
             res.redirect('/archive');
         } catch (error) {
             console.error('User Logout error:', error);
