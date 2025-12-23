@@ -8,7 +8,7 @@ export const renderLoginBox = () => `
             <div class="alert alert-info" role="alert" style="max-width: 600px; margin: 0 auto;">
                 <i class="fas fa-lock fa-3x mb-3"></i>
                 <h4>Authentication Required</h4>
-                <p>This page requires login to access.</p>
+                <p>Collections require login to access.</p>
                 
                 <!-- Login Form -->
                 <form id="loginForm" class="mt-4">
