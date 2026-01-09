@@ -21,7 +21,7 @@ export default (router, { services }) => {
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/THOTH' },
 					{ label: 'Server', url: 'https://thoth.textailes.athenarc.gr' }
 				]},
-				{ name: 'ZEUSbot', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png', links: [
+				{ name: 'ZEUSbot', image: 'Logos/Tools/zeusBot-logo.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/UGV-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/ZEUSbot' },	
 				]},
