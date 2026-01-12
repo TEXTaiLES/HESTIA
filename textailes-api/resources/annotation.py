@@ -59,8 +59,8 @@ class AnnotationResource(Resource):
                     row_dict = dict(zip(colnames, row))
 
                     for k, v in row_dict.items():
-                         if isinstance(v, datetime):
-                             row_dict[k] = v.isoformat()
+                        if isinstance(v, datetime):
+                            row_dict[k] = v.isoformat()
                     results.append(row_dict)
 
             cur.close()
@@ -75,7 +75,7 @@ class AnnotationResource(Resource):
         scene_json_str = request.form.get('scene')
 
         if not files or not scene_json_str:
-             return {'error': "Files or Scene JSON missing."}, 400
+            return {'error': "Files or Scene JSON missing."}, 400
 
         try:
             scene_data = json.loads(scene_json_str)
