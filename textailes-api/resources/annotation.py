@@ -12,7 +12,7 @@ from services.database import get_db_connection
 from services.storage import (
     minio_client,
     build_public_url,
-    MINIO_SCENE_BUCKET
+    MINIO_ANNOTATION_BUCKET
 )
 from services.messaging import (
     send_avro_message,
@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 ANNOTATION_AVRO_SCHEMA = """
 {
     "type": "record",
-    "name": "Scene",
-    "namespace": "com.textailes.scene",
+    "name": "Annotation",
+    "namespace": "com.textailes.annotation",
     "fields": [
         {"name": "scene_id", "type": "string"},
         {"name": "public_url", "type": ["null", "string"], "default": null},
@@ -93,15 +93,15 @@ class AnnotationResource(Resource):
             for file in files:
                 object_name = f"{scene_id}/{file.filename}"
                 minio_client.put_object(
-                    MINIO_SCENE_BUCKET,
+                    MINIO_ANNOTATION_BUCKET,
                     object_name,
                     file,
                     os.fstat(file.fileno()).st_size,
                     content_type=file.content_type
                 )
                 if not main_file_url:
-                    main_file_url = build_public_url(MINIO_SCENE_BUCKET, object_name)
-                    main_file_location = f"s3://{MINIO_SCENE_BUCKET}/{object_name}"
+                    main_file_url = build_public_url(MINIO_ANNOTATION_BUCKET, object_name)
+                    main_file_location = f"s3://{MINIO_ANNOTATION_BUCKET}/{object_name}"
 
             # 2. Prepare Record
             record = {
