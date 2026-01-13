@@ -31,7 +31,7 @@ export default (router, { services }) => {
 					{ label: 'Server', url: '#' }
 				]},
 				{ name: 'HESTIA', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png', links: [
-					{ label: 'Documentation', url: 'http://textailes.athenarc.gr:5000/docs' },
+					{ label: 'Documentation', url: 'https://textailes.github.io/hestia-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/HESTIA' }
 				]},
 				{ name: 'INDRA', image: 'Logos/Tools/env_cond_mon_logo.png', links: [
