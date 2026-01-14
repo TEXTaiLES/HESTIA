@@ -16,11 +16,15 @@ SCHEMA_REGISTRY_URL = os.environ.get('SCHEMA_REGISTRY_URL', 'http://schema-regis
 # Topic Constants
 TOPIC_ARTIFACTS = 'artifacts'
 TOPIC_SENSOR_READINGS = 'sensor_readings'
-TOPIC_ARTIFACT_UPLOADED = 'artifact_uploaded'
-TOPIC_SENSOR_UPLOADED = 'sensor_reading_uploaded'
 TOPIC_ROBOT_IMAGES = 'robot_images'
 TOPIC_RECONSTRUCTIONS = 'reconstructions'
+TOPIC_ANNOTATIONS = 'annotations'
+
+TOPIC_ARTIFACT_UPLOADED = 'artifact_uploaded'
+TOPIC_SENSOR_UPLOADED = 'sensor_reading_uploaded'
 TOPIC_ROBOT_UPLOADED = 'robot_image_uploaded'
+TOPIC_RECONSTRUCTION_UPLOADED = 'reconstruction_uploaded'
+TOPIC_ANNOTATION_UPLOADED = 'annotation_uploaded'
 
 # Clients
 simple_producer = Producer({'bootstrap.servers': KAFKA_BROKER})

@@ -13,6 +13,9 @@ MINIO_ACCESS_KEY = os.environ.get('MINIO_ACCESS_KEY')
 MINIO_SECRET_KEY = os.environ.get('MINIO_SECRET_KEY')
 MINIO_ARTIFACT_BUCKET = 'artifacts'
 MINIO_ROBOT_BUCKET = 'robot-images'
+MINIO_RECONSTRUCTION_BUCKET = 'reconstructions'
+MINIO_SCENE_BUCKET = 'scenes'
+
 PUBLIC_MINIO_ENDPOINT = os.environ.get("PUBLIC_MINIO_ENDPOINT", "localhost:9000")
 PUBLIC_MINIO_SCHEME = os.environ.get("PUBLIC_MINIO_SCHEME", "https")
 

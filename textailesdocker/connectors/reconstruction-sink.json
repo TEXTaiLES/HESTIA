@@ -1,0 +1,17 @@
+{
+    "name": "reconstruction-sink",
+    "config": {
+        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+        "tasks.max": "1",
+        "topics": "reconstructions",
+        "connection.url": "jdbc:postgresql://postgres:5432/mydb",
+        "connection.user": "admin",
+        "connection.password": "admin123",
+        "auto.create": "true",
+        "auto.evolve": "true",
+        "insert.mode": "upsert",
+        "pk.mode": "record_value",
+        "pk.fields": "object_id",
+        "table.name.format": "reconstructions"
+    }
+}
