@@ -68,40 +68,71 @@ class AnnotationResource(Resource):
             return {'error': str(e)}, 500
 
     def post(self):
-        files = request.files.getlist('file')
-        scene_json_str = request.form.get('scene')
-
-        if not files or not scene_json_str:
-            return {'error': "Files or Scene JSON missing."}, 400
-
-        try:
-            scene_data = json.loads(scene_json_str)
-        except:
-            return {'error': "Invalid JSON"}, 400
+        scene_data = request.get_json()
+        if not scene_data:
+            return {'error': "No data provided"}, 400
 
         scene_id = scene_data.get('scene_id', str(uuid.uuid4()))
-        timestamp = datetime.now(timezone.utc).isoformat()
+        object_id = scene_data.get('object_id')
+        if object_id is None:
+            return {'error': "Missing 'object_id'"}, 400
 
-        main_file_url = None
-        main_file_location = None
+        timestamp = datetime.now(timezone.utc).isoformat()
+        collaborative = scene_data.get('collaborative', False)
+
+        filename = next(iter(scene_data['scenegraph']['nodes']))
+        public_url = scene_data["scenegraph"]["nodes"][filename]["urls"][0]
 
         try:
             # Prepare Record
             record = {
                 'scene_id': scene_id,
-                'public_url': main_file_url,
-                'location': main_file_location,
+                'object_id': object_id,
+                'collaborative': collaborative,
+                'public_url': public_url,
+                'location': None,
                 'content': json.dumps(scene_data),
                 'timestamp': timestamp
             }
 
+            # Verify with Avro
+            if not send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, ANNOTATION_AVRO_SCHEMA):
+                raise Exception("Failed to verify with Avro")
+
+            # Insert/Update record in DB
+            with get_db_connection() as conn, conn.cursor() as cur:
+                attributes = [key for key in record if record[key]]
+
+                sql = "WITH cleanup AS (DELETE FROM annotations WHERE scene_id = %s OR object_id = %s)\n"
+                params = [scene_id, object_id]
+
+                sql += f"INSERT INTO annotations ({', '.join(attributes)})\n"
+                sql += f"VALUES ({', '.join(['%s' for _ in attributes])});"
+                params.extend([record[attribute] for attribute in attributes])
+
+                cur.execute(sql, tuple(params))
+                if cur.rowcount == 0:
+                    raise Exception(f"Scene '{scene_id}' could not be stored in DB.")
+
+                sql = "UPDATE annotations SET location = reconstructions.glb_location FROM reconstructions\n"
+                sql += "WHERE annotations.object_id = reconstructions.object_id AND annotations.object_id = %s;"
+                params = [object_id]
+
+                cur.execute(sql, tuple(params))
+                if cur.rowcount == 0:
+                    # QUESTION: Is this really a 'warning' or 'info' message?
+                    logger.warning(f"Could not update the `location` value of the upserted scene record '{scene_id}'.")
+
+                # QUESTION: We could replace the 'UPDATE' query by reconstructing the 'location'
+                #           using the reconstructions bucket and the object_id.
+                #           This way this case will never happen. What's the best alternative?
+
             # Send to Kafka
-            if send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, ANNOTATION_AVRO_SCHEMA):
-                send_simple_message(TOPIC_ANNOTATION_UPLOADED, scene_id, {'status': 'saved'})
-                return {'message': "Scene saved", 'scene_id': scene_id}, 201
-            else:
-                return {'error': "Failed to send to Kafka"}, 500
+            if not send_simple_message(TOPIC_ANNOTATION_UPLOADED, scene_id, {'status': 'saved'}):
+                raise Exception("Failed to send to Kafka")
+
+            return {'message': "Scene saved", 'scene_id': scene_id}, 201
 
         except Exception as e:
-            logger.error(f"Annotation save failed: {e}")
+            logger.error(f"Failed to save scene: {e}")
             return {'error': str(e)}, 500
