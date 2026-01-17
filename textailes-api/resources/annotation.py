@@ -2,7 +2,6 @@ from flask import request, jsonify
 from flask_restful import Resource
 from datetime import datetime, timezone
 import uuid
-import io
 import os
 import json
 import logging
@@ -36,6 +35,7 @@ ANNOTATION_AVRO_SCHEMA = """
 }
 """
 
+
 class AnnotationResource(Resource):
     method_decorators = [require_api_key]
 
@@ -46,8 +46,23 @@ class AnnotationResource(Resource):
             conn = get_db_connection()
             cur = conn.cursor()
 
-            cur.execute("SELECT * FROM annotations ORDER BY timestamp DESC LIMIT 50")
-            rows = cur.fetchall()
+            object_id = request.args.get('object_id')
+            page = int(request.args.get('page', 1))
+            per_page = int(request.args.get('per_page', 50))
+            offset = (page - 1) * per_page
+
+            sql = "SELECT * FROM annotations WHERE 1=1"
+            params: list = []
+
+            if object_id:
+                sql += " AND object_id = %s"
+                params.append(object_id)
+
+            sql += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
+            params.extend([per_page, offset])
+
+            cur.execute(sql, tuple(params))
+            rows: list[tuple] = cur.fetchall()
 
             results = []
             if cur.description:
@@ -60,9 +75,76 @@ class AnnotationResource(Resource):
                             row_dict[k] = v.isoformat()
                     results.append(row_dict)
 
-            cur.close()
-            conn.close()
-            return jsonify(results)
+                cur.close()
+                conn.close()
+                return jsonify(results), 200 if results else 204
+
+            if object_id:
+                sql = "SELECT * FROM reconstructions WHERE object_id = %s"
+                cur.execute(sql, (object_id,))
+                if cur.description is None:
+                    return {'error': f"Object '{object_id}' does not exist."}, 400
+
+                row = cur.fetchone()
+
+                # Prepare Record
+                scene_id = str(uuid.uuid4())
+                timestamp = datetime.now(timezone.utc).isoformat()
+
+                colnames = [desc[0] for desc in cur.description]
+                filename = row[colnames.index('filename')]
+                public_url = row[colnames.index('public_url_glb')]
+                location = row[colnames.index('glb_location')]
+
+                scene_data: dict = {
+                    "scene_id": scene_id,
+                    "object_id": object_id,
+                    "status": "complete",
+                    "collaborative": False,
+                    "scenegraph": {
+                        "nodes": {
+                            filename: {"urls": [public_url]}
+                        },
+                        "edges": {".": [filename]}
+                    }
+                }
+
+                record = {
+                    'scene_id': scene_id,
+                    'object_id': object_id,
+                    'public_url': public_url,
+                    'location': location,
+                    'collaborative': scene_data['collaborative'],
+                    'content': json.dumps(scene_data),
+                    'timestamp': timestamp
+                }
+
+                # Verify with Avro
+                if not send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, ANNOTATION_AVRO_SCHEMA):
+                    raise Exception("Failed to verify with Avro")
+
+                # Insert/Update record in DB
+                attributes = [key for key in record if record[key]]
+                sql = f"INSERT INTO annotations ({', '.join(attributes)})"
+                sql += f" VALUES ({', '.join(['%s' for _ in attributes])})"
+                params = [record[attribute] for attribute in attributes]
+
+                cur.execute(sql, tuple(params))
+                if cur.rowcount == 0:
+                    raise Exception(f"Scene with object '{object_id}' could not be stored in DB.")
+
+                # Send to Kafka
+                if not send_simple_message(TOPIC_ANNOTATION_UPLOADED, scene_id, {'status': 'completed'}):
+                    raise Exception("Failed to send to Kafka")
+
+                cur.close()
+                conn.close()
+
+                return {
+                    'message': "Scene created successfully.",
+                    'data': record
+                }, 201
+
         except Exception as e:
             if conn: conn.close()
             return {'error': str(e)}, 500
