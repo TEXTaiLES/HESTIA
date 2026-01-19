@@ -127,6 +127,11 @@ ${renderNavbar('collections', true)}
     <div class="row mt-3">
         <div class="col-0 col-lg-2"></div>
         <div class="col-12 col-lg-10">
+			<div class="d-flex justify-content-end mb-3">
+				<a href="/archive/artefact/new" class="btn btn-primary">
+					<i class="fas fa-plus"></i> Add New Artefact
+				</a>
+			</div>
 			${showCards ? `
 				<div class="row mt-4">
 					${useCaseMenu}

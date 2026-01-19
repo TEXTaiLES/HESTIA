@@ -36,6 +36,11 @@ export default (router, { services }) => {
 				fields: [
 					'id', 'title', 'gltf_file', 'obj_file', // e.g., "ben-uuid"
 					'obj_files.directus_files_id', // e.g., ["ben-uuid", "ben_ks-uuid"]
+					// Heritage Asset
+					'description', 'date_timespan', 'dimensions', 'heritage_asset_owner', 'category_of_textile',
+					'keywords', 'inventory_number', 'origin',
+					// Digital Asset
+					'digitization_methods', 'digitization_actor', 'resolution',
 					// Identification
 					'accession_number', 'reference_name_number', 'material_analyzed',
 					// Condition
@@ -188,10 +193,10 @@ ${renderNavbar('collections', true)}
                                 <dd>${artefact.dimensions || 'N/A'}</dd>
 
                                 <dt class="samewidth">Heritage Asset Owner:</dt>
-                                <dd>${artefact.owner || 'N/A'}</dd>
+                                <dd>${artefact.heritage_asset_owner || 'N/A'}</dd>
 
                                 <dt class="samewidth">Category of Textile:</dt>
-                                <dd>${artefact.textile_category || 'N/A'}</dd>
+                                <dd>${artefact.category_of_textile || 'N/A'}</dd>
 
                                 <dt class="samewidth">Keywords:</dt>
                                 <dd>${artefact.keywords || 'N/A'}</dd>
