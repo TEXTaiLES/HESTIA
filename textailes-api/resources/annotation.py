@@ -8,7 +8,11 @@ import json
 import logging
 
 from middleware.security import require_api_key
-from services.database import get_db_connection
+from services.database import (
+    get_db_connection,
+    insert_record_in_db,
+    PG_TABLE_ANNOTATION
+)
 from services.storage import (
     minio_client,
     build_public_url,
@@ -49,7 +53,7 @@ class AnnotationResource(Resource):
             conn = get_db_connection()
             cur = conn.cursor()
 
-            cur.execute("SELECT * FROM annotations ORDER BY timestamp DESC LIMIT 50")
+            cur.execute(f"SELECT * FROM {PG_TABLE_ANNOTATION} ORDER BY timestamp DESC LIMIT 50")
             rows = cur.fetchall()
 
             results = []
@@ -111,6 +115,10 @@ class AnnotationResource(Resource):
                 'content': json.dumps(scene_data),
                 'timestamp': timestamp
             }
+
+            # 2b. Insert record to DB
+            if not insert_record_in_db(record, PG_TABLE_ANNOTATION):
+                return {'error': f"Failed to store scene '{scene_id}' in DB."}, 500
 
             # 3. Send to Kafka
             if send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, ANNOTATION_AVRO_SCHEMA):

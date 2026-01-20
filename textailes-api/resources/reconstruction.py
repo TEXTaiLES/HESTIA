@@ -10,7 +10,11 @@ import logging
 import shutil
 
 from middleware.security import require_api_key
-from services.database import get_db_connection
+from services.database import (
+    get_db_connection,
+    insert_record_in_db,
+    PG_TABLE_RECONSTRUCTION
+)
 from services.storage import (
     minio_client,
     build_public_url,
@@ -66,7 +70,7 @@ class ReconstructionResource(Resource):
             per_page = int(request.args.get('per_page', 50))
             offset = (page - 1) * per_page
 
-            sql = "SELECT * FROM reconstructions WHERE 1=1"
+            sql = f"SELECT * FROM {PG_TABLE_RECONSTRUCTION} WHERE 1=1"
             params = []
 
             if scan_id:
@@ -189,6 +193,10 @@ class ReconstructionResource(Resource):
                         )
                     record['glb_location'] = f"s3://{MINIO_RECONSTRUCTION_BUCKET}/{glb_object_name}"
                     record['public_url_glb'] = build_public_url(MINIO_RECONSTRUCTION_BUCKET, glb_object_name)
+
+            # 2b. Insert record to DB
+            if not insert_record_in_db(record, PG_TABLE_RECONSTRUCTION):
+                return {'error': f"Failed to store object '{object_id}' in DB."}, 500
 
             # 3. Publish to Kafka
             if send_avro_message(TOPIC_RECONSTRUCTIONS, object_id, record, RECONSTRUCTION_AVRO_SCHEMA):

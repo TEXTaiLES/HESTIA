@@ -7,7 +7,11 @@ import json
 import logging
 
 from middleware.security import require_api_key
-from services.database import get_db_connection
+from services.database import (
+    get_db_connection,
+    insert_record_in_db,
+    PG_TABLE_ROBOT_IMAGE
+)
 from services.storage import (
     minio_client,
     build_public_url,
@@ -64,7 +68,7 @@ class RobotImageResource(Resource):
             offset = (page - 1) * per_page
 
             # Base Query
-            sql = "SELECT * FROM robot_images WHERE 1=1"
+            sql = f"SELECT * FROM {PG_TABLE_ROBOT_IMAGE} WHERE 1=1"
             params = []
 
             if scan_id:
@@ -171,6 +175,10 @@ class RobotImageResource(Resource):
             'timestamp': timestamp,
             'robot_pose': robot_pose
         }
+
+        # STEP 2b. Insert record to DB
+        if not insert_record_in_db(record, PG_TABLE_ROBOT_IMAGE):
+            return {'error': f"Failed to store image '{image_id}' in DB."}, 500
 
         # STEP 3: Send to Kafka (Storage)
         if not send_avro_message(TOPIC_ROBOT_IMAGES, image_id, record, ROBOT_AVRO_SCHEMA):

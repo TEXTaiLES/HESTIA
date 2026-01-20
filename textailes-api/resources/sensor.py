@@ -4,7 +4,11 @@ from datetime import datetime, timezone
 import logging
 
 from middleware.security import require_api_key
-from services.database import get_db_connection
+from services.database import (
+    get_db_connection,
+    insert_record_in_db,
+    PG_TABLE_SENSOR_READING
+)
 from services.messaging import (
     send_avro_message,
     send_simple_message,
@@ -63,7 +67,7 @@ class SensorReadingResource(Resource):
             offset = (page - 1) * per_page
 
             # 2. Build Query
-            sql = "SELECT * FROM sensor_readings WHERE 1=1"
+            sql = f"SELECT * FROM {PG_TABLE_SENSOR_READING} WHERE 1=1"
             params = []
 
             if sensor_id:
@@ -128,14 +132,19 @@ class SensorReadingResource(Resource):
         message_key = f"{data['sensor_id']}_{data['timestamp']}"
 
         # 1. Send to Storage Topic (Avro)
-        success = send_avro_message(
+        success_avro = send_avro_message(
             TOPIC_SENSOR_READINGS,
             message_key,
             data,
             SENSOR_AVRO_SCHEMA
         )
 
-        if success:
+        # 1b. Insert record in DB
+        success_db = insert_record_in_db(data, PG_TABLE_SENSOR_READING)
+        if not success_db:
+            return {'error': "Failed to insert record in DB."}, 500
+
+        if success_avro and success_db:
             # 2. Notify Listeners (Simple JSON)
             notification = {
                 "sensor_id": data['sensor_id'],
