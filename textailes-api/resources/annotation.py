@@ -9,11 +9,6 @@ import logging
 
 from middleware.security import require_api_key
 from services.database import get_db_connection
-from services.storage import (
-    minio_client,
-    build_public_url,
-    MINIO_ANNOTATION_BUCKET
-)
 from services.messaging import (
     send_avro_message,
     send_simple_message,
@@ -89,21 +84,7 @@ class AnnotationResource(Resource):
         main_file_location = None
 
         try:
-            # 1. Upload Files
-            for file in files:
-                object_name = f"{scene_id}/{file.filename}"
-                minio_client.put_object(
-                    MINIO_ANNOTATION_BUCKET,
-                    object_name,
-                    file,
-                    os.fstat(file.fileno()).st_size,
-                    content_type=file.content_type
-                )
-                if not main_file_url:
-                    main_file_url = build_public_url(MINIO_ANNOTATION_BUCKET, object_name)
-                    main_file_location = f"s3://{MINIO_ANNOTATION_BUCKET}/{object_name}"
-
-            # 2. Prepare Record
+            # Prepare Record
             record = {
                 'scene_id': scene_id,
                 'public_url': main_file_url,
@@ -112,7 +93,7 @@ class AnnotationResource(Resource):
                 'timestamp': timestamp
             }
 
-            # 3. Send to Kafka
+            # Send to Kafka
             if send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, ANNOTATION_AVRO_SCHEMA):
                 send_simple_message(TOPIC_ANNOTATION_UPLOADED, scene_id, {'status': 'saved'})
                 return {'message': "Scene saved", 'scene_id': scene_id}, 201

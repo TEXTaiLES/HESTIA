@@ -11,8 +11,7 @@ from services.storage import (
     set_public_read_policy,
     MINIO_ARTIFACT_BUCKET,
     MINIO_ROBOT_BUCKET,
-    MINIO_RECONSTRUCTION_BUCKET,
-    MINIO_ANNOTATION_BUCKET
+    MINIO_RECONSTRUCTION_BUCKET
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -76,10 +75,6 @@ def setup_minio():
     # 3. Setup Reconstructions (Public)
     init_minio_bucket(MINIO_RECONSTRUCTION_BUCKET)
     set_public_read_policy(MINIO_RECONSTRUCTION_BUCKET)
-
-    # 4. Setup Annotations (Public)
-    init_minio_bucket(MINIO_ANNOTATION_BUCKET)
-    set_public_read_policy(MINIO_ANNOTATION_BUCKET)
 
     logger.info("MinIO setup complete.")
 
