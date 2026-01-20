@@ -26,8 +26,10 @@ ANNOTATION_AVRO_SCHEMA = """
     "namespace": "com.textailes.annotation",
     "fields": [
         {"name": "scene_id", "type": "string"},
+        {"name": "object_id", "type": "string"},
         {"name": "public_url", "type": ["null", "string"], "default": null},
         {"name": "location", "type": ["null", "string"], "default": null},
+        {"name": "collaborative", "type": "boolean", "default": false},
         {"name": "content", "type": ["null", "string"], "default": null},
         {"name": "timestamp", "type": "string"}
     ]
