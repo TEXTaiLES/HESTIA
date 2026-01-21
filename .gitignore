@@ -4,12 +4,12 @@
 .idea
 
 # Ignore environmental variables.
-textailesdocker/.env
+docker/.env
 # Ignore docker compose overrides.
-textailesdocker/docker-compose.override.yml
+docker/docker-compose.override.yml
 
 # Ignore docker volume directories.
-textailesdocker/minio_data/
-textailesdocker/pg_data/
-textailesdocker/plugins/
-textailesdocker/directus_uploads
+docker/minio_data/
+docker/pg_data/
+docker/plugins/
+docker/directus_uploads

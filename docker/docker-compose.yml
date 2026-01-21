@@ -134,7 +134,7 @@ services:
 
   api:
     build:
-      context: ../textailes-api
+      context: ../api
       dockerfile: Dockerfile.api
     container_name: api
     ports:
@@ -165,7 +165,7 @@ services:
 
   artifact_consumer:
     build:
-      context: ../textailes-api
+      context: ../api
       dockerfile: Dockerfile.consumer
     container_name: artifact_consumer
     environment:
@@ -204,7 +204,7 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
 
-      # Storage Configuration  
+      # Storage Configuration
       STORAGE_LOCATIONS: "local"
       STORAGE_LOCAL_ROOT: "./uploads"
 
@@ -229,6 +229,7 @@ services:
       #REFRESH_TOKEN_COOKIE_SECURE: "false"  # Set to "true" in production with HTTPS
       #REFRESH_TOKEN_COOKIE_SAME_SITE: "lax"
       REFRESH_TOKEN_COOKIE_NAME: "textailes_refresh_token"
+
     restart: always
     depends_on:
       - postgres
