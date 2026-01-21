@@ -118,7 +118,7 @@ class ReconstructionResource(Resource):
         record = {
             'object_id': object_id,
             'scan_id': scan_id,
-            'filename': files[0].filename,
+            'filename': None,
             'timestamp': timestamp,
             'model_location': None,
             'texture_location': None,
@@ -144,7 +144,10 @@ class ReconstructionResource(Resource):
                 file.save(local_path)
                 file.seek(0)
 
-                if filename.lower().endswith('.obj'): obj_local_path = local_path
+                if filename.lower().endswith('.obj'):
+                    obj_local_path = local_path
+                    if record['filename'] is None:
+                        record['filename'] = filename
 
                 # Upload to Minio
                 object_name = f"{object_id}/raw/{filename}"
@@ -175,9 +178,10 @@ class ReconstructionResource(Resource):
             if convert_obj_to_glb and obj_local_path:
                 glb_filename = f"{object_id}.glb"
                 glb_local_path = os.path.join(tmp_dir, glb_filename)
+                filename = "model.glb"
 
                 if convert_obj_to_glb(obj_local_path, glb_local_path):
-                    glb_object_name = f"{object_id}/model.glb"
+                    glb_object_name = f"{object_id}/{filename}"
                     with open(glb_local_path, 'rb') as glb_file:
                         file_data = glb_file.read()
                         minio_client.put_object(
@@ -189,6 +193,7 @@ class ReconstructionResource(Resource):
                         )
                     record['glb_location'] = f"s3://{MINIO_RECONSTRUCTION_BUCKET}/{glb_object_name}"
                     record['public_url_glb'] = build_public_url(MINIO_RECONSTRUCTION_BUCKET, glb_object_name)
+                    record['filename'] = filename
 
             # 3. Publish to Kafka
             if send_avro_message(TOPIC_RECONSTRUCTIONS, object_id, record, RECONSTRUCTION_AVRO_SCHEMA):
