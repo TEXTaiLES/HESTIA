@@ -1,7 +1,15 @@
+# Ignore hidden macOS files.
 .DS_Store
+# Ignore editor files.
+.idea
 
+# Ignore environmental variables.
+textailesdocker/.env
+# Ignore docker compose overrides.
+textailesdocker/docker-compose.override.yml
+
+# Ignore docker volume directories.
 textailesdocker/minio_data/
 textailesdocker/pg_data/
 textailesdocker/plugins/
 textailesdocker/directus_uploads
-textailesdocker/.env
