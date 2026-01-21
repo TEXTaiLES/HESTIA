@@ -77,7 +77,7 @@ class AnnotationResource(Resource):
 
                 cur.close()
                 conn.close()
-                return jsonify(results), 200 if results else 204
+                return {'scenes': results}, 200 if results else 204
 
             if object_id:
                 sql = "SELECT * FROM reconstructions WHERE object_id = %s"
