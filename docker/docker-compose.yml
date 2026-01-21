@@ -134,7 +134,7 @@ services:
 
   api:
     build:
-      context: ../textailes-api
+      context: ../api
       dockerfile: Dockerfile.api
     container_name: api
     ports:
@@ -165,7 +165,7 @@ services:
 
   artifact_consumer:
     build:
-      context: ../textailes-api
+      context: ../api
       dockerfile: Dockerfile.consumer
     container_name: artifact_consumer
     environment:
@@ -204,7 +204,7 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
 
-      # Storage Configuration  
+      # Storage Configuration
       STORAGE_LOCATIONS: "local"
       STORAGE_LOCAL_ROOT: "./uploads"
 
@@ -213,7 +213,7 @@ services:
 
       # Other variables
       ROOT_REDIRECT: "./archive"
-      
+
     restart: always
     depends_on:
       - postgres

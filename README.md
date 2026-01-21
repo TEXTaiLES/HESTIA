@@ -13,9 +13,9 @@ The system consists of the following components:
 - **Artifact Consumer**: An internal service that reacts to upload events (e.g., to update timestamps or trigger processing).
 
 
-![Architecture](textailesdocker/image.png)
+![Architecture](docker/image.png)
 
-![Workflow](textailesdocker/image-1.png)
+![Workflow](docker/image-1.png)
 
 ## Prerequisites
 
@@ -25,7 +25,7 @@ The system consists of the following components:
 ## Project Structure
 
 ```
-textailes-api/
+api/
 ├── api.py                  # Entry point for the Flask API
 ├── utils.py                # Shared utilities (DB connection, Auth, Kafka wrappers)
 ├── resources/              # API Resource definitions
@@ -37,7 +37,7 @@ textailes-api/
 ├── requirements.txt        # Python dependencies
 ├── static/swagger.json     # Swagger UI definition
 
-textailesdocker/
+docker/
 ├── connectors/             # Kafka Connect configuration files
 │   ├── postgres-sink.json  # Config for Artifacts table
 │   └── sensor-sink.json    # Config for Sensor Readings table
@@ -60,7 +60,7 @@ cd HESTIA
 1. Navigate to the docker directory:
 
    ```
-   cd textailesdocker
+   cd docker
    ```
 2. Copy the example environment file:
 
@@ -79,7 +79,7 @@ sudo docker-compose up --build -d
 
 ### 4. Register Kafka Connectors
 
-You must register the bridges that connect Kafka to Postgres. Run these commands from the `textailesdocker` directory:
+You must register the bridges that connect Kafka to Postgres. Run these commands from the `docker` directory:
 - **Register Artifact Connector:**
 
   ```
@@ -109,7 +109,7 @@ Supports Single File upload or Batch upload with a metadata map.
   ```
   curl -X POST http://localhost:5000/artifacts \
     -H "Authorization: Bearer change-me-locally" \
-    -F "file=@myimage.png" \
+    -F "file=assets/myimage.png" \
     -F "title=My Single Image" \
     -F "drone_id=Drone-Alpha-007"
   ```
@@ -118,8 +118,8 @@ Supports Single File upload or Batch upload with a metadata map.
   ```
   curl -X POST http://localhost:5000/artifacts \
     -H "Authorization: Bearer change-me-locally" \
-    -F "file=@img1.png" \
-    -F "file=@img2.png" \
+    -F "file=assets/img1.png" \
+    -F "file=assets/img2.png" \
     -F "metadata_map=$(< my_metadata.json)"
   ```
 
