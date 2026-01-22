@@ -109,7 +109,7 @@ Supports Single File upload or Batch upload with a metadata map.
   ```
   curl -X POST http://localhost:5000/artifacts \
     -H "Authorization: Bearer change-me-locally" \
-    -F "file=assets/myimage.png" \
+    -F "file=@assets/myimage.png" \
     -F "title=My Single Image" \
     -F "drone_id=Drone-Alpha-007"
   ```
@@ -118,8 +118,8 @@ Supports Single File upload or Batch upload with a metadata map.
   ```
   curl -X POST http://localhost:5000/artifacts \
     -H "Authorization: Bearer change-me-locally" \
-    -F "file=assets/img1.png" \
-    -F "file=assets/img2.png" \
+    -F "file=@assets/img1.png" \
+    -F "file=@assets/img2.png" \
     -F "metadata_map=$(< my_metadata.json)"
   ```
 

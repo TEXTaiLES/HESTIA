@@ -1,22 +1,22 @@
 {
     "name": "artifact-sink",
     "config": {
-      "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
-      "tasks.max": "1",
-      "topics": "artifacts",
-      "connection.url": "jdbc:postgresql://postgres:5432/mydb",
-      "connection.user": "admin",
-      "connection.password": "admin123",
-      "auto.create": "true",
-      "auto.evolve": "true",
-      "insert.mode": "upsert",
-      "pk.mode": "record_value",
-      "pk.fields": "artifact_id",
-      "table.name.format": "artifacts",
-      "transforms": "TimestampConverter",
-      "transforms.TimestampConverter.type": "org.apache.kafka.connect.transforms.TimestampConverter$Value",
-      "transforms.TimestampConverter.field": "timestamp",
-      "transforms.TimestampConverter.format": "yyyy-MM-dd'T'HH:mm:ss.SSSSSSX",
-      "transforms.TimestampConverter.target.type": "Timestamp"
+        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+        "tasks.max": "1",
+        "topics": "artifacts",
+        "connection.url": "jdbc:postgresql://postgres:5432/db",
+        "connection.user": "pg_user",
+        "connection.password": "pg_password",
+        "auto.create": "true",
+        "auto.evolve": "true",
+        "insert.mode": "upsert",
+        "pk.mode": "record_value",
+        "pk.fields": "artifact_id",
+        "table.name.format": "artifacts",
+        "transforms": "TimestampConverter",
+        "transforms.TimestampConverter.type": "org.apache.kafka.connect.transforms.TimestampConverter$Value",
+        "transforms.TimestampConverter.field": "timestamp",
+        "transforms.TimestampConverter.format": "yyyy-MM-dd'T'HH:mm:ss.SSSSSSX",
+        "transforms.TimestampConverter.target.type": "Timestamp"
     }
-  }
+}

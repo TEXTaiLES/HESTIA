@@ -35,18 +35,6 @@ services:
     networks:
       - textailes
 
-  # schema-registry:
-  #   image: confluentinc/cp-schema-registry:latest
-  #   container_name: schema-registry
-  #   depends_on:
-  #     - kafka
-  #   ports:
-  #     - "8081:8081"
-  #   environment:
-  #     SCHEMA_REGISTRY_HOST_NAME: schema-registry
-  #     SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
-  #     SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
-
   kafka:
     image: confluentinc/cp-kafka:latest
     container_name: kafka
@@ -70,7 +58,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
     volumes:
-      - kafka_data:/var/lib/kafka/data
+      - ./kafka_data:/var/lib/kafka/data
     networks:
       - textailes
 
@@ -125,10 +113,42 @@ services:
       - bash
       - -c
       - |
-        # Install required connectors
         confluent-hub install --no-prompt confluentinc/kafka-connect-jdbc:latest
         confluent-hub install --no-prompt confluentinc/kafka-connect-s3:latest
         /etc/confluent/docker/run
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - textailes
+
+  init:
+    build:
+      context: ../api
+      dockerfile: Dockerfile.api
+    container_name: init_task
+    command: ["python", "scripts/setup_infrastructure.py"]
+    environment:
+      - PG_HOST=postgres
+      - PG_DB=${POSTGRES_DB}
+      - PG_USER=${POSTGRES_USER}
+      - PG_PASSWORD=${POSTGRES_PASSWORD}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - KAFKA_CONNECT_URL=http://kafka-connect:8083
+      - CONNECTORS_DIR=/app/connectors
+    volumes:
+      - ./connectors:/app/connectors
+    depends_on:
+      postgres:
+        condition: service_started
+      minio:
+        condition: service_started
+      kafka-connect:
+        condition: service_started
     networks:
       - textailes
 
@@ -155,6 +175,8 @@ services:
     depends_on:
       - kafka
       - minio
+    init:
+        condition: service_completed_successfully
     networks:
       - textailes
     labels:
@@ -179,6 +201,8 @@ services:
     depends_on:
       - kafka
       - postgres
+    init:
+        condition: service_completed_successfully
     networks:
       - textailes
 
@@ -228,12 +252,3 @@ services:
 networks:
   textailes:
     external: true
-
-volumes:
-  minio_data:
-  pg_data:
-  kafka_data:
-  connectors:
-  plugins:
-  directus_uploads:
-  directus_extensions:
