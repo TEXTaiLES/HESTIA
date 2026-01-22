@@ -124,11 +124,11 @@ services:
     networks:
       - textailes
 
-  init:
+  setup:
     build:
       context: ../api
       dockerfile: Dockerfile.api
-    container_name: init_task
+    container_name: setup_task
     command: ["python", "scripts/setup_infrastructure.py"]
     environment:
       - PG_HOST=postgres
@@ -173,9 +173,11 @@ services:
       - PG_PASSWORD=${POSTGRES_PASSWORD}
     restart: always
     depends_on:
-      - kafka
-      - minio
-    init:
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_started
+      setup:
         condition: service_completed_successfully
     networks:
       - textailes
@@ -199,9 +201,11 @@ services:
       - KAFKA_BROKER=kafka:29092
     restart: always
     depends_on:
-      - kafka
-      - postgres
-    init:
+      kafka:
+        condition: service_started
+      postgres:
+        condition: service_started
+      setup:
         condition: service_completed_successfully
     networks:
       - textailes

@@ -10,6 +10,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.database import (
     get_db_connection,
+    PG_HOST,
+    PG_PORT,
     PG_DB,
     PG_USER,
     PG_PASSWORD
@@ -171,14 +173,15 @@ def register_connectors():
 
         try:
             with open(file_path, 'r') as f:
-                config_json = f.read()
+                connector_conf = json.load(f)
 
-            # Replace variables
-            config_json = config_json.replace("db", PG_DB)
-            config_json = config_json.replace("pg_user", PG_USER)
-            config_json = config_json.replace("pg_password", PG_PASSWORD)
+            connector_class = connector_conf.get('config', {}).get('connector.class', '')
 
-            connector_conf = json.loads(config_json)
+            if 'JdbcSinkConnector' in connector_class:
+                logger.info(f"Configuring JDBC settings for {filename}")
+                connector_conf['config']['connection.url'] = f"jdbc:postgresql://{PG_HOST}:{PG_PORT}/{PG_DB}"
+                connector_conf['config']['connection.user'] = PG_USER
+                connector_conf['config']['connection.password'] = PG_PASSWORD
             connector_name = connector_conf.get("name")
 
             # Check if exists

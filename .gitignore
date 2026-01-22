@@ -10,6 +10,7 @@ docker/docker-compose.override.yml
 
 # Ignore docker volume directories.
 docker/minio_data/
+docker/kafka_data/
 docker/pg_data/
 docker/plugins/
 docker/directus_uploads

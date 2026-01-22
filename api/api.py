@@ -11,7 +11,6 @@ from resources.sensor import SensorReadingResource
 from resources.robot import RobotImageResource
 from resources.reconstruction import ReconstructionResource
 from resources.annotation import AnnotationResource
-from scripts.setup_infrastructure import setup_minio, run_migrations, wait_for_postgres
 
 app = Flask(__name__)
 CORS(app)
@@ -51,12 +50,4 @@ def health_check():
     })
 
 if __name__ == '__main__':
-    print("--- Starting Infrastructure Setup ---")
-    if wait_for_postgres():
-        run_migrations()
-        setup_minio()
-        print("--- Setup Complete. Starting API ---")
-    else:
-        print("--- Database not ready. Starting API anyway (might fail) ---")
-
     app.run(debug=True, host='0.0.0.0', port=5000)
