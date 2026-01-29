@@ -81,6 +81,77 @@
                 }
             }
         },
+        "/annotations": {
+            "get": {
+                "tags": ["Annotations (Scenes)"],
+                "summary": "Retrieve annotations (scenes) or create one from object/reconstruction",
+                "parameters": [
+                    {
+                        "name": "object_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": { "type": "string", "format": "uuid", "example": "12345678-9abcdef012-3456-789abcdef012" },
+                        "description": "Filter by Object ID. Initializes new scene if the specified object/reconstruction is not found in any annotations, but exists in DB."
+                    },
+                    { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+                    { "name": "per_page", "in": "query", "schema": { "type": "integer", "default": 50 } }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scenes retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "scenes": { "type": "array", "items": { "$ref": "#/components/schemas/AnnotationResponse" } }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Scene initialized from object (reconstruction)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": { "$ref": "#/components/schemas/AnnotationResponse" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": ["Annotations (Scenes)"],
+                "summary": "Create a new scene",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": { "$ref": "#/components/schemas/AnnotationInput" }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Scene saved successfully",
+                        "content": {
+                            "application/json": {
+                                "type": "object",
+                                "properties": {
+                                    "message": "Scene saved",
+                                    "scene_id": { "type": "string", "format": "uuid" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "tags": ["Health"],
@@ -130,6 +201,39 @@
                     "humidity": { "type": "number" },
                     "uv_intensity": { "type": "number" },
                     "luminosity": { "type": "number" }
+                }
+            },
+            "AnnotationInput": {
+                "type": "object",
+                "required": ["object_id", "scenegraph"],
+                "properties": {
+                    "scene_id": { "type": "string", "format": "uuid" },
+                    "object_id": { "type": "string" },
+                    "collaborative": { "type": "boolean", "default": false },
+                    "scenegraph": {
+                        "type": "object",
+                        "description": "JSON object defining nodes and edges",
+                        "example": {
+                            "nodes": {
+                                "model.glb": { "urls": ["https://example.com/model.glb"] }
+                            },
+                            "edges": {
+                                ".": ["model.glb"]
+                            }
+                        }
+                    }
+                }
+            },
+            "AnnotationResponse": {
+                "type": "object",
+                "properties": {
+                    "scene_id": { "type": "string" },
+                    "object_id": { "type": "string" },
+                    "public_url": { "type": "string" },
+                    "location": { "type": "string" },
+                    "collaborative": { "type": "boolean" },
+                    "content": { "type": "string", "description": "JSON string content of the scene" },
+                    "timestamp": { "type": "string", "format": "date-time" }
                 }
             },
             "HealthResponse": {
