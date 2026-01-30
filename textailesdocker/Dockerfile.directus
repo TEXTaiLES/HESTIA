@@ -1,0 +1,27 @@
+FROM directus/directus:9.22.0
+
+# Switch to root to install packages
+USER root
+
+# Install Python and required system libraries for PyRender
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    mesa-gl \
+    mesa-egl \
+    mesa-dri-gallium \
+    mesa-osmesa \
+    && ln -sf python3 /usr/bin/python
+
+# Set environment for headless rendering
+ENV PYOPENGL_PLATFORM=egl
+ENV PYGLET_HEADLESS=1
+
+# Install Python dependencies for thumbnail generation
+COPY directus_extensions/endpoints/archive/scripts/requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
+
+# Switch back to node user
+USER node
+
+# The rest uses the base image defaults
