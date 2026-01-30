@@ -1,0 +1,93 @@
+version: '3.1'
+services:
+  mysql:
+    image: mysql:5.7
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: test_db
+    ports:
+      - 5100:3306
+    volumes:
+      - ./test/seed/mysql.sql:/docker-entrypoint-initdb.d/seed.sql
+  postgres:
+    image: postgres:12.3
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: test_db
+    ports:
+      - 5101:5432
+    volumes:
+      - ./test/seed/postgres.sql:/docker-entrypoint-initdb.d/seed.sql
+
+  postgres10:
+    image: postgres:10
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: test_db
+    ports:
+      - 5102:5432
+    volumes:
+      - ./test/seed/postgres10.sql:/docker-entrypoint-initdb.d/seed.sql
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2017-CU24-ubuntu-16.04
+    restart: always
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Test@123
+    working_dir: /tmp/test
+    command: sh -c './scripts/mssql-entrypoint.sh & /opt/mssql/bin/sqlservr'
+    ports:
+      - 1433:1433
+    volumes:
+      - mssql-volume:/var/opt/mssql/
+      - ./test:/tmp/test
+
+  # Note: you need to be logged in to DockerHub, and accept the EULA for oracle/database-enterprise to work
+  #       ... no clue how to get around that in GH Actions for tests ...
+  # See https://github.com/oracle/docker-images/issues/1156 for more on this
+  # oracle:
+  #   image: store/oracle/database-enterprise:12.2.0.1
+  #   restart: always
+  #   ports:
+  #     - 1521:32769
+  #     - 5500:32768
+  #   tty: true
+
+  oracle:
+    image: quillbuilduser/oracle-18-xe-micro-sq
+    ports:
+      - 5104:1521
+    environment:
+      - OPATCH_JRE_MEMORY_OPTIONS=-Xms128m -Xmx256m -XX:PermSize=16m -XX:MaxPermSize=32m -Xss1m
+      - ORACLE_ALLOW_REMOTE=true
+    shm_size: '1gb'
+    working_dir: /tmp/test
+    command: sh -c './scripts/oracle-entrypoint.sh'
+    volumes:
+      - ./test:/tmp/test
+
+  cockroachdb:
+    image: cockroachdb/cockroach:latest-v21.1
+    container_name: crdb
+    hostname: crdb
+    command: start-single-node --cluster-name=example-single-node --insecure
+    volumes:
+      - ./test/seed/postgres.sql:/docker-entrypoint-initdb.d/seed.sql
+    ports:
+      - '26257:26257'
+      - '8080:8080'
+
+  cockroachdb-init:
+    image: cockroachdb/cockroach:latest-v21.1
+    volumes:
+      - ./test/seed/cockroachdb.sql:/seed.sql
+      - ./test/scripts/cockroachdb-init.sh:/init.sh
+    entrypoint: '/bin/bash'
+    command: /init.sh
+
+volumes:
+  mssql-volume:

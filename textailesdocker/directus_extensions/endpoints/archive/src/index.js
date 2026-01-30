@@ -7,6 +7,7 @@ import addArtefactRoutes from './routes/add-artefact.js';
 import toolboxRoutes from './routes/toolbox.js';
 import homeRoutes from './routes/home.js';
 import atonRoutes from './routes/aton.js';
+import thumbnailRoutes from './routes/thumbnail.js';
 
 export default (router, context) => {
 	// Registers all route modules when Directus loads the extension
@@ -19,4 +20,5 @@ export default (router, context) => {
 	toolboxRoutes(router, context);
 	homeRoutes(router, context);
 	atonRoutes(router, context);
+	thumbnailRoutes(router, context);
 };
