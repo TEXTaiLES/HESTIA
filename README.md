@@ -1,16 +1,32 @@
 # HESTIA Data Pipeline
 
-This project provides a Dockerized environment for a multi-modal data pipeline (HESTIA). It features an upload API with Kafka event streaming, Postgres persistence, MinIO (S3-compatible) storage, and Swagger UI for documentation. The system handles binary files (Artifacts) and structured data (Sensor Readings).
+This project provides a Dockerized environment for a multi-modal data pipeline (HESTIA). It features an upload API with Kafka event streaming, Postgres persistence, MinIO (S3-compatible) storage, a Directus-based archive portal, and Swagger UI for documentation. The system handles binary files (Artifacts), structured data (Sensor Readings), and 3D textile models (GLB files).
 
 ## Overview
 
 The system consists of the following components:
+
+### Data Ingestion Layer
 - **Flask API**: A RESTful API built with Flask to handle uploads and queries. It uses an **API Key** for authentication.
 - **Kafka**: Streams metadata and events (`artifacts`, `sensor_readings`, `artifact_uploaded`).
 - **Kafka Connect**: Automatically syncs Kafka messages to Postgres (via JDBC sink).
-- **Postgres**: Stores structured metadata and sensor readings.
-- **MinIO**: Stores large binary files (images, logs, etc.) in an S3-compatible bucket.
 - **Artifact Consumer**: An internal service that reacts to upload events (e.g., to update timestamps or trigger processing).
+
+### Storage Layer
+- **Postgres**: Stores structured metadata, sensor readings, and archive collections.
+- **MinIO**: Stores large binary files (images, logs, GLB models, etc.) in an S3-compatible bucket.
+
+### Archive Portal Layer
+- **Directus CMS**: Backend content management system for database administration and user management
+- **Custom Portal Frontend**: 
+  - Public-facing archive website with home, collections, and tools pages
+  - Server-side rendered HTML with custom Node.js endpoints
+  - 3D artifact viewer using ATON framework for GLB models
+  - Authenticated artifact management (view, create, edit)
+- **Custom Directus Extensions**:
+  - **Endpoints**: Archive routes (home, collections, artifact pages, toolbox)
+  - **Interfaces**: Vue.js components for thumbnail generation within Directus admin
+  - **Python Integration**: Headless 3D rendering (pyrender + trimesh) for GLB thumbnail generation
 
 
 ![Architecture](textailesdocker/image.png)
@@ -41,7 +57,30 @@ textailesdocker/
 ├── connectors/             # Kafka Connect configuration files
 │   ├── postgres-sink.json  # Config for Artifacts table
 │   └── sensor-sink.json    # Config for Sensor Readings table
+├── directus_extensions/    # Directus custom extensions
+│   ├── endpoints/          # Custom API endpoints
+│   │   └── archive/        # Archive-specific endpoints
+│   │       ├── src/
+│   │       │   ├── routes/         # Route handlers for portal pages
+│   │       │   │   ├── home.js             # Landing page with archive stats
+│   │       │   │   ├── collections.js      # Browse artifacts by use case
+│   │       │   │   ├── artefact.js         # Single artifact detail page
+│   │       │   │   ├── add-artefact.js     # Artifact creation form
+│   │       │   │   ├── toolbox.js          # TEXTaiLES tools directory
+│   │       │   │   ├── thumbnail.js        # GLB thumbnail generation endpoint
+│   │       │   │   ├── assets.js           # Static file serving
+│   │       │   │   └── user.js             # Login/logout handlers
+│   │       │   ├── templates/      # HTML template functions
+│   │       │   └── utils/          # Helper utilities and constants
+│   │       └── scripts/
+│   │           └── generate_thumbnail.py  # Python 3D rendering script
+│   └── interfaces/         # Custom UI components
+│       └── generate-thumbnail/  # Button interface for manual thumbnail generation
+│           └── src/
+│               ├── interface.vue    # Vue component with view selector
+│               └── index.js         # Interface registration
 ├── docker-compose.yml      # Service orchestration
+├── Dockerfile.directus     # Custom Directus image with Python rendering
 ├── .env.example            # Template for environment variables
 ```
 
@@ -167,6 +206,39 @@ curl -X POST http://localhost:5000/sensor-readings \
 ```
 
 ## Accessing Internal Components
+
+### Directus Archive Portal
+
+- **URL:** [http://localhost:8055](http://localhost:8055)
+- **Initial Setup:** First-time users will create an admin account on first access
+- **Backend:** Content management system (Directus) for database administration
+- **Frontend:** Custom HTML/CSS/JavaScript portal with server-side rendering
+
+#### Portal Features
+
+**Public Pages (No Authentication Required):**
+- **Home (`/`)**: Landing page with archive statistics and featured collections
+- **Toolbox (`/archive/toolbox`)**: Directory of TEXTaiLES tools (AmalthAI, THOTH, ZEUSbot, NEPHELE, HESTIA, INDRA) with documentation and repo links
+
+**Authenticated Pages (Login Required):**
+- **Collections (`/archive/collections`)**: 
+  - Browse artifacts by use case 
+  - Card-based grid view with thumbnails
+- **Artifact Details (`/archive/artefacts/:id`)**: 
+  - Full artifact metadata (heritage asset info, digital asset details)
+  - 3D model viewer integration (ATON framework for GLB files)
+- **Add Artifact (`/archive/artefact/new`)**: 
+  - Form-based artifact creation with file uploads
+  - Support for GLB, images, and documents
+  - Automatic metadata extraction
+
+#### Technical Architecture
+
+- **Rendering Engine**: Directus custom endpoints with Node.js + Express
+- **Templating**: Server-side HTML generation with JavaScript template functions
+- **Authentication**: Cookie-based sessions integrated with Directus auth
+- **3D Viewer**: ATON framework for interactive GLB visualization
+- **Python Integration**: Headless 3D rendering (pyrender + trimesh) for thumbnail generation
 
 ### MinIO (Object Storage)
 
