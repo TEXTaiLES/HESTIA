@@ -1,13 +1,13 @@
 import { CSP_POLICY, USE_CASES, USE_CASE_MAP } from '../utils/constants.js';
 import { matchesByUseCase } from '../utils/helpers.js';
-import { userIsAuthenticated } from '../utils/auth.js';
+import { userIsAuthenticated, userIsEditor } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 
 export default (router, { services }) => {
-	const { AuthenticationService, ItemsService } = services;
-
+	const { AuthenticationService, ItemsService, UsersService } = services;
+	
 	router.get('/collections/:usecase?', async (req, res) => {
 		try {
 			// Set response headers.
@@ -15,15 +15,19 @@ export default (router, { services }) => {
 			res.set('Content-Security-Policy', CSP_POLICY);
 
 			// If the user is not authenticated, show the login message.
-			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, UsersService);
 			if (!isAuthenticated) {
 				const html = renderLoginPage({
 					navbar: 'collections',
 					title: 'Collections',
 					subtitle: 'Explore Our Cultural Heritage Archive',
+					showRoleError: res.locals?.roleError || false
 				});
 				return res.send(html);
 			}
+
+			// Check if user is Editor (for showing Add New Artefact button)
+			const isEditor = await userIsEditor(req, res, AuthenticationService);
 
 			const rawParam = req.params.usecase;
 			const showCards = !rawParam;
@@ -127,11 +131,14 @@ ${renderNavbar('collections', true)}
     <div class="row mt-3">
         <div class="col-0 col-lg-2"></div>
         <div class="col-12 col-lg-10">
+			${isEditor ? `
+			<!-- Add New Artefact button - only visible to Editor users -->
 			<div class="d-flex justify-content-end mb-3">
 				<a href="/archive/artefact/add" class="btn btn-primary">
 					<i class="fas fa-plus"></i> Add New Artefact
 				</a>
 			</div>
+			` : ''}
 			${showCards ? `
 				<div class="row mt-4">
 					${useCaseMenu}

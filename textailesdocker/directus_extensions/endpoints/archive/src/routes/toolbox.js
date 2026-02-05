@@ -4,12 +4,11 @@ import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 
 export default (router, { services }) => {
-	const { AuthenticationService } = services;
+	const { AuthenticationService, UsersService } = services;
 	
 	router.get('/toolbox', async (req, res) => {
 		try {
-			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
-
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, UsersService);
 			const tools = [
 				{ name: 'AmalthAI', image: 'Logos/Tools/AmalthAI_Logo.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/AmalthAI-documentation/' },

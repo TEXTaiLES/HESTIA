@@ -1,5 +1,5 @@
 import { CSP_POLICY } from '../utils/constants.js';
-import { userIsAuthenticated } from '../utils/auth.js';
+import { userIsAuthenticated, userIsEditor } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
@@ -15,13 +15,16 @@ export default (router, { services }) => {
 			res.set('Content-Type', 'text/html');
 			res.set('Content-Security-Policy', CSP_POLICY);
 
-			// If the user is not authenticated, show the login message.
+			// Check if user is authenticated AND has Editor role
 			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
-			if (!isAuthenticated) {
+			const isEditor = await userIsEditor(req, res, AuthenticationService);
+			
+			if (!isAuthenticated || !isEditor) {
 				const html = renderLoginPage({
 					navbar: 'collections',
 					title: 'Add New Artefact',
 					subtitle: 'Add artefacts to the Digital TEXTaiLES Archive',
+					showRoleError1: isAuthenticated && !isEditor // Show Editor-only error for authenticated Members
 				});
 				return res.send(html);
 			}
@@ -437,10 +440,12 @@ ${renderFooter()}`;
 	// This endpoint receives multipart/form-data directly with files
 	router.post('/artefact/create', async (req, res) => {
 		try {
-			// Check authentication
+			// Check authentication and Editor role
 			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
-			if (!isAuthenticated) {
-				return res.status(401).json({ error: 'Unauthorized' });
+			const isEditor = await userIsEditor(req, res, AuthenticationService);
+			
+			if (!isAuthenticated || !isEditor) {
+				return res.status(401).json({ error: 'Unauthorized - Editor role required' });
 			}
 
 			const bb = busboy({ headers: req.headers }); // Content-Type: multipart/form-data

@@ -4,12 +4,11 @@ import { renderNavbar } from '../templates/navbar.js';
 import { renderFooter } from '../templates/layout.js';
 
 export default (router, { services }) => {
-	const { AuthenticationService, ItemsService } = services;
+	const { AuthenticationService, ItemsService, UsersService } = services;
 
 	router.get('/', async (req, res) => {
 		try {
-            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
-
+            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, UsersService);
 			// Get total artefact count.
             const artefactsService = new ItemsService('artefacts', {
                 schema: req.schema,

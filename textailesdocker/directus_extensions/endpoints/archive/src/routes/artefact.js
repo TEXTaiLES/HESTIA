@@ -6,7 +6,7 @@ import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 import { getAtonScene } from '../utils/helpers.js';
 
 export default (router, { services }) => {
-	const { AuthenticationService, ItemsService } = services;
+	const { AuthenticationService, ItemsService, UsersService } = services;
 
 	router.get('/artefacts/:id', async (req, res) => {
 		try {
@@ -15,12 +15,13 @@ export default (router, { services }) => {
             res.set('Content-Security-Policy', CSP_POLICY);
 
             // If the user is not authenticated, show the login message.
-            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
+            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, UsersService);
             if (!isAuthenticated) {
                 const html = renderLoginPage({
                     navbar: 'collections',
                     title: 'Collections',
                     subtitle: 'Explore Our Cultural Heritage Archive',
+                    showRoleError: res.locals?.roleError || false
                 });
                 return res.send(html);
             }

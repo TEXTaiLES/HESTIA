@@ -223,6 +223,10 @@ services:
       # Other variables
       ROOT_REDIRECT: "./archive"
 
+      # Archive Authentication
+      ARCHIVE_EDITOR_ROLE_ID: ${ARCHIVE_EDITOR_ROLE_ID}
+      ARCHIVE_MEMBER_ROLE_ID: ${ARCHIVE_MEMBER_ROLE_ID}
+
       # Cookie configuration for authentication across subdomains
       # See: https://directus.io/docs/configuration/security-limits
       REFRESH_TOKEN_COOKIE_DOMAIN: ${COOKIE_DOMAIN} # const at REFRESH_COOKIE_OPTIONS
