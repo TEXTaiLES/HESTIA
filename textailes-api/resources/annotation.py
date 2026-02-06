@@ -154,16 +154,24 @@ class AnnotationResource(Resource):
         if not scene_data:
             return {'error': "No data provided"}, 400
 
+        # NOTE: Remove scene_id from JSON input?
         scene_id = scene_data.get('scene_id', str(uuid.uuid4()))
         object_id = scene_data.get('object_id')
         if object_id is None:
             return {'error': "Missing 'object_id'"}, 400
 
+        try:
+            nodes = scene_data.get('scenegraph', {}).get('nodes', {})
+            if nodes is None:
+                raise KeyError("scenegraph.nodes is empty or missing")
+
+            filename = next(iter(nodes))
+            public_url = nodes[filename]['urls'][0]
+        except (KeyError, IndexError, TypeError) as e:
+            return {'error': f"Invalid scene structure: {str(e)}"}, 400
+
         timestamp = datetime.now(timezone.utc).isoformat()
         collaborative = scene_data.get('collaborative', False)
-
-        filename = next(iter(scene_data['scenegraph']['nodes']))
-        public_url = scene_data["scenegraph"]["nodes"][filename]["urls"][0]
 
         try:
             # Prepare Record
@@ -181,33 +189,28 @@ class AnnotationResource(Resource):
             if not send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, ANNOTATION_AVRO_SCHEMA):
                 raise Exception("Failed to verify with Avro")
 
-            # Insert/Update record in DB
+            # Insert record in DB
             with get_db_connection() as conn, conn.cursor() as cur:
-                attributes = [key for key in record if record[key]]
+                sql = """
+                    INSERT INTO annotations (scene_id, object_id, collaborative, public_url, content, timestamp, location)
+                    SELECT %s, %s, %s, %s, %s, %s, r.glb_location
+                    FROM reconstructions r
+                    WHERE r.object_id = %s
+                    RETURNING scene_id;
+                """
+                params = (
+                    scene_id,
+                    object_id,
+                    collaborative,
+                    public_url,
+                    record['content'],
+                    timestamp,
+                    object_id,
+                )
 
-                sql = "WITH cleanup AS (DELETE FROM annotations WHERE scene_id = %s OR object_id = %s)\n"
-                params = [scene_id, object_id]
-
-                sql += f"INSERT INTO annotations ({', '.join(attributes)})\n"
-                sql += f"VALUES ({', '.join(['%s' for _ in attributes])});"
-                params.extend([record[attribute] for attribute in attributes])
-
-                cur.execute(sql, tuple(params))
-                if cur.rowcount == 0:
-                    raise Exception(f"Scene '{scene_id}' could not be stored in DB.")
-
-                sql = "UPDATE annotations SET location = reconstructions.glb_location FROM reconstructions\n"
-                sql += "WHERE annotations.object_id = reconstructions.object_id AND annotations.object_id = %s;"
-                params = [object_id]
-
-                cur.execute(sql, tuple(params))
-                if cur.rowcount == 0:
-                    # QUESTION: Is this really a 'warning' or 'info' message?
-                    logger.warning(f"Could not update the `location` value of the upserted scene record '{scene_id}'.")
-
-                # QUESTION: We could replace the 'UPDATE' query by reconstructing the 'location'
-                #           using the reconstructions bucket and the object_id.
-                #           This way this case will never happen. What's the best alternative?
+                cur.execute(sql, params)
+                if not cur.fetchone():
+                    return {'error': f"Scene could not be stored; no reconstruction found for object_id '{object_id}'"}, 404
 
             # Send to Kafka
             if not send_simple_message(TOPIC_ANNOTATION_UPLOADED, scene_id, {'status': 'saved'}):
