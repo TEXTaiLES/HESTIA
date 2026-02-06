@@ -12,7 +12,8 @@ from services.messaging import (
     send_avro_message,
     send_simple_message,
     TOPIC_ANNOTATIONS,
-    TOPIC_ANNOTATION_UPLOADED
+    TOPIC_ANNOTATION_UPLOADED,
+    TOPIC_ANNOTATION_MODIFIED
 )
 
 logger = logging.getLogger(__name__)
@@ -224,4 +225,71 @@ class AnnotationResource(Resource):
 
         except Exception as e:
             logger.error(f"Failed to save scene: {e}")
+            return {'error': str(e)}, 500
+
+    def patch(self):
+        update_data = request.get_json()
+        if not update_data:
+            return {'error': "No data provided"}, 400
+
+        scene_id = update_data.get('scene_id')
+        object_id = update_data.get('object_id')
+        if scene_id is None and object_id is None:
+            return {'error': "Missing 'scene_id' and 'object_id'"}, 400
+
+        allowed_fields = {'collaborative', 'scenegraph'}
+        fields_to_update: dict = {k: v for k, v in update_data.items() if k in allowed_fields}
+
+        if not fields_to_update:
+            return {'error': "No valid fields provided for update"}, 400
+
+        fields_to_update['timestamp'] = datetime.now(timezone.utc).isoformat()
+
+        try:
+            with get_db_connection() as conn, conn.cursor() as cur:
+                id_key = 'scene_id' if scene_id else 'object_id'
+                id_value = scene_id if scene_id else object_id
+
+                sql = f"SELECT content FROM annotations WHERE {id_key} = %s;"
+                params = [id_value]
+                cur.execute(sql, tuple(params))
+
+                row = cur.fetchone()
+                if not row:
+                    return {'error': f"No scene was found with {id_key} '{id_value}'"}, 400
+
+                content = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+
+                if 'scenegraph' in fields_to_update:
+                    scenegraph = fields_to_update['scenegraph']
+                    if 'nodes' in scenegraph:
+                        content['nodes'] = scenegraph['nodes']
+                    if 'edges' in scenegraph:
+                        content['edges'] = scenegraph['edges']
+
+                update_clause = 'timestamp = %s'
+                params = [fields_to_update['timestamp']]
+
+                if 'collaborative' in fields_to_update:
+                    update_clause += ', collaborative = %s'
+                    params.append(fields_to_update['collaborative'])
+
+                if 'scenegraph' in fields_to_update:
+                    update_clause += ', content = %s'
+                    params.append(json.dumps(fields_to_update['scenegraph']))
+
+                sql = f"UPDATE annotations SET {update_clause} WHERE {id_key} = %s RETURNING {id_key};"
+                params.append(id_value)
+
+                cur.execute(sql, tuple(params))
+                if cur.rowcount == 0:
+                    raise Exception("Scene could not be updated.")
+
+                if not send_simple_message(TOPIC_ANNOTATION_MODIFIED, scene_id, {'status': 'updated'}):
+                    raise Exception("Failed to send to Kafka")
+
+                return {'message': "Scene updated", id_key: id_value}, 201
+
+        except Exception as e:
+            logger.error(f"Failed to update scene: {e}")
             return {'error': str(e)}, 500
