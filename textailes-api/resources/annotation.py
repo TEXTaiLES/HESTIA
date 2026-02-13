@@ -115,7 +115,7 @@ class AnnotationResource(Resource):
                     'public_url': public_url,
                     'location': location,
                     'collaborative': scene_data['collaborative'],
-                    'content': json.dumps(scene_data),
+                    'content': json.dumps(scene_data['scenegraph']),
                     'timestamp': timestamp
                 }
 
@@ -161,8 +161,12 @@ class AnnotationResource(Resource):
             return {'error': "Missing 'object_id'"}, 400
 
         try:
-            nodes = scene_data.get('scenegraph', {}).get('nodes', {})
-            if nodes is None:
+            scenegraph = scene_data.get('scenegraph', {})
+            if not scenegraph:
+                raise KeyError("scenegraph is empty or missing")
+
+            nodes = scenegraph.get('nodes', {})
+            if not nodes:
                 raise KeyError("scenegraph.nodes is empty or missing")
 
             filename = next(iter(nodes))
@@ -181,7 +185,7 @@ class AnnotationResource(Resource):
                 'collaborative': collaborative,
                 'public_url': public_url,
                 'location': None,
-                'content': json.dumps(scene_data),
+                'content': json.dumps(scene_data['scenegraph']),
                 'timestamp': timestamp
             }
 
