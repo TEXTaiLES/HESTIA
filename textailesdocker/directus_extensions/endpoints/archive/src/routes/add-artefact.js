@@ -9,7 +9,7 @@ export default (router, { services }) => {
 	const { AuthenticationService, ItemsService, FilesService } = services;
 
 	// Route to display the "Add New Artefact" form
-	router.get('/artefact/new', async (req, res) => {
+	router.get('/artefact/add', async (req, res) => {
 		try {
 			// Set response headers.
 			res.set('Content-Type', 'text/html');
