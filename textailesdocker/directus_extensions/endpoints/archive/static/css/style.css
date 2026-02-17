@@ -1971,7 +1971,7 @@
   }
 
   .btn{
-    border-radius:0px!important;
+    border-radius:0px;
   }
 
   .emph_txt{
@@ -2004,7 +2004,7 @@
   }
 
   .form-control:focus {
-    border-color: #ff6262;
+    border-color: #b37c8b;
     box-shadow: none;
 }
 
@@ -2577,6 +2577,36 @@ Policy
   padding-left: 10px;
   padding-right: 10px;
   vertical-align: top;
+}
+
+/* Artefact Form */
+.page-title {
+  text-align: center;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.card-header {
+  background-color: #265c72b9;
+  color: white;
+}
+
+.card-header h5 {
+  font-weight: bold;
+}
+
+.btn-save {
+  background-color: #90ee90;
+  border-color: #90ee90;
+  color: #000;
+  border-radius: 25px;
+  padding: 10px 30px;
+  font-weight: 500;
+}
+
+.btn-save:hover {
+  background-color: #7ed97e;
+  border-color: #7ed97e;
 }
 
 /* Alert boxes. */
