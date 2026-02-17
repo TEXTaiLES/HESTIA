@@ -1,4 +1,4 @@
-import { CSP_POLICY, REFRESH_TOKEN_COOKIE_NAME } from '../utils/constants.js';
+import { CSP_POLICY } from '../utils/constants.js';
 import { userIsAuthenticated } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 
@@ -39,15 +39,15 @@ export default (router, { services }) => {
 
     router.get('/user/logout', async (req, res) => {
         try {
-            if (req.cookies[REFRESH_TOKEN_COOKIE_NAME]) {
+            if (req.cookies.directus_refresh_token) {
                 const auth = new AuthenticationService({
                     schema: req.schema,
                     accountability: req.accountability,
                 });
-                await auth.logout(req.cookies[REFRESH_TOKEN_COOKIE_NAME]);
+                await auth.logout(req.cookies.directus_refresh_token);
 
                 // Remove the cookie by making it expire.
-                res.cookie(REFRESH_TOKEN_COOKIE_NAME, req.cookies[REFRESH_TOKEN_COOKIE_NAME], {
+                res.cookie('directus_refresh_token', req.cookies.directus_refresh_token, {
                     maxAge: 0,
                     httpOnly: true
                 });

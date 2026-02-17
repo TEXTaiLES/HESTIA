@@ -28,9 +28,6 @@ export const PATHS = {
 // blob: is needed for model-viewer to load embedded textures from GLB files
 export const CSP_POLICY = "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://ajax.googleapis.com; script-src-elem 'self' 'unsafe-inline' https://ajax.googleapis.com https://cdnjs.cloudflare.com; connect-src 'self' https://ajax.googleapis.com https://www.gstatic.com https://cdnjs.cloudflare.com blob:; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: blob:; worker-src 'self' blob:; child-src 'self' blob:;";
 
-// Refresh token cookie name (configurable via environment)
-export const REFRESH_TOKEN_COOKIE_NAME = process.env.REFRESH_TOKEN_COOKIE_NAME || 'directus_refresh_token';
-
 // ATON Configuration - REST API v2
 export const ATON_CONFIG = {
 	BASE_URL: 'http://localhost:8080',      // Change this to your ATON server URL

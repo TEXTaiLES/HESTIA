@@ -220,11 +220,8 @@ services:
       #REFRESH_TOKEN_COOKIE_SAME_SITE: "lax"
       REFRESH_TOKEN_COOKIE_NAME: "textailes_refresh_token"
       
-      # Custom endpoint environment variables
       COOKIE_DOMAIN: ${COOKIE_DOMAIN}
       HOST_DOMAIN: ${HOST_DOMAIN}
-      ARCHIVE_EDITOR_ROLE_ID: ${ARCHIVE_EDITOR_ROLE_ID}
-      ARCHIVE_MEMBER_ROLE_ID: ${ARCHIVE_MEMBER_ROLE_ID}
       
     restart: always
     depends_on:
