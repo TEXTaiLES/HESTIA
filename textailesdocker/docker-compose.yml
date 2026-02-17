@@ -213,6 +213,18 @@ services:
 
       # Other variables
       ROOT_REDIRECT: "./archive"
+
+      # Cookie configuration for authentication across subdomains
+      REFRESH_TOKEN_COOKIE_DOMAIN: ${COOKIE_DOMAIN} # const at REFRESH_COOKIE_OPTIONS, https://directus.io/docs/configuration/security-limits from directus env variables
+      #REFRESH_TOKEN_COOKIE_SECURE: "false"  # Set to "true" in production with HTTPS
+      #REFRESH_TOKEN_COOKIE_SAME_SITE: "lax"
+      REFRESH_TOKEN_COOKIE_NAME: "textailes_refresh_token"
+      
+      # Custom endpoint environment variables
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN}
+      HOST_DOMAIN: ${HOST_DOMAIN}
+      ARCHIVE_EDITOR_ROLE_ID: ${ARCHIVE_EDITOR_ROLE_ID}
+      ARCHIVE_MEMBER_ROLE_ID: ${ARCHIVE_MEMBER_ROLE_ID}
       
     restart: always
     depends_on:

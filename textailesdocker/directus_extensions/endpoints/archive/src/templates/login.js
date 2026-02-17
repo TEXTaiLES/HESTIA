@@ -1,7 +1,7 @@
 import { renderNavbar } from './navbar.js';
 import { renderHtmlPage, renderFooter } from './layout.js';
 
-export const renderLoginBox = () => `
+export const renderLoginBox = (redirectUrl = null) => `
 <div class="container mb-5">
     <div class="row mt-5">
         <div class="col-12 text-center">
@@ -32,6 +32,7 @@ export const renderLoginBox = () => `
                         const password = document.getElementById('password').value;
                         const errorDiv = document.getElementById('loginError');
                         const successDiv = document.getElementById('loginSuccess');
+                        const redirectUrl = ${redirectUrl ? `'${redirectUrl}'` : 'null'};
                         
                         errorDiv.style.display = 'none';
                         successDiv.style.display = 'none';
@@ -46,9 +47,13 @@ export const renderLoginBox = () => `
                             
                             if (response.ok) {
                                 successDiv.style.display = 'block';
-                                // Reload the page.
+                                // Redirect to specified URL or reload the page.
                                 setTimeout(() => {
-                                    window.location.reload();
+                                    if (redirectUrl) {
+                                        window.location.href = redirectUrl;
+                                    } else {
+                                        window.location.reload();
+                                    }
                                 }, 1000);
                             } else {
                                 const data = await response.json();
@@ -66,7 +71,7 @@ export const renderLoginBox = () => `
     </div>
 </div>`;
 
-export const renderLoginPage = ({ navbar = 'home', title = 'Please login', subtitle = 'This page requires login to access.' }) => {
+export const renderLoginPage = ({ navbar = 'home', title = 'Please login', subtitle = 'This page requires login to access.', redirectUrl = null }) => {
     const content = `
 ${renderNavbar(navbar, false)}
 <!-- Hero Section -->
@@ -76,7 +81,7 @@ ${renderNavbar(navbar, false)}
         <p>${subtitle}</p>
     </div>
 </div>
-${renderLoginBox()}
+${renderLoginBox(redirectUrl)}
 ${renderFooter()}
 `
     return renderHtmlPage({
