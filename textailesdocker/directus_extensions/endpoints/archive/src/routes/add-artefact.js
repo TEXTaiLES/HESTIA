@@ -30,20 +30,7 @@ export default (router, { services }) => {
 ${renderNavbar('collections', true)}
 
 <div class="container mb-5">
-    <div class="row mt-3">
-        <div class="col-0 col-lg-2"></div>
-        <div class="col-12 col-lg-8">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="https://textailes-eccch.eu/">Home</a></li>
-                    <li class="breadcrumb-item"><a href="/archive/collections">Collections</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Add New Artefact</li>
-                </ol>
-            </nav>
-        </div>
-    </div>
-
-    <div class="row mt-3">
+    <div class="row mt-4 mt-lg-5 pt-lg-2">
         <div class="col-0 col-lg-2"></div>
         <div class="col-12 col-lg-8">
             <h2 class="mb-4 page-title">Add New Artefact</h2>
