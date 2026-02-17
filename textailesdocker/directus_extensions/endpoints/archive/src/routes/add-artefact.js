@@ -68,12 +68,12 @@ ${renderNavbar('collections', true)}
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="heritage_asset_owner" class="form-label">Heritage Asset Owner</label>
-                                <input type="text" class="form-control" id="heritage_asset_owner" name="heritage_asset_owner">
+                                <label for="owner" class="form-label">Heritage Asset Owner</label>
+                                <input type="text" class="form-control" id="owner" name="owner">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="category_of_textile" class="form-label">Category of Textile</label>
-                                <input type="text" class="form-control" id="category_of_textile" name="category_of_textile">
+                                <label for="textile_category" class="form-label">Category of Textile</label>
+                                <input type="text" class="form-control" id="textile_category" name="textile_category">
                             </div>
                         </div>
 
