@@ -11,9 +11,6 @@ export default (router, { services }) => {
             res.set('Content-Type', 'text/html');
             res.set('Content-Security-Policy', CSP_POLICY);
 
-            // Get redirect_url from query params
-            const redirectUrl = req.query.redirect_url;
-
             // If the user is not authenticated, show the login message.
             const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
             if (!isAuthenticated) {
@@ -21,16 +18,13 @@ export default (router, { services }) => {
                     navbar: 'home',
                     title: 'User Login',
                     subtitle: 'Please login in order to view our collections.',
-                    redirectUrl: redirectUrl
                 });
                 return res.send(html);
             }
-            // Otherwise, redirect to the specified URL or homepage.
-            if (redirectUrl) {
-                res.redirect(redirectUrl);
-            } else {
-                res.redirect('/archive');
-            }
+            // Otherwise, check redirect_url from query params
+            // and redirect to the specified URL or homepage.
+            const redirectUrl = req.query.redirect_url || '/archive';
+            res.redirect(redirectUrl);
         } catch (error) {
             console.error('User Login page error:', error);
             res.status(500).send('Error: ' + error.message);
