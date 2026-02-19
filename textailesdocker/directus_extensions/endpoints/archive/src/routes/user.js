@@ -40,12 +40,8 @@ export default (router, { services }) => {
                     accountability: req.accountability,
                 });
                 await auth.logout(req.cookies[cookieName]);
-
-                // Remove the cookie by making it expire.
-                res.cookie(cookieName, req.cookies[cookieName], {
-                    maxAge: 0,
-                    httpOnly: true
-                });
+                // Also remove the cookie. Include the domain option to ensure the right cookie is handled.
+                res.clearCookie(cookieName, { domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN, path: '/' });
             }
 
             res.redirect('/archive');
