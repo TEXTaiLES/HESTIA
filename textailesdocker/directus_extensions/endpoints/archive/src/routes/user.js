@@ -17,12 +17,14 @@ export default (router, { services }) => {
                 const html = renderLoginPage({
                     navbar: 'home',
                     title: 'User Login',
-                    subtitle: 'Please login in order to view our collections.'
+                    subtitle: 'Please login in order to view our collections.',
                 });
                 return res.send(html);
             }
-            // Otherwise, redirect to the homepage.
-            res.redirect('/archive');
+            // Otherwise, check redirect_url from query params
+            // and redirect to the specified URL or homepage.
+            const redirectUrl = req.query.redirect_url || '/archive';
+            res.redirect(redirectUrl);
         } catch (error) {
             console.error('User Login page error:', error);
             res.status(500).send('Error: ' + error.message);
@@ -31,20 +33,17 @@ export default (router, { services }) => {
 
     router.get('/user/logout', async (req, res) => {
         try {
-            if (req.cookies.directus_refresh_token) {
+            const cookieName = process.env.REFRESH_TOKEN_COOKIE_NAME;
+            if (req.cookies[cookieName]) {
                 const auth = new AuthenticationService({
                     schema: req.schema,
                     accountability: req.accountability,
                 });
-                await auth.logout(req.cookies.directus_refresh_token);
-
-                // Remove the cookie by making it expire.
-                res.cookie('directus_refresh_token', req.cookies.directus_refresh_token, {
-                    maxAge: 0,
-                    httpOnly: true
-                });
+                await auth.logout(req.cookies[cookieName]);
+                // Also remove the cookie. Include the domain option to ensure the right cookie is handled.
+                res.clearCookie(cookieName, { domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN, path: '/' });
             }
-            
+
             res.redirect('/archive');
         } catch (error) {
             console.error('User Logout error:', error);

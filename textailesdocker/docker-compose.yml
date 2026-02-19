@@ -213,7 +213,13 @@ services:
 
       # Other variables
       ROOT_REDIRECT: "./archive"
-      
+
+      # Cookie configuration for authentication across subdomains
+      # See: https://directus.io/docs/configuration/security-limits
+      REFRESH_TOKEN_COOKIE_DOMAIN: ${COOKIE_DOMAIN} # const at REFRESH_COOKIE_OPTIONS
+      #REFRESH_TOKEN_COOKIE_SECURE: "false"  # Set to "true" in production with HTTPS
+      #REFRESH_TOKEN_COOKIE_SAME_SITE: "lax"
+      REFRESH_TOKEN_COOKIE_NAME: "textailes_refresh_token"
     restart: always
     depends_on:
       - postgres
