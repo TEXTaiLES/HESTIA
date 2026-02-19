@@ -13,16 +13,11 @@ export const userIsAuthenticated = async (req, res, AuthenticationService) => {
             if (result.refreshToken) {
                 // Also refresh the cookie in the response.
                 const cookieOptions = {
-                    maxAge: result.expires,      // Cookie expiration time in ms
-                    httpOnly: true,              // Prevents JavaScript access (security)
-                    path: '/'                    // Cookie valid for all paths on the domain
+                    maxAge: result.expires,                           // Cookie expiration time in ms
+                    httpOnly: true,                                   // Prevents JavaScript access (security)
+                    domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN,  // If set, cookie is also valid for subdomains
+                    path: '/'                                         // Cookie valid for all paths on the domain
                 };
-
-                // Add domain only in production (not localhost)
-                const host = req.get('host') || '';
-                if (host.includes(process.env.HOST_DOMAIN)) {
-                    cookieOptions.domain = process.env.COOKIE_DOMAIN; // Works for all subdomains
-                }
 
                 res.cookie(cookieName, result.refreshToken, cookieOptions);
                 return true;
