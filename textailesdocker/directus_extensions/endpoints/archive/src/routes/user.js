@@ -33,20 +33,21 @@ export default (router, { services }) => {
 
     router.get('/user/logout', async (req, res) => {
         try {
-            if (req.cookies.directus_refresh_token) {
+            const cookieName = process.env.REFRESH_TOKEN_COOKIE_NAME;
+            if (req.cookies[cookieName]) {
                 const auth = new AuthenticationService({
                     schema: req.schema,
                     accountability: req.accountability,
                 });
-                await auth.logout(req.cookies.directus_refresh_token);
+                await auth.logout(req.cookies[cookieName]);
 
                 // Remove the cookie by making it expire.
-                res.cookie('directus_refresh_token', req.cookies.directus_refresh_token, {
+                res.cookie(cookieName, req.cookies[cookieName], {
                     maxAge: 0,
                     httpOnly: true
                 });
             }
-            
+
             res.redirect('/archive');
         } catch (error) {
             console.error('User Logout error:', error);

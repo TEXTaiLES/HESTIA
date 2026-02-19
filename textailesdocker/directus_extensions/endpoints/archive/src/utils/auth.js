@@ -1,14 +1,15 @@
-// Helper: Check whether user is authenticated by checking the (default) 'directus_refresh_token' cookie.
+// Helper: Check whether user is authenticated by checking the refresh token cookie.
 export const userIsAuthenticated = async (req, res, AuthenticationService) => {
-    // Validation is occured by refreshing the token.
+    // Validation is occurred by refreshing the token.
     // See: https://github.com/directus/directus/discussions/10841
-    if (req.cookies.directus_refresh_token) {
+    const cookieName = process.env.REFRESH_TOKEN_COOKIE_NAME;
+    if (req.cookies[cookieName]) {
         const auth = new AuthenticationService({
             schema: req.schema,
             accountability: req.accountability,
         });
         try {
-            const result = await auth.refresh(req.cookies.directus_refresh_token, { session: true });
+            const result = await auth.refresh(req.cookies[cookieName], { session: true });
             if (result.refreshToken) {
                 // Also refresh the cookie in the response.
                 const cookieOptions = {
@@ -23,7 +24,7 @@ export const userIsAuthenticated = async (req, res, AuthenticationService) => {
                     cookieOptions.domain = process.env.COOKIE_DOMAIN; // Works for all subdomains
                 }
 
-                res.cookie('directus_refresh_token', result.refreshToken, cookieOptions); 
+                res.cookie(cookieName, result.refreshToken, cookieOptions);
                 return true;
             }
         } catch { }  // refresh will throw an exception for invalid credentials or a suspended user, so it should fail silenty.
