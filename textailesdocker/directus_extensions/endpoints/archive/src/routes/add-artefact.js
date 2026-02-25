@@ -15,9 +15,9 @@ export default (router, { services }) => {
 			res.set('Content-Type', 'text/html');
 			res.set('Content-Security-Policy', CSP_POLICY);
 
-			// Check if user is authenticated AND has Editor role
-			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
-			const isEditor = await userIsEditor(req, res, AuthenticationService);
+			// Check if user is authenticated AND has create permission on artefacts
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
+			const isEditor = await userIsEditor(req, res, AuthenticationService, ItemsService);
 			
 			if (!isAuthenticated || !isEditor) {
 				const html = renderLoginPage({
@@ -440,9 +440,9 @@ ${renderFooter()}`;
 	// This endpoint receives multipart/form-data directly with files
 	router.post('/artefact/create', async (req, res) => {
 		try {
-			// Check authentication and Editor role
-			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
-			const isEditor = await userIsEditor(req, res, AuthenticationService);
+			// Check authentication and create permission on artefacts
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
+			const isEditor = await userIsEditor(req, res, AuthenticationService, ItemsService);
 			
 			if (!isAuthenticated || !isEditor) {
 				return res.status(401).json({ error: 'Unauthorized - Editor role required' });

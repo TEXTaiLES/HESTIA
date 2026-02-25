@@ -50,6 +50,7 @@ export const getUserRole = async (req, res, AuthenticationService) => {
             }
         }
     } catch (error) {
+        console.error('[Auth] Refresh failed:', error.message);
         // Refresh failed - clear the cookie
         res.clearCookie(process.env.REFRESH_TOKEN_COOKIE_NAME, { domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN, path: '/' });
     }
@@ -60,41 +61,64 @@ export const getUserRole = async (req, res, AuthenticationService) => {
     return null;
 };
 
-// Helper: Check whether user is authenticated (Editor or Member role)
-export const userIsAuthenticated = async (req, res, AuthenticationService) => {
+// Helper: Check whether user is authenticated — checks if the role has read or create permission on artefacts
+export const userIsAuthenticated = async (req, res, AuthenticationService, ItemsService) => {
     const userRole = await getUserRole(req, res, AuthenticationService);
 
     if (!userRole) {
         return false;
     }
 
-    const EDITOR_ROLE_ID = process.env.ARCHIVE_EDITOR_ROLE_ID;
-    const MEMBER_ROLE_ID = process.env.ARCHIVE_MEMBER_ROLE_ID;
+    try {
+        // Query directus_permissions to check if the role has read or create access on artefacts.
+        const permissionsService = new ItemsService('directus_permissions', { schema: req.schema });
+        const perms = await permissionsService.readByQuery({
+            filter: {
+                role: { _eq: userRole },
+                collection: { _eq: 'artefacts' },
+                action: { _in: ['read', 'create'] }
+            },
+            limit: 1
+        });
 
-    if (!EDITOR_ROLE_ID || !MEMBER_ROLE_ID) {
-        console.error('[Auth] ARCHIVE_EDITOR_ROLE_ID or ARCHIVE_MEMBER_ROLE_ID environment variable is not set!');
-        return false;
-    }
+        if (perms.length === 0) {
+            // Role exists but has no permission on artefacts — clear cookie and flag role error
+            res.clearCookie(process.env.REFRESH_TOKEN_COOKIE_NAME, { domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN, path: '/' });
+            res.locals = res.locals || {};
+            res.locals.roleError = true;
+            return false;
+        }
 
-    if (userRole === EDITOR_ROLE_ID || userRole === MEMBER_ROLE_ID) {
-        return true;  // Grant access to Editor and Member users
-    } else {
-        // User authenticated but doesn't have required role
-        res.clearCookie(process.env.REFRESH_TOKEN_COOKIE_NAME, { domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN, path: '/' });
-        res.locals = res.locals || {};
-        res.locals.roleError = true;
+        return true;
+    } catch (error) {
+        console.error('[Auth] Failed to query directus_permissions:', error.message);
         return false;
     }
 };
 
-// Helper: Check if the authenticated user has the Editor role (for edit/create operations)
-export const userIsEditor = async (req, res, AuthenticationService) => {
+// Helper: Check if the authenticated user can create artefacts (for showing the add-artefact button)
+export const userIsEditor = async (req, res, AuthenticationService, ItemsService) => {
     const userRole = await getUserRole(req, res, AuthenticationService);
 
     if (!userRole) {
         return false;
     }
 
-    const EDITOR_ROLE_ID = process.env.ARCHIVE_EDITOR_ROLE_ID;
-    return userRole === EDITOR_ROLE_ID;
+    try {
+        // Query directus_permissions to check if the role has create permission on artefacts.
+        const permissionsService = new ItemsService('directus_permissions', { schema: req.schema });
+        const perms = await permissionsService.readByQuery({
+            filter: {
+                role: { _eq: userRole },
+                collection: { _eq: 'artefacts' },
+                action: { _eq: 'create' }
+            },
+            limit: 1
+        });
+
+        return perms.length > 0;
+    } catch (error) {
+        console.error('[Auth] Failed to query directus_permissions:', error.message);
+        return false;
+    }
 };

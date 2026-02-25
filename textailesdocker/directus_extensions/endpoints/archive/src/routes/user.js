@@ -3,7 +3,7 @@ import { userIsAuthenticated } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 
 export default (router, { services }) => {
-    const { AuthenticationService, UsersService } = services;
+    const { AuthenticationService, ItemsService } = services;
 
     router.get('/user/login', async (req, res) => {
         try {
@@ -12,7 +12,7 @@ export default (router, { services }) => {
             res.set('Content-Security-Policy', CSP_POLICY);
 
             // If the user is not authenticated, show the login message.
-            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, UsersService);
+            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
             if (!isAuthenticated) {
                 const html = renderLoginPage({
                     navbar: 'home',

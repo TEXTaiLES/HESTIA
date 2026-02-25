@@ -6,7 +6,7 @@ import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 
 export default (router, { services }) => {
-	const { AuthenticationService, ItemsService, UsersService } = services;
+	const { AuthenticationService, ItemsService } = services;
 	
 	router.get('/collections/:usecase?', async (req, res) => {
 		try {
@@ -15,7 +15,7 @@ export default (router, { services }) => {
 			res.set('Content-Security-Policy', CSP_POLICY);
 
 			// If the user is not authenticated, show the login message.
-			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, UsersService);
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
 			if (!isAuthenticated) {
 				const html = renderLoginPage({
 					navbar: 'collections',
@@ -27,7 +27,7 @@ export default (router, { services }) => {
 			}
 
 			// Check if user is Editor (for showing Add New Artefact button)
-			const isEditor = await userIsEditor(req, res, AuthenticationService);
+			const isEditor = await userIsEditor(req, res, AuthenticationService, ItemsService);
 
 			const rawParam = req.params.usecase;
 			const showCards = !rawParam;
