@@ -1,7 +1,7 @@
 import { renderNavbar } from './navbar.js';
 import { renderHtmlPage, renderFooter } from './layout.js';
 
-export const renderLoginBox = (showRoleError = false, showRoleError1 = false) => `
+export const renderLoginBox = () => `
 <div class="container mb-5">
     <div class="row mt-5">
         <div class="col-12 text-center">
@@ -9,8 +9,6 @@ export const renderLoginBox = (showRoleError = false, showRoleError1 = false) =>
                 <i class="fas fa-lock fa-3x mb-3"></i>
                 <h4>Authentication Required</h4>
                 <p>Collections require login to access.</p>
-                ${showRoleError ? '<div class="alert alert-warning mt-3" style="border-radius: 8px;"><strong>Access Denied:</strong> Login access is only available to users with Editor or Member role.</div>' : ''}
-                ${showRoleError1 ? '<div class="alert alert-warning mt-3" style="border-radius: 8px;"><strong>Access Denied:</strong> Login as user with Editor role.</div>' : ''}                
 
                 <!-- Login Form -->
                 <form id="loginForm" class="mt-4">
@@ -68,7 +66,7 @@ export const renderLoginBox = (showRoleError = false, showRoleError1 = false) =>
     </div>
 </div>`;
 
-export const renderLoginPage = ({ navbar = 'home', title = 'Please login', subtitle = 'This page requires login to access.', showRoleError = false, showRoleError1 = false }) => {
+export const renderLoginPage = ({ navbar = 'home', title = 'Please login', subtitle = 'This page requires login to access.' }) => {
     const content = `
 ${renderNavbar(navbar, false)}
 <!-- Hero Section -->
@@ -78,7 +76,7 @@ ${renderNavbar(navbar, false)}
         <p>${subtitle}</p>
     </div>
 </div>
-${renderLoginBox(showRoleError, showRoleError1)}
+${renderLoginBox()}
 ${renderFooter()}
 `
     return renderHtmlPage({

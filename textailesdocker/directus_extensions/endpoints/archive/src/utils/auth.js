@@ -70,6 +70,14 @@ export const userIsAuthenticated = async (req, res, AuthenticationService, Items
     }
 
     try {
+        const rolesService = new ItemsService('directus_roles', { schema: req.schema });
+        const role = await rolesService.readOne(userRole, { fields: ['admin_access'] });
+
+        // Admins have full access — no need to check directus_permissions
+        if (role?.admin_access) {
+            return true;
+        }
+
         // Query directus_permissions to check if the role has read or create access on artefacts.
         const permissionsService = new ItemsService('directus_permissions', { schema: req.schema });
         const perms = await permissionsService.readByQuery({
@@ -105,6 +113,14 @@ export const userIsEditor = async (req, res, AuthenticationService, ItemsService
     }
 
     try {
+        const rolesService = new ItemsService('directus_roles', { schema: req.schema });
+        const role = await rolesService.readOne(userRole, { fields: ['admin_access'] });
+
+        // Admins have full access — treat as editor
+        if (role?.admin_access) {
+            return true;
+        }
+
         // Query directus_permissions to check if the role has create permission on artefacts.
         const permissionsService = new ItemsService('directus_permissions', { schema: req.schema });
         const perms = await permissionsService.readByQuery({

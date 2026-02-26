@@ -1,6 +1,7 @@
 import { CSP_POLICY } from '../utils/constants.js';
 import { userIsAuthenticated } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
+import { render401Page } from '../templates/error.js';
 
 export default (router, { services }) => {
     const { AuthenticationService, ItemsService } = services;
@@ -14,11 +15,12 @@ export default (router, { services }) => {
             // If the user is not authenticated, show the login message.
             const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
             if (!isAuthenticated) {
+                // Not authenticated and wrong role → 401 page
+                if (res.locals?.roleError) return res.redirect('/archive/error/401');
                 const html = renderLoginPage({
                     navbar: 'home',
                     title: 'User Login',
                     subtitle: 'Please login in order to view our collections.',
-                    showRoleError: res.locals?.roleError || false
                 });
                 return res.send(html);
             }
@@ -30,6 +32,12 @@ export default (router, { services }) => {
             console.error('User Login page error:', error);
             res.status(500).send('Error: ' + error.message);
         }
+    });
+
+    router.get('/error/401', async (req, res) => {
+        res.set('Content-Type', 'text/html');
+        res.set('Content-Security-Policy', CSP_POLICY);
+        return res.status(401).send(render401Page());
     });
 
     router.get('/user/logout', async (req, res) => {

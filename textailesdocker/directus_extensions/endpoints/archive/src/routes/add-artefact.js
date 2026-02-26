@@ -17,17 +17,18 @@ export default (router, { services }) => {
 
 			// Check if user is authenticated AND has create permission on artefacts
 			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
-			const isEditor = await userIsEditor(req, res, AuthenticationService, ItemsService);
-			
-			if (!isAuthenticated || !isEditor) {
+			if (!isAuthenticated) {
+                // Not authenticated and wrong role → 401 page
+				if (res.locals?.roleError) return res.redirect('/archive/error/401');
 				const html = renderLoginPage({
 					navbar: 'collections',
 					title: 'Add New Artefact',
 					subtitle: 'Add artefacts to the Digital TEXTaiLES Archive',
-					showRoleError1: isAuthenticated && !isEditor // Show Editor-only error for authenticated Members
 				});
 				return res.send(html);
 			}
+			const isEditor = await userIsEditor(req, res, AuthenticationService, ItemsService);
+			if (!isEditor) return res.redirect('/archive/error/401');
 
 			const content = `
 ${renderNavbar('collections', true)}

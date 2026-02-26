@@ -17,11 +17,12 @@ export default (router, { services }) => {
 			// If the user is not authenticated, show the login message.
 			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
 			if (!isAuthenticated) {
+				// Not authenticated and wrong role → 401 page
+				if (res.locals?.roleError) return res.redirect('/archive/error/401');
 				const html = renderLoginPage({
 					navbar: 'collections',
 					title: 'Collections',
 					subtitle: 'Explore Our Cultural Heritage Archive',
-					showRoleError: res.locals?.roleError || false
 				});
 				return res.send(html);
 			}
