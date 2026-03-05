@@ -1,9 +1,9 @@
 import { renderNavbar } from './navbar.js';
 import { renderHtmlPage, renderFooter } from './layout.js';
 
-export const render401Page = () => {
+export const render401Page = ({ activePage, isAuthenticated }) => {
     const content = `
-${renderNavbar('home', false)}
+${renderNavbar(activePage, isAuthenticated)}
 <!-- Hero Section -->
 <div class="hero-section">
     <div class="container">

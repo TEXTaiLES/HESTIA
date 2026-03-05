@@ -1,6 +1,7 @@
 import { CSP_POLICY } from '../utils/constants.js';
 import { userIsAuthenticated, hasPermission } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
+import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 import busboy from 'busboy'; // For handling file uploads
@@ -27,7 +28,7 @@ export default (router, { services }) => {
 			}
 			// Add artefact requires create permission
 			const canCreate = await hasPermission(req, res, ItemsService, 'artefacts', 'create');
-			if (!canCreate) return res.redirect('/archive/error/401');
+			if (!canCreate) return res.status(401).send(render401Page({ activePage: 'collections', isAuthenticated: true }));
 
 			const content = `
 ${renderNavbar('collections', true)}

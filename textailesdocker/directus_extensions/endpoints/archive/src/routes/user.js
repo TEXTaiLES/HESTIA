@@ -16,7 +16,7 @@ export default (router, { services }) => {
             const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
             if (!isAuthenticated) {
                 // Not authenticated → 401 page
-                if (res.locals?.roleError) return res.redirect('/archive/error/401');
+                if (res.locals?.roleError) return res.status(401).send(render401Page({ activePage: 'home', isAuthenticated: true }));
                 const html = renderLoginPage({
                     navbar: 'home',
                     title: 'User Login',
@@ -32,12 +32,6 @@ export default (router, { services }) => {
             console.error('User Login page error:', error);
             res.status(500).send('Error: ' + error.message);
         }
-    });
-
-    router.get('/error/401', async (req, res) => {
-        res.set('Content-Type', 'text/html');
-        res.set('Content-Security-Policy', CSP_POLICY);
-        return res.status(401).send(render401Page());
     });
 
     router.get('/user/logout', async (req, res) => {

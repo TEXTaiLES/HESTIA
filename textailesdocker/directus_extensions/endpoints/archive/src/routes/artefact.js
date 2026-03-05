@@ -1,6 +1,7 @@
 import { CSP_POLICY, ATON_CONFIG } from '../utils/constants.js';
 import { userIsAuthenticated } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
+import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 import { getAtonScene } from '../utils/helpers.js';
@@ -18,7 +19,7 @@ export default (router, { services }) => {
             const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
             if (!isAuthenticated) {
                 // Αuthenticated but wrong role → 401 page
-                if (res.locals?.roleError) return res.redirect('/archive/error/401');
+                if (res.locals?.roleError) return res.status(401).send(render401Page({ activePage: 'collections', isAuthenticated: true }));
                 const html = renderLoginPage({
                     navbar: 'collections',
                     title: 'Collections',
