@@ -1,5 +1,5 @@
 import { CSP_POLICY } from '../utils/constants.js';
-import { userIsAuthenticated, userIsEditor } from '../utils/auth.js';
+import { userIsAuthenticated, hasPermission } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
@@ -15,11 +15,9 @@ export default (router, { services }) => {
 			res.set('Content-Type', 'text/html');
 			res.set('Content-Security-Policy', CSP_POLICY);
 
-			// Check if user is authenticated AND has create permission on artefacts
-			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
+			// If the user is not authenticated, load login page.
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
 			if (!isAuthenticated) {
-                // Not authenticated and wrong role → 401 page
-				if (res.locals?.roleError) return res.redirect('/archive/error/401');
 				const html = renderLoginPage({
 					navbar: 'collections',
 					title: 'Add New Artefact',
@@ -27,8 +25,9 @@ export default (router, { services }) => {
 				});
 				return res.send(html);
 			}
-			const isEditor = await userIsEditor(req, res, AuthenticationService, ItemsService);
-			if (!isEditor) return res.redirect('/archive/error/401');
+			// Add artefact requires create permission
+			const canCreate = await hasPermission(req, res, ItemsService, 'artefacts', 'create');
+			if (!canCreate) return res.redirect('/archive/error/401');
 
 			const content = `
 ${renderNavbar('collections', true)}
@@ -442,8 +441,8 @@ ${renderFooter()}`;
 	router.post('/artefact/create', async (req, res) => {
 		try {
 			// Check authentication and create permission on artefacts
-			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
-			const isEditor = await userIsEditor(req, res, AuthenticationService, ItemsService);
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
+			const isEditor = await hasPermission(req, res, ItemsService, 'artefacts', 'create');
 			
 			if (!isAuthenticated || !isEditor) {
 				return res.status(401).json({ error: 'Unauthorized - Editor role required' });

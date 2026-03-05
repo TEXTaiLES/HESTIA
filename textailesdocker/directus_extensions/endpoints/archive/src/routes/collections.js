@@ -1,6 +1,6 @@
 import { CSP_POLICY, USE_CASES, USE_CASE_MAP } from '../utils/constants.js';
 import { matchesByUseCase } from '../utils/helpers.js';
-import { userIsAuthenticated, userIsEditor } from '../utils/auth.js';
+import { userIsAuthenticated, hasPermission } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
@@ -14,11 +14,9 @@ export default (router, { services }) => {
 			res.set('Content-Type', 'text/html');
 			res.set('Content-Security-Policy', CSP_POLICY);
 
-			// If the user is not authenticated, show the login message.
-			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
+			// If the user is not authenticated, load login page.
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
 			if (!isAuthenticated) {
-				// Not authenticated and wrong role → 401 page
-				if (res.locals?.roleError) return res.redirect('/archive/error/401');
 				const html = renderLoginPage({
 					navbar: 'collections',
 					title: 'Collections',
@@ -27,8 +25,12 @@ export default (router, { services }) => {
 				return res.send(html);
 			}
 
-			// Check if user is Editor (for showing Add New Artefact button)
-			const isEditor = await userIsEditor(req, res, AuthenticationService, ItemsService);
+			// Collections requires read permission; redirect to 401 if not allowed.
+			const canRead = await hasPermission(req, res, ItemsService, 'artefacts', 'read');
+			if (!canRead) return res.redirect('/archive/error/401');
+
+			// Check create permission to decide whether to show Add New Artefact button.
+			const isEditor = await hasPermission(req, res, ItemsService, 'artefacts', 'create');
 
 			const rawParam = req.params.usecase;
 			const showCards = !rawParam;

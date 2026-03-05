@@ -1,6 +1,6 @@
-// Helper: Check whether user is authenticated by checking the refresh token cookie.
-// Helper: Get user role from refresh token (internal function)
-export const getUserRole = async (req, res, AuthenticationService) => {
+// Internal helper: get user role from access token (JWT).
+// Token is refreshed once per request; result is cached in res.locals.userRole.
+const getUserRole = async (req, res, AuthenticationService) => {
     // Check if we already retrieved the role in this request (caching)
     if (res.locals?.userRole !== undefined) {
         return res.locals.userRole;
@@ -11,6 +11,7 @@ export const getUserRole = async (req, res, AuthenticationService) => {
     const cookieName = process.env.REFRESH_TOKEN_COOKIE_NAME;
     if (!req.cookies[cookieName]) {
         res.locals = res.locals || {};
+        res.locals.isAuthenticated = false;
         res.locals.userRole = null;
         return null;
     }
@@ -22,6 +23,8 @@ export const getUserRole = async (req, res, AuthenticationService) => {
 
     try {
         const result = await auth.refresh(req.cookies[cookieName], { session: true });
+        // Token refresh succeeded → user is authenticated regardless of role
+        res.locals.isAuthenticated = true;
         if (result.refreshToken) {
             // Also refresh the cookie in the response.
             const cookieOptions = {
@@ -53,6 +56,7 @@ export const getUserRole = async (req, res, AuthenticationService) => {
         console.error('[Auth] Refresh failed:', error.message);
         // Refresh failed - clear the cookie
         res.clearCookie(process.env.REFRESH_TOKEN_COOKIE_NAME, { domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN, path: '/' });
+        res.locals.isAuthenticated = false;
     }
 
     // Cache null result
@@ -61,80 +65,57 @@ export const getUserRole = async (req, res, AuthenticationService) => {
     return null;
 };
 
-// Helper: Check whether user is authenticated — checks if the role has read or create permission on artefacts
-export const userIsAuthenticated = async (req, res, AuthenticationService, ItemsService) => {
-    const userRole = await getUserRole(req, res, AuthenticationService);
-
-    if (!userRole) {
-        return false;
-    }
-
-    try {
-        const rolesService = new ItemsService('directus_roles', { schema: req.schema });
-        const role = await rolesService.readOne(userRole, { fields: ['admin_access'] });
-
-        // Admins have full access — no need to check directus_permissions
-        if (role?.admin_access) {
-            return true;
-        }
-
-        // Query directus_permissions to check if the role has read or create access on artefacts.
-        const permissionsService = new ItemsService('directus_permissions', { schema: req.schema });
-        const perms = await permissionsService.readByQuery({
-            filter: {
-                role: { _eq: userRole },
-                collection: { _eq: 'artefacts' },
-                action: { _in: ['read', 'create'] }
-            },
-            limit: 1
-        });
-
-        if (perms.length === 0) {
-            // Role exists but has no permission on artefacts — clear cookie and flag role error
-            res.clearCookie(process.env.REFRESH_TOKEN_COOKIE_NAME, { domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN, path: '/' });
-            res.locals = res.locals || {};
-            res.locals.roleError = true;
-            return false;
-        }
-
-        return true;
-    } catch (error) {
-        console.error('[Auth] Failed to query directus_permissions:', error.message);
-        return false;
-    }
+// Helper: Check whether user is authenticated.
+// Returns true if the refresh token is valid, regardless of whether a role is assigned.
+export const userIsAuthenticated = async (req, res, AuthenticationService) => {
+    await getUserRole(req, res, AuthenticationService);
+    return res.locals.isAuthenticated ?? false;
 };
 
-// Helper: Check if the authenticated user can create artefacts (for showing the add-artefact button)
-export const userIsEditor = async (req, res, AuthenticationService, ItemsService) => {
-    const userRole = await getUserRole(req, res, AuthenticationService);
+// Helper: Check if the authenticated user has a specific permission on a collection.
+// Results are cached in res.locals.permissions to avoid duplicate DB queries per request.
+// Usage: hasPermission(req, res, ItemsService, 'artefacts', 'create')
+export const hasPermission = async (req, res, ItemsService, collection, action) => {
+    const userRole = res.locals?.userRole;
 
     if (!userRole) {
         return false;
     }
 
+    // Check cache
+    const cacheKey = `${collection}:${action}`;
+    if (res.locals.permissions?.[cacheKey] !== undefined) {
+        return res.locals.permissions[cacheKey];
+    }
+
+    const setCache = (value) => {
+        res.locals.permissions = res.locals.permissions || {};
+        res.locals.permissions[cacheKey] = value;
+        return value;
+    };
+
     try {
         const rolesService = new ItemsService('directus_roles', { schema: req.schema });
         const role = await rolesService.readOne(userRole, { fields: ['admin_access'] });
 
-        // Admins have full access — treat as editor
+        // Admins have full access
         if (role?.admin_access) {
-            return true;
+            return setCache(true);
         }
 
-        // Query directus_permissions to check if the role has create permission on artefacts.
         const permissionsService = new ItemsService('directus_permissions', { schema: req.schema });
         const perms = await permissionsService.readByQuery({
             filter: {
                 role: { _eq: userRole },
-                collection: { _eq: 'artefacts' },
-                action: { _eq: 'create' }
+                collection: { _eq: collection },
+                action: { _eq: action }
             },
             limit: 1
         });
 
-        return perms.length > 0;
+        return setCache(perms.length > 0);
     } catch (error) {
-        console.error('[Auth] Failed to query directus_permissions:', error.message);
-        return false;
+        console.error(`[Auth] Failed to check permission ${action} on ${collection}:`, error.message);
+        return setCache(false);
     }
 };

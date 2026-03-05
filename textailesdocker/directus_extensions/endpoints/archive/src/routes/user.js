@@ -12,10 +12,10 @@ export default (router, { services }) => {
             res.set('Content-Type', 'text/html');
             res.set('Content-Security-Policy', CSP_POLICY);
 
-            // If the user is not authenticated, show the login message.
-            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
+            // If the user is not authenticated, show access denied page.
+            const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
             if (!isAuthenticated) {
-                // Not authenticated and wrong role → 401 page
+                // Not authenticated → 401 page
                 if (res.locals?.roleError) return res.redirect('/archive/error/401');
                 const html = renderLoginPage({
                     navbar: 'home',

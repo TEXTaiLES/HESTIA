@@ -8,7 +8,7 @@ export default (router, { services }) => {
 	
 	router.get('/toolbox', async (req, res) => {
 		try {
-			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService, ItemsService);
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
 			const tools = [
 				{ name: 'AmalthAI', image: 'Logos/Tools/AmalthAI_Logo.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/AmalthAI-documentation/' },
