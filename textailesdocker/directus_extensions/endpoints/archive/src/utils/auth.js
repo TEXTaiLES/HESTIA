@@ -1,19 +1,21 @@
-// Internal helper: get user role from access token (JWT).
-// Token is refreshed once per request; result is cached in res.locals.userRole.
-const getUserRole = async (req, res, AuthenticationService) => {
-    // Check if we already retrieved the role in this request (caching)
-    if (res.locals?.userRole !== undefined) {
-        return res.locals.userRole;
+// Helper: Check whether user is authenticated.
+// Returns true if the refresh token is valid, regardless of whether a role is assigned.
+// Token is refreshed once per request.
+export const userIsAuthenticated = async (req, res, AuthenticationService) => {
+    // Check if user is already authenticated in this request (caching).
+    if (res.locals?.isAuthenticated) {
+        return true;
     }
+
+    // Set default cache value.
+    res.locals = res.locals || {};
+    res.locals.isAuthenticated = false;
 
     // Validation is occurred by refreshing the token.
     // See: https://github.com/directus/directus/discussions/10841
     const cookieName = process.env.REFRESH_TOKEN_COOKIE_NAME;
     if (!req.cookies[cookieName]) {
-        res.locals = res.locals || {};
-        res.locals.isAuthenticated = false;
-        res.locals.userRole = null;
-        return null;
+        return false;
     }
 
     const auth = new AuthenticationService({
@@ -23,9 +25,10 @@ const getUserRole = async (req, res, AuthenticationService) => {
 
     try {
         const result = await auth.refresh(req.cookies[cookieName], { session: true });
-        // Token refresh succeeded → user is authenticated regardless of role
-        res.locals.isAuthenticated = true;
         if (result.refreshToken) {
+            // Token refresh succeeded → user is authenticated (regardless of role).
+            res.locals.isAuthenticated = true;
+
             // Also refresh the cookie in the response.
             const cookieOptions = {
                 maxAge: result.expires,                           // Cookie expiration time in ms
@@ -35,28 +38,44 @@ const getUserRole = async (req, res, AuthenticationService) => {
             };
             res.cookie(cookieName, result.refreshToken, cookieOptions);
 
-            // Decode the JWT access token to get user role
-            // JWT tokens have 3 parts separated by dots: header.payload.signature (Base64 encoded)
+            // Finally cache the access token to be used for retrieving the role.
             if (result.accessToken) {
-                try {
-                    // Split JWT and decode the payload (middle section)
-                    const payload = result.accessToken.split('.')[1];
-                    const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'));
-
-                    // Cache the role in res.locals for this request
-                    res.locals = res.locals || {};
-                    res.locals.userRole = decoded.role;
-                    return decoded.role;
-                } catch (decodeError) {
-                    console.error('[Auth] Failed to decode JWT:', decodeError.message);
-                }
+                res.locals.accessToken = result.accessToken;
             }
+
+            return true;
         }
     } catch (error) {
         console.error('[Auth] Refresh failed:', error.message);
-        // Refresh failed - clear the cookie
+        // Refresh failed - clear the cookie.
         res.clearCookie(process.env.REFRESH_TOKEN_COOKIE_NAME, { domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN, path: '/' });
-        res.locals.isAuthenticated = false;
+    }
+
+    return false;
+};
+
+// Internal helper: get user role from access token (JWT).
+// Result is cached in res.locals.userRole.
+const getUserRole = async (req, res) => {
+    // Check if we already retrieved the role in this request (caching).
+    if (res.locals?.userRole !== undefined) {
+        return res.locals.userRole;
+    }
+
+    // Decode the JWT access token to get user role
+    // JWT tokens have 3 parts separated by dots: header.payload.signature (Base64 encoded)
+    if (res.locals?.accessToken) {
+        try {
+            // Split JWT and decode the payload (middle section)
+            const payload = res.locals.accessToken.split('.')[1];
+            const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'));
+
+            // Cache the role in res.locals for this request
+            res.locals.userRole = decoded.role;
+            return decoded.role;
+        } catch (decodeError) {
+            console.error('[Auth] Failed to decode JWT:', decodeError.message);
+        }
     }
 
     // Cache null result
@@ -65,18 +84,11 @@ const getUserRole = async (req, res, AuthenticationService) => {
     return null;
 };
 
-// Helper: Check whether user is authenticated.
-// Returns true if the refresh token is valid, regardless of whether a role is assigned.
-export const userIsAuthenticated = async (req, res, AuthenticationService) => {
-    await getUserRole(req, res, AuthenticationService);
-    return res.locals.isAuthenticated ?? false;
-};
-
 // Helper: Check if the authenticated user has a specific permission on a collection.
 // Results are cached in res.locals.permissions to avoid duplicate DB queries per request.
 // Usage: hasPermission(req, res, ItemsService, 'artefacts', 'create')
 export const hasPermission = async (req, res, ItemsService, collection, action) => {
-    const userRole = res.locals?.userRole;
+    const userRole = res.locals?.userRole || await getUserRole(req, res);
 
     if (!userRole) {
         return false;
