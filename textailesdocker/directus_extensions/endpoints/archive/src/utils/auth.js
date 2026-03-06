@@ -86,8 +86,8 @@ const getUserRole = async (req, res) => {
 
 // Helper: Check if the authenticated user has a specific permission on a collection.
 // Results are cached in res.locals.permissions to avoid duplicate DB queries per request.
-// Usage: hasPermission(req, res, ItemsService, 'artefacts', 'create')
-export const hasPermission = async (req, res, ItemsService, collection, action) => {
+// Usage: userHasPermission(req, res, ItemsService, 'artefacts', 'create')
+export const userHasPermission = async (req, res, ItemsService, collection, action) => {
     const userRole = res.locals?.userRole || await getUserRole(req, res);
 
     if (!userRole) {

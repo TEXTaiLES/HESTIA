@@ -1,6 +1,6 @@
 import { CSP_POLICY, USE_CASES, USE_CASE_MAP } from '../utils/constants.js';
 import { matchesByUseCase } from '../utils/helpers.js';
-import { userIsAuthenticated, hasPermission } from '../utils/auth.js';
+import { userIsAuthenticated, userHasPermission } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
@@ -27,11 +27,11 @@ export default (router, { services }) => {
 			}
 
 			// Collections requires read permission; redirect to 401 if not allowed.
-			const canRead = await hasPermission(req, res, ItemsService, 'artefacts', 'read');
+			const canRead = await userHasPermission(req, res, ItemsService, 'artefacts', 'read');
 			if (!canRead) return res.status(401).send(render401Page({ activePage: 'collections', isAuthenticated: true }));
 
 			// Check create permission to decide whether to show Add New Artefact button.
-			const isEditor = await hasPermission(req, res, ItemsService, 'artefacts', 'create');
+			const isEditor = await userHasPermission(req, res, ItemsService, 'artefacts', 'create');
 
 			const rawParam = req.params.usecase;
 			const showCards = !rawParam;

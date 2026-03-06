@@ -1,5 +1,5 @@
 import { CSP_POLICY, ATON_CONFIG } from '../utils/constants.js';
-import { userIsAuthenticated, hasPermission } from '../utils/auth.js';
+import { userIsAuthenticated, userHasPermission } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
@@ -27,7 +27,7 @@ export default (router, { services }) => {
             }
 
 			// Artefacts require read permission; redirect to 401 if not allowed.
-			const canRead = await hasPermission(req, res, ItemsService, 'artefacts', 'read');
+			const canRead = await userHasPermission(req, res, ItemsService, 'artefacts', 'read');
 			if (!canRead) {
 				return res.status(401).send(render401Page({ activePage: 'collections', isAuthenticated: true }));
 			}

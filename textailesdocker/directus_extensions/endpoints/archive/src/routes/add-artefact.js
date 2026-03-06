@@ -1,5 +1,5 @@
 import { CSP_POLICY } from '../utils/constants.js';
-import { userIsAuthenticated, hasPermission } from '../utils/auth.js';
+import { userIsAuthenticated, userHasPermission } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
@@ -27,7 +27,7 @@ export default (router, { services }) => {
 				return res.send(html);
 			}
 			// Add artefact requires create permission
-			const canCreate = await hasPermission(req, res, ItemsService, 'artefacts', 'create');
+			const canCreate = await userHasPermission(req, res, ItemsService, 'artefacts', 'create');
 			if (!canCreate) return res.status(401).send(render401Page({ activePage: 'collections', isAuthenticated: true }));
 
 			const content = `
@@ -443,7 +443,7 @@ ${renderFooter()}`;
 		try {
 			// Check authentication and create permission on artefacts
 			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
-			const isEditor = await hasPermission(req, res, ItemsService, 'artefacts', 'create');
+			const isEditor = await userHasPermission(req, res, ItemsService, 'artefacts', 'create');
 			
 			if (!isAuthenticated || !isEditor) {
 				return res.status(401).json({ error: 'Unauthorized - Editor role required' });
