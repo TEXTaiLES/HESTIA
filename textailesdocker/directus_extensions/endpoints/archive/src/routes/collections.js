@@ -28,7 +28,7 @@ export default (router, { services }) => {
 
 			// Collections requires read permission; redirect to 401 if not allowed.
 			const canRead = await userHasPermission(req, res, ItemsService, 'artefacts', 'read');
-			if (!canRead) return res.status(401).send(render401Page({ activePage: 'collections', isAuthenticated: true }));
+			if (!canRead) return res.status(401).send(render401Page({ activePage: 'collections' }));
 
 			// Check create permission to decide whether to show Add New Artefact button.
 			const isEditor = await userHasPermission(req, res, ItemsService, 'artefacts', 'create');

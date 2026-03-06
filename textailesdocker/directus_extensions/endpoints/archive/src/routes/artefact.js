@@ -29,7 +29,7 @@ export default (router, { services }) => {
 			// Artefacts require read permission; redirect to 401 if not allowed.
 			const canRead = await userHasPermission(req, res, ItemsService, 'artefacts', 'read');
 			if (!canRead) {
-				return res.status(401).send(render401Page({ activePage: 'collections', isAuthenticated: true }));
+				return res.status(401).send(render401Page({ activePage: 'collections' }));
 			}
 
             // Build the Artefact page.

@@ -28,7 +28,7 @@ export default (router, { services }) => {
 			}
 			// Add artefact requires create permission
 			const canCreate = await userHasPermission(req, res, ItemsService, 'artefacts', 'create');
-			if (!canCreate) return res.status(401).send(render401Page({ activePage: 'collections', isAuthenticated: true }));
+			if (!canCreate) return res.status(401).send(render401Page({ activePage: 'collections' }));
 
 			const content = `
 ${renderNavbar('collections', true)}
