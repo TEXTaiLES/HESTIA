@@ -1,6 +1,7 @@
 import { CSP_POLICY, ATON_CONFIG } from '../utils/constants.js';
-import { userIsAuthenticated } from '../utils/auth.js';
+import { userIsAuthenticated, userHasPermission } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
+import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 import { getAtonScene } from '../utils/helpers.js';
@@ -24,6 +25,12 @@ export default (router, { services }) => {
                 });
                 return res.send(html);
             }
+
+			// Artefacts require read permission; redirect to 401 if not allowed.
+			const canRead = await userHasPermission(req, res, ItemsService, 'artefacts', 'read');
+			if (!canRead) {
+				return res.status(401).send(render401Page({ activePage: 'collections' }));
+			}
 
             // Build the Artefact page.
 			const artefactsService = new ItemsService('artefacts', {

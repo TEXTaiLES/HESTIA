@@ -1,6 +1,7 @@
 import { CSP_POLICY } from '../utils/constants.js';
-import { userIsAuthenticated } from '../utils/auth.js';
+import { userIsAuthenticated, userHasPermission } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
+import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 import busboy from 'busboy'; // For handling file uploads
@@ -25,6 +26,9 @@ export default (router, { services }) => {
 				});
 				return res.send(html);
 			}
+			// Add artefact requires create permission
+			const canCreate = await userHasPermission(req, res, ItemsService, 'artefacts', 'create');
+			if (!canCreate) return res.status(401).send(render401Page({ activePage: 'collections' }));
 
 			const content = `
 ${renderNavbar('collections', true)}
@@ -437,9 +441,11 @@ ${renderFooter()}`;
 	// This endpoint receives multipart/form-data directly with files
 	router.post('/artefact/create', async (req, res) => {
 		try {
-			// Check authentication
+			// Check authentication and create permission on artefacts
 			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
-			if (!isAuthenticated) {
+			const isEditor = await userHasPermission(req, res, ItemsService, 'artefacts', 'create');
+			
+			if (!isAuthenticated || !isEditor) {
 				return res.status(401).json({ error: 'Unauthorized' });
 			}
 

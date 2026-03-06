@@ -1,29 +1,133 @@
-// Helper: Check whether user is authenticated by checking the refresh token cookie.
+// Helper: Check whether user is authenticated.
+// Returns true if the refresh token is valid, regardless of whether a role is assigned.
+// Token is refreshed once per request.
 export const userIsAuthenticated = async (req, res, AuthenticationService) => {
+    // Check if user is already authenticated in this request (caching).
+    if (res.locals?.isAuthenticated) {
+        return true;
+    }
+
+    // Set default cache value.
+    res.locals = res.locals || {};
+    res.locals.isAuthenticated = false;
+
     // Validation is occurred by refreshing the token.
     // See: https://github.com/directus/directus/discussions/10841
     const cookieName = process.env.REFRESH_TOKEN_COOKIE_NAME;
-    if (req.cookies[cookieName]) {
-        const auth = new AuthenticationService({
-            schema: req.schema,
-            accountability: req.accountability,
-        });
-        try {
-            const result = await auth.refresh(req.cookies[cookieName], { session: true });
-            if (result.refreshToken) {
-                // Also refresh the cookie in the response.
-                const cookieOptions = {
-                    maxAge: result.expires,                           // Cookie expiration time in ms
-                    httpOnly: true,                                   // Prevents JavaScript access (security)
-                    domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN,  // If set, cookie is also valid for subdomains
-                    path: '/'                                         // Cookie valid for all paths on the domain
-                };
+    if (!req.cookies[cookieName]) {
+        return false;
+    }
 
-                res.cookie(cookieName, result.refreshToken, cookieOptions);
-                return true;
+    const auth = new AuthenticationService({
+        schema: req.schema,
+        accountability: req.accountability,
+    });
+
+    try {
+        const result = await auth.refresh(req.cookies[cookieName], { session: true });
+        if (result.refreshToken) {
+            // Token refresh succeeded → user is authenticated (regardless of role).
+            res.locals.isAuthenticated = true;
+
+            // Also refresh the cookie in the response.
+            const cookieOptions = {
+                maxAge: result.expires,                           // Cookie expiration time in ms
+                httpOnly: true,                                   // Prevents JavaScript access (security)
+                domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN,  // If set, cookie is also valid for subdomains
+                path: '/'                                         // Cookie valid for all paths on the domain
+            };
+            res.cookie(cookieName, result.refreshToken, cookieOptions);
+
+            // Finally cache the access token to be used for retrieving the role.
+            if (result.accessToken) {
+                res.locals.accessToken = result.accessToken;
             }
-        } catch { }  // refresh will throw an exception for invalid credentials or a suspended user, so it should fail silenty.
+
+            return true;
+        }
+    } catch (error) {
+        console.error('[Auth] Refresh failed:', error.message);
+        // Refresh failed - clear the cookie.
+        res.clearCookie(process.env.REFRESH_TOKEN_COOKIE_NAME, { domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN, path: '/' });
     }
 
     return false;
+};
+
+// Internal helper: get user role from access token (JWT).
+// Result is cached in res.locals.userRole.
+const getUserRole = async (req, res) => {
+    // Check if we already retrieved the role in this request (caching).
+    if (res.locals?.userRole !== undefined) {
+        return res.locals.userRole;
+    }
+
+    // Decode the JWT access token to get user role
+    // JWT tokens have 3 parts separated by dots: header.payload.signature (Base64 encoded)
+    if (res.locals?.accessToken) {
+        try {
+            // Split JWT and decode the payload (middle section)
+            const payload = res.locals.accessToken.split('.')[1];
+            const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'));
+
+            // Cache the role in res.locals for this request
+            res.locals.userRole = decoded.role;
+            return decoded.role;
+        } catch (decodeError) {
+            console.error('[Auth] Failed to decode JWT:', decodeError.message);
+        }
+    }
+
+    // Cache null result
+    res.locals = res.locals || {};
+    res.locals.userRole = null;
+    return null;
+};
+
+// Helper: Check if the authenticated user has a specific permission on a collection.
+// Results are cached in res.locals.permissions to avoid duplicate DB queries per request.
+// Usage: userHasPermission(req, res, ItemsService, 'artefacts', 'create')
+export const userHasPermission = async (req, res, ItemsService, collection, action) => {
+    const userRole = res.locals?.userRole || await getUserRole(req, res);
+
+    if (!userRole) {
+        return false;
+    }
+
+    // Check cache
+    const cacheKey = `${collection}:${action}`;
+    if (res.locals.permissions?.[cacheKey] !== undefined) {
+        return res.locals.permissions[cacheKey];
+    }
+
+    const setCache = (value) => {
+        res.locals.permissions = res.locals.permissions || {};
+        res.locals.permissions[cacheKey] = value;
+        return value;
+    };
+
+    try {
+        const rolesService = new ItemsService('directus_roles', { schema: req.schema });
+        const role = await rolesService.readOne(userRole, { fields: ['admin_access'] });
+
+        // Admins have full access
+        if (role?.admin_access) {
+            return setCache(true);
+        }
+
+        const permissionsService = new ItemsService('directus_permissions', { schema: req.schema });
+        const perms = await permissionsService.readByQuery({
+            filter: {
+                role: { _eq: userRole },
+                collection: { _eq: collection },
+                action: { _eq: action }
+            },
+            limit: 1
+        });
+
+        return setCache(perms.length > 0);
+    } catch (error) {
+        console.error(`[Auth] Failed to check permission ${action} on ${collection}:`, error.message);
+        return setCache(false);
+    }
 };

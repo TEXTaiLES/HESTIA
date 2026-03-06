@@ -1,7 +1,8 @@
 import { CSP_POLICY, USE_CASES, USE_CASE_MAP } from '../utils/constants.js';
 import { matchesByUseCase } from '../utils/helpers.js';
-import { userIsAuthenticated } from '../utils/auth.js';
+import { userIsAuthenticated, userHasPermission } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
+import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 
@@ -24,6 +25,13 @@ export default (router, { services }) => {
 				});
 				return res.send(html);
 			}
+
+			// Collections requires read permission; redirect to 401 if not allowed.
+			const canRead = await userHasPermission(req, res, ItemsService, 'artefacts', 'read');
+			if (!canRead) return res.status(401).send(render401Page({ activePage: 'collections' }));
+
+			// Check create permission to decide whether to show Add New Artefact button.
+			const isEditor = await userHasPermission(req, res, ItemsService, 'artefacts', 'create');
 
 			const rawParam = req.params.usecase;
 			const showCards = !rawParam;
@@ -127,11 +135,14 @@ ${renderNavbar('collections', true)}
     <div class="row mt-3">
         <div class="col-0 col-lg-2"></div>
         <div class="col-12 col-lg-10">
+			${isEditor ? `
+			<!-- Add New Artefact button - only visible to Editor users -->
 			<div class="d-flex justify-content-end mb-3">
 				<a href="/archive/artefact/add" class="btn btn-primary">
 					<i class="fas fa-plus"></i> Add New Artefact
 				</a>
 			</div>
+			` : ''}
 			${showCards ? `
 				<div class="row mt-4">
 					${useCaseMenu}

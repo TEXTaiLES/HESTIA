@@ -9,7 +9,7 @@ export const renderLoginBox = () => `
                 <i class="fas fa-lock fa-3x mb-3"></i>
                 <h4>Authentication Required</h4>
                 <p>Collections require login to access.</p>
-                
+
                 <!-- Login Form -->
                 <form id="loginForm" class="mt-4">
                     <div class="mb-3">
