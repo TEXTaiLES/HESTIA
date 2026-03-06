@@ -446,7 +446,7 @@ ${renderFooter()}`;
 			const isEditor = await userHasPermission(req, res, ItemsService, 'artefacts', 'create');
 			
 			if (!isAuthenticated || !isEditor) {
-				return res.status(401).json({ error: 'Unauthorized - Editor role required' });
+				return res.status(401).json({ error: 'Unauthorized' });
 			}
 
 			const bb = busboy({ headers: req.headers }); // Content-Type: multipart/form-data
