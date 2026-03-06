@@ -1,10 +1,9 @@
 import { CSP_POLICY } from '../utils/constants.js';
 import { userIsAuthenticated } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
-import { render401Page } from '../templates/error.js';
 
 export default (router, { services }) => {
-    const { AuthenticationService, ItemsService } = services;
+    const { AuthenticationService } = services;
 
     router.get('/user/login', async (req, res) => {
         try {
@@ -12,11 +11,9 @@ export default (router, { services }) => {
             res.set('Content-Type', 'text/html');
             res.set('Content-Security-Policy', CSP_POLICY);
 
-            // If the user is not authenticated, show access denied page.
+            // If the user is not authenticated, show the login message.
             const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
             if (!isAuthenticated) {
-                // Not authenticated → 401 page
-                if (res.locals?.roleError) return res.status(401).send(render401Page({ activePage: 'home', isAuthenticated: true }));
                 const html = renderLoginPage({
                     navbar: 'home',
                     title: 'User Login',

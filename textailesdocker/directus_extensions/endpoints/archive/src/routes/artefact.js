@@ -1,5 +1,5 @@
 import { CSP_POLICY, ATON_CONFIG } from '../utils/constants.js';
-import { userIsAuthenticated } from '../utils/auth.js';
+import { userIsAuthenticated, hasPermission } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
@@ -15,11 +15,9 @@ export default (router, { services }) => {
             res.set('Content-Type', 'text/html');
             res.set('Content-Security-Policy', CSP_POLICY);
 
-            // If the user is not authenticated, load access denied page.
+            // If the user is not authenticated, show the login message.
             const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
             if (!isAuthenticated) {
-                // Αuthenticated but wrong role → 401 page
-                if (res.locals?.roleError) return res.status(401).send(render401Page({ activePage: 'collections', isAuthenticated: true }));
                 const html = renderLoginPage({
                     navbar: 'collections',
                     title: 'Collections',
@@ -27,6 +25,12 @@ export default (router, { services }) => {
                 });
                 return res.send(html);
             }
+
+			// Artefacts require read permission; redirect to 401 if not allowed.
+			const canRead = await hasPermission(req, res, ItemsService, 'artefacts', 'read');
+			if (!canRead) {
+				return res.status(401).send(render401Page({ activePage: 'collections', isAuthenticated: true }));
+			}
 
             // Build the Artefact page.
 			const artefactsService = new ItemsService('artefacts', {
