@@ -8,14 +8,14 @@ import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 
 export default (router, { services }) => {
 	const { AuthenticationService, ItemsService } = services;
-	
+
 	router.get('/collections/:usecase?', async (req, res) => {
 		try {
 			// Set response headers.
 			res.set('Content-Type', 'text/html');
 			res.set('Content-Security-Policy', CSP_POLICY);
 
-			// If the user is not authenticated, load login page.
+			// If the user is not authenticated, show the login message.
 			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
 			if (!isAuthenticated) {
 				const html = renderLoginPage({

@@ -9,6 +9,7 @@ export default (router, { services }) => {
 	router.get('/', async (req, res) => {
 		try {
             const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
+
 			// Get total artefact count.
             const artefactsService = new ItemsService('artefacts', {
                 schema: req.schema,
