@@ -195,6 +195,10 @@ class ReconstructionResource(Resource):
                     record['public_url_glb'] = build_public_url(MINIO_RECONSTRUCTION_BUCKET, glb_object_name)
                     record['filename'] = filename
 
+            # Ensure filename is never None (Avro schema requires a string) eg. if only a texture was uploaded without an OBJ
+            if record['filename'] is None:
+                record['filename'] = secure_filename(files[0].filename)
+
             # 3. Publish to Kafka
             if send_avro_message(TOPIC_RECONSTRUCTIONS, object_id, record, RECONSTRUCTION_AVRO_SCHEMA):
 
