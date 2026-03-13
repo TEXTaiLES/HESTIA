@@ -3,12 +3,15 @@ import shutil
 import requests
 
 # --- API CONFIGURATION ---
+#API_KEY = "1f8XEe0OA1FqLAh17yO3cjq9zwuiIfLV"
+#API_BASE_URL = "http://api.textailes.athenarc.gr"
 API_KEY = "change-me-locally"
 API_BASE_URL = "http://127.0.0.1:5000"
 RECONSTRUCTIONS_ENDPOINT = "/reconstructions"
 
 def find_and_copy(filename, source_root, target_dir):
-    """Search for a specific file (Texture or OBJ) using DFS and copy it"""
+    """Search for a specific file (Texture or OBJ) using DFS and copy it.
+    Returns the copied filename on success, None otherwise."""
     stack = [source_root]
     while stack:
         current_dir = stack.pop()
@@ -27,12 +30,15 @@ def find_and_copy(filename, source_root, target_dir):
                         if os.path.abspath(entry.path) != os.path.abspath(dest):
                             shutil.copy2(entry.path, dest)
                             print(f"   Copied: {entry.name}")
-                        return 
+                        return entry.name
         except Exception:
             continue
+    return None
 
 def process_mtl_assets(mtl_path, source_root, target_dir):
-    """Read the MTL file and find required texture assets"""
+    """Read the MTL file and find required texture assets.
+    Returns a list of copied filenames."""
+    copied = []
     try:
         with open(mtl_path, 'r', encoding='utf-8', errors='ignore') as f:
             for line in f:
@@ -41,16 +47,18 @@ def process_mtl_assets(mtl_path, source_root, target_dir):
                     if len(parts) > 1:
                         # Clean path in case the MTL was written on Windows
                         texture_name = os.path.basename(parts[-1].replace('\\', '/'))
-                        find_and_copy(texture_name, source_root, target_dir)
+                        result = find_and_copy(texture_name, source_root, target_dir)
+                        if result:
+                            copied.append(result)
     except Exception as e:
         print(f"   Error in MTL: {e}")
+    return copied
 
-def upload_file(file_path):
+def upload_file(file_path, scan_id):
     """POST a single file to /reconstructions."""
     url = API_BASE_URL.rstrip('/') + RECONSTRUCTIONS_ENDPOINT
     headers = {"Authorization": f"Bearer {API_KEY}"}
     filename = os.path.basename(file_path)
-    scan_id = os.path.splitext(filename)[0]
 
     print(f"   Uploading: {filename}", end='', flush=True)
     if filename.lower().endswith('.obj'):
@@ -79,7 +87,7 @@ def upload_file(file_path):
 def main():
     # --- DEFINE YOUR SOURCE PATH HERE ---
     source_path = r"C:\Users\i.kechlimpari\Downloads\3D Models" 
-    
+    #source_path = r"C:\Users\i.kechlimpari\Downloads\7front75m8k"
     # Convert to absolute path for reliability
     source_path = os.path.abspath(source_path)
     
@@ -92,6 +100,9 @@ def main():
         print(f"Created destination directory: {target_dir}")
 
     print(f"Starting collection from: {source_path}")
+
+    # Maps each collected filename → its canonical scan_id (MTL stem)
+    file_scan_id_map = {}
     
     stack = [source_path]
     while stack:
@@ -109,18 +120,24 @@ def main():
                     
                     elif entry.is_file() and entry.name.lower().endswith('.mtl'):
                         print(f"\nFound model: {entry.name}")
+                        scan_id = os.path.splitext(entry.name)[0]  # e.g. "s1"
                         
                         # 1. Copy the MTL file itself
                         dest_mtl = os.path.join(target_dir, entry.name)
                         if os.path.abspath(entry.path) != os.path.abspath(dest_mtl):
                             shutil.copy2(entry.path, dest_mtl)
+                        file_scan_id_map[entry.name] = scan_id
                         
                         # 2. Search and copy the corresponding OBJ file
                         obj_name = entry.name.lower().replace('.mtl', '.obj')
-                        find_and_copy(obj_name, source_path, target_dir)
+                        obj_result = find_and_copy(obj_name, source_path, target_dir)
+                        if obj_result:
+                            file_scan_id_map[obj_result] = scan_id
                         
                         # 3. Search for textures defined inside the MTL
-                        process_mtl_assets(dest_mtl, source_path, target_dir)
+                        texture_results = process_mtl_assets(dest_mtl, source_path, target_dir)
+                        for tex in texture_results:
+                            file_scan_id_map[tex] = scan_id
                         
         except PermissionError:
             print(f"Permission denied: {current_dir}")
@@ -136,7 +153,9 @@ def main():
     else:
         print(f"Found {len(files)} file(s) to upload.")
         for filename in sorted(files):
-            upload_file(os.path.join(target_dir, filename))
+            # Use the mapped scan_id; fall back to file stem if not tracked
+            scan_id = file_scan_id_map.get(filename, os.path.splitext(filename)[0])
+            upload_file(os.path.join(target_dir, filename), scan_id)
     print("\nAll done!")
 
 if __name__ == "__main__":
