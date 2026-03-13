@@ -3,10 +3,10 @@ import shutil
 import requests
 
 # --- API CONFIGURATION ---
-#API_KEY = "1f8XEe0OA1FqLAh17yO3cjq9zwuiIfLV"
-#API_BASE_URL = "http://api.textailes.athenarc.gr"
-API_KEY = "change-me-locally"
-API_BASE_URL = "http://127.0.0.1:5000"
+API_KEY = "1f8XEe0OA1FqLAh17yO3cjq9zwuiIfLV"
+API_BASE_URL = "http://api.textailes.athenarc.gr"
+#API_KEY = "change-me-locally"
+#API_BASE_URL = "http://127.0.0.1:5000"
 RECONSTRUCTIONS_ENDPOINT = "/reconstructions"
 
 def find_and_copy(filename, source_root, target_dir):
@@ -54,26 +54,32 @@ def process_mtl_assets(mtl_path, source_root, target_dir):
         print(f"   Error in MTL: {e}")
     return copied
 
-def upload_file(file_path, scan_id):
-    """POST a single file to /reconstructions."""
+def upload_group(file_paths, scan_id):
+    """POST all files for one scan_id in a single multipart request."""
     url = API_BASE_URL.rstrip('/') + RECONSTRUCTIONS_ENDPOINT
     headers = {"Authorization": f"Bearer {API_KEY}"}
-    filename = os.path.basename(file_path)
+    filenames = [os.path.basename(p) for p in file_paths]
 
-    print(f"   Uploading: {filename}", end='', flush=True)
-    if filename.lower().endswith('.obj'):
-        print(" (may take 2-3 min for GLB conversion...)", flush=True)
-    else:
-        print(flush=True)
+    has_obj = any(f.lower().endswith('.obj') for f in filenames)
+    print(f"\n   scan_id={scan_id} | files: {', '.join(filenames)}", flush=True)
+    if has_obj:
+        print("   (OBJ present — may take 2-3 min for GLB conversion...)", flush=True)
+
+    open_files = []
     try:
-        with open(file_path, 'rb') as fh:
-            response = requests.post(
-                url,
-                headers=headers,
-                files=[('file', (filename, fh))],
-                data={"scan_id": scan_id},
-                timeout=600  # 10 minutes — OBJ needs MinIO upload + GLB conversion
-            )
+        multipart = []
+        for path in file_paths:
+            fh = open(path, 'rb')
+            open_files.append(fh)
+            multipart.append(('file', (os.path.basename(path), fh)))
+
+        response = requests.post(
+            url,
+            headers=headers,
+            files=multipart,
+            data={"scan_id": scan_id},
+            timeout=600  # 10 minutes — OBJ needs MinIO upload + GLB conversion
+        )
         if response.status_code in (200, 201):
             print(f"   [ok] object_id: {response.json().get('object_id', '?')}")
         else:
@@ -82,6 +88,9 @@ def upload_file(file_path, scan_id):
         print(f"   [error] Request timed out — server is still processing, check logs")
     except Exception as e:
         print(f"   [error] {e}")
+    finally:
+        for fh in open_files:
+            fh.close()
 
 
 def main():
@@ -147,15 +156,23 @@ def main():
 
     # --- UPLOAD TO /reconstructions ---
     print("\nStarting upload to API...")
-    files = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f))]
-    if not files:
+    all_files = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f))]
+    if not all_files:
         print("[warn] input_dfs is empty — nothing to upload.")
     else:
-        print(f"Found {len(files)} file(s) to upload.")
-        for filename in sorted(files):
-            # Use the mapped scan_id; fall back to file stem if not tracked
+        print(f"Found {len(all_files)} file(s) to upload.")
+
+        # Group files by scan_id, preserving OBJ-first order within each group
+        groups = {}  # scan_id -> [file_path, ...]
+        for filename in sorted(all_files):
             scan_id = file_scan_id_map.get(filename, os.path.splitext(filename)[0])
-            upload_file(os.path.join(target_dir, filename), scan_id)
+            groups.setdefault(scan_id, []).append(os.path.join(target_dir, filename))
+
+        print(f"Grouped into {len(groups)} reconstruction(s).")
+        for scan_id, paths in groups.items():
+            # Send OBJ first so the API can start GLB conversion immediately
+            paths.sort(key=lambda p: (0 if p.lower().endswith('.obj') else 1))
+            upload_group(paths, scan_id)
     print("\nAll done!")
 
 if __name__ == "__main__":
