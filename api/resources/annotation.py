@@ -31,6 +31,7 @@ ANNOTATION_AVRO_SCHEMA = """
         {"name": "location", "type": ["null", "string"], "default": null},
         {"name": "collaborative", "type": "boolean", "default": false},
         {"name": "content", "type": ["null", "string"], "default": null},
+        {"name": "linked_objects", "type": ["null", "string"], "default": null},
         {"name": "timestamp", "type": "string"}
     ]
 }
@@ -107,7 +108,8 @@ class AnnotationResource(Resource):
                             filename: {"urls": [public_url]}
                         },
                         "edges": {".": [filename]}
-                    }
+                    },
+                    "linked_objects": {}
                 }
 
                 record = {
@@ -117,6 +119,7 @@ class AnnotationResource(Resource):
                     'location': location,
                     'collaborative': scene_data['collaborative'],
                     'content': json.dumps(scene_data['scenegraph']),
+                    'linked_objects': json.dumps(scene_data['linked_objects']),
                     'timestamp': timestamp
                 }
 
@@ -177,6 +180,7 @@ class AnnotationResource(Resource):
 
         timestamp = datetime.now(timezone.utc).isoformat()
         collaborative = scene_data.get('collaborative', False)
+        linked_objects: dict = scene_data.get('linked_objects', None)
 
         try:
             # Prepare Record
@@ -187,6 +191,7 @@ class AnnotationResource(Resource):
                 'public_url': public_url,
                 'location': None,
                 'content': json.dumps(scene_data['scenegraph']),
+                'linked_objects': json.dumps(linked_objects) if linked_objects else None,
                 'timestamp': timestamp
             }
 
@@ -197,20 +202,21 @@ class AnnotationResource(Resource):
             # Insert record in DB
             with get_db_connection() as conn, conn.cursor() as cur:
                 sql = """
-                    INSERT INTO annotations (scene_id, object_id, collaborative, public_url, content, timestamp, location)
-                    SELECT %s, %s, %s, %s, %s, %s, r.glb_location
+                    INSERT INTO annotations (scene_id, object_id, collaborative, public_url, content, linked_objects, timestamp, location)
+                    SELECT %s, %s, %s, %s, %s, %s, %s, r.glb_location
                     FROM reconstructions r
                     WHERE r.object_id = %s
                     RETURNING scene_id;
                 """
                 params = (
-                    scene_id,
-                    object_id,
-                    collaborative,
-                    public_url,
+                    record[scene_id],
+                    record[object_id],
+                    record[collaborative],
+                    record[public_url],
                     record['content'],
-                    timestamp,
-                    object_id,
+                    record['linked_objects'],
+                    record[timestamp],
+                    record[object_id],
                 )
 
                 cur.execute(sql, params)
@@ -237,7 +243,7 @@ class AnnotationResource(Resource):
         if scene_id is None and object_id is None:
             return {'error': "Missing 'scene_id' and 'object_id'"}, 400
 
-        allowed_fields = {'collaborative', 'scenegraph'}
+        allowed_fields = {'collaborative', 'scenegraph', 'linked_objects'}
         fields_to_update: dict = {k: v for k, v in update_data.items() if k in allowed_fields}
 
         if not fields_to_update:
@@ -250,7 +256,7 @@ class AnnotationResource(Resource):
                 id_key = 'scene_id' if scene_id else 'object_id'
                 id_value = scene_id if scene_id else object_id
 
-                sql = f"SELECT content FROM annotations WHERE {id_key} = %s;"
+                sql = f"SELECT content, linked_objects FROM annotations WHERE {id_key} = %s;"
                 params = [id_value]
                 cur.execute(sql, tuple(params))
 
@@ -258,27 +264,30 @@ class AnnotationResource(Resource):
                 if not row:
                     return {'error': f"No scene was found with {id_key} '{id_value}'"}, 400
 
+                def get_changes(structure_dict: dict, dict_to_store_the_change: dict):
+                    for primary_field in [primary_field for primary_field in structure_dict.keys() if primary_field in fields_to_update]:
+                        for secondary_field in [secondary_field for secondary_field in structure_dict[primary_field].keys() if secondary_field in fields_to_update[primary_field]]:
+                            dict_to_store_the_change[secondary_field] = fields_to_update[primary_field][secondary_field]
+
                 content = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+                get_changes({'scenegraph': {'nodes': [], 'edges': []}}, content)
 
-                if 'scenegraph' in fields_to_update:
-                    scenegraph = fields_to_update['scenegraph']
-                    if 'nodes' in scenegraph:
-                        content['nodes'] = scenegraph['nodes']
-                    if 'edges' in scenegraph:
-                        content['edges'] = scenegraph['edges']
+                linked_objects = json.loads(row[1]) if isinstance(row[1], str) else row[1]
+                get_changes({'linked_objects': {'parent_object': None, 'child_objects': []}}, linked_objects)
 
-                update_clause = 'timestamp = %s'
+                update_clause = ['timestamp = %s']
                 params = [fields_to_update['timestamp']]
 
-                if 'collaborative' in fields_to_update:
-                    update_clause += ', collaborative = %s'
-                    params.append(fields_to_update['collaborative'])
+                def append_field_in_update_clause(field: str, col_name: str, value):
+                    if field in fields_to_update:
+                        update_clause.append(f"{col_name} = %s")
+                        params.append(value)
 
-                if 'scenegraph' in fields_to_update:
-                    update_clause += ', content = %s'
-                    params.append(json.dumps(fields_to_update['scenegraph']))
+                append_field_in_update_clause('collaborative', 'collaborative', fields_to_update['collaborative'])
+                append_field_in_update_clause('scenegraph', 'content', json.dumps(content))
+                append_field_in_update_clause('linked_objects', 'linked_objects', json.dumps(linked_objects))
 
-                sql = f"UPDATE annotations SET {update_clause} WHERE {id_key} = %s RETURNING {id_key};"
+                sql = f"UPDATE annotations SET {', '.join(update_clause)} WHERE {id_key} = %s RETURNING {id_key};"
                 params.append(id_value)
 
                 cur.execute(sql, tuple(params))
