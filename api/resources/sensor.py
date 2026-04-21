@@ -140,14 +140,6 @@ class SensorReadingResource(Resource):
             if not all([key in valid_keys for key in data.keys()]):
                 return {'error': "Not all given keys are valid"}, 400
 
-            sql = f"INSERT INTO sensor_readings ({', '.join([key for key in data.keys()])})"
-            sql += f" VALUES ({', '.join(['%s' for _ in data.keys()])})"
-            params = list(data.values())
-            with get_db_connection() as conn, conn.cursor() as cur:
-                cur.execute(sql, tuple(params))
-                if cur.rowcount == 0:
-                    return {'error': f"Sensor reading {data['timestamp']} ({data['sensor_id']}) could not be stored in DB."}, 500
-
             # 2. Notify Listeners (Simple JSON)
             notification = {
                 "sensor_id": data['sensor_id'],
