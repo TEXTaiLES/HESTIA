@@ -270,9 +270,11 @@ class AnnotationResource(Resource):
                             dict_to_store_the_change[secondary_field] = fields_to_update[primary_field][secondary_field]
 
                 content = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+                content = content or {}
                 get_changes({'scenegraph': {'nodes': [], 'edges': []}}, content)
 
                 linked_objects = json.loads(row[1]) if isinstance(row[1], str) else row[1]
+                linked_objects = linked_objects or {}
                 get_changes({'linked_objects': {'parent_object': None, 'child_objects': []}}, linked_objects)
 
                 update_clause = ['timestamp = %s']
