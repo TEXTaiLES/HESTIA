@@ -196,18 +196,27 @@ class ReconstructionResource(Resource):
                     record['filename'] = filename
 
             # 3. Publish to Kafka
-            if send_avro_message(TOPIC_RECONSTRUCTIONS, object_id, record, RECONSTRUCTION_AVRO_SCHEMA):
-
-                # 4. Notify Listeners
-                send_simple_message(TOPIC_RECONSTRUCTION_UPLOADED, object_id, {'status': 'completed'})
-
-                return {
-                    'message': "Reconstruction queued for processing.",
-                    'object_id': object_id,
-                    'data': record
-                }, 201
-            else:
+            if not send_avro_message(TOPIC_RECONSTRUCTIONS, object_id, record, RECONSTRUCTION_AVRO_SCHEMA):
                  return {'error': "Failed to publish to Kafka"}, 500
+
+            keys = [key for key in record.keys()]
+            sql = f"INSERT INTO reconstructions ({', '.join(record.keys())})"
+            sql += f" VALUES ({', '.join(['%s' for _ in record.keys()])})"
+            params = [record[key] for key in record.keys()]
+
+            with get_db_connection() as conn, conn.cursor() as cur:
+                cur.execute(sql, tuple(params))
+                if cur.rowcount == 0:
+                    raise Exception(f"Object {object_id} could not be stored in DB.")
+
+            # 4. Notify Listeners
+            send_simple_message(TOPIC_RECONSTRUCTION_UPLOADED, object_id, {'status': 'completed'})
+
+            return {
+                'message': "Reconstruction queued for processing.",
+                'object_id': object_id,
+                'data': record
+            }, 201
 
         except Exception as e:
             logger.error(f"Reconstruction processing failed: {str(e)}")
