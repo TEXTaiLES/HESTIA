@@ -209,14 +209,14 @@ class AnnotationResource(Resource):
                     RETURNING scene_id;
                 """
                 params = (
-                    record[scene_id],
-                    record[object_id],
-                    record[collaborative],
-                    record[public_url],
+                    record['scene_id'],
+                    record['object_id'],
+                    record['collaborative'],
+                    record['public_url'],
                     record['content'],
                     record['linked_objects'],
-                    record[timestamp],
-                    record[object_id],
+                    record['timestamp'],
+                    record['object_id'],
                 )
 
                 cur.execute(sql, params)
