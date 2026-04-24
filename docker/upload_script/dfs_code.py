@@ -4,7 +4,7 @@ import requests
 
 # --- API CONFIGURATION ---
 API_KEY = "1f8XEe0OA1FqLAh17yO3cjq9zwuiIfLV"
-API_BASE_URL = "http://api.textailes.athenarc.gr"
+API_BASE_URL = "https://api.textailes.athenarc.gr"
 #API_KEY = "change-me-locally"
 #API_BASE_URL = "http://127.0.0.1:5000"
 RECONSTRUCTIONS_ENDPOINT = "/reconstructions"
@@ -94,11 +94,19 @@ def upload_group(file_paths, scan_id):
 
 
 def main():
-    # --- DEFINE YOUR SOURCE PATH HERE ---
-    source_path = r"C:\Users\i.kechlimpari\Downloads\3D Models" 
-    #source_path = r"C:\Users\i.kechlimpari\Downloads\7front75m8k"
+    # --- DYNAMIC PATH INPUT ---
+    source_path = input("path: ").strip()
+
+    if not source_path:
+        print("error: path is required.")
+        return
+
     # Convert to absolute path for reliability
     source_path = os.path.abspath(source_path)
+
+    if not os.path.exists(source_path):
+        print("error: source path does not exist.")
+        return
     
     # The target directory will be created in the same folder as the script
     script_dir = os.path.dirname(os.path.abspath(__file__))
