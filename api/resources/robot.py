@@ -115,8 +115,11 @@ class RobotImageResource(Resource):
 
         # Upload
 
-        # Generate a unique Scan ID for this entire batch
-        scan_id = str(uuid.uuid4())
+        # Generate a unique Scan ID if not already provided
+        scan_id = request.form.get('scan_id')
+        if not scan_id:
+            scan_id = str(uuid.uuid4())
+
         uploaded_images = []
 
         for file in files:
