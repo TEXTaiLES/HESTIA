@@ -11,6 +11,9 @@ from resources.sensor import SensorReadingResource
 from resources.robot import RobotImageResource
 from resources.reconstruction import ReconstructionResource
 from resources.annotation import AnnotationResource
+from resources.file_proxy import FileProxyResource
+
+# Setup
 from scripts.setup_infrastructure import setup_minio, run_migrations, wait_for_postgres
 
 app = Flask(__name__)
@@ -41,6 +44,7 @@ api.add_resource(SensorReadingResource, '/sensor-readings')
 api.add_resource(RobotImageResource, '/robot-images')
 api.add_resource(ReconstructionResource, '/reconstructions')
 api.add_resource(AnnotationResource, '/annotations')
+api.add_resource(FileProxyResource, '/storage/<string:bucket_name>/<path:object_name>')
 
 @app.route('/health')
 def health_check():
