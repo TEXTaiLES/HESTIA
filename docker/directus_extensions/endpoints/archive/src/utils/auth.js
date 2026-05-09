@@ -24,7 +24,7 @@ export const userIsAuthenticated = async (req, res, AuthenticationService) => {
     });
 
     try {
-        const result = await auth.refresh(req.cookies[cookieName], { session: true });
+        const result = await auth.refresh(req.cookies[cookieName]);
         if (result.refreshToken) {
             // Token refresh succeeded → user is authenticated (regardless of role).
             res.locals.isAuthenticated = true;
@@ -82,6 +82,25 @@ const getUserRole = async (req, res) => {
     res.locals = res.locals || {};
     res.locals.userRole = null;
     return null;
+};
+
+// Helper: Check if the authenticated user is an admin.
+export const userIsAdmin = async (req, res, ItemsService) => {
+    const userRole = res.locals?.userRole || await getUserRole(req, res);
+    if (!userRole) return false;
+
+    if (res.locals?.isAdmin !== undefined) return res.locals.isAdmin;
+
+    try {
+        const rolesService = new ItemsService('directus_roles', { schema: req.schema });
+        const role = await rolesService.readOne(userRole, { fields: ['admin_access'] });
+        res.locals.isAdmin = Boolean(role?.admin_access);
+        return res.locals.isAdmin;
+    } catch (error) {
+        console.error('[Auth] Failed to check admin access:', error.message);
+        res.locals.isAdmin = false;
+        return false;
+    }
 };
 
 // Helper: Check if the authenticated user has a specific permission on a collection.

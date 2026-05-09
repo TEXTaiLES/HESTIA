@@ -68,9 +68,9 @@ def setup_minio():
     init_minio_bucket(MINIO_ARTIFACT_BUCKET)
     set_public_read_policy(MINIO_ARTIFACT_BUCKET)
 
-    # 2. Setup Robot Captures (Private)
+    # 2. Setup Robot Captures (Public)
     init_minio_bucket(MINIO_ROBOT_BUCKET)
-    # set_public_read_policy(MINIO_ROBOT_BUCKET)
+    set_public_read_policy(MINIO_ROBOT_BUCKET)
 
     # 3. Setup Reconstructions (Public)
     init_minio_bucket(MINIO_RECONSTRUCTION_BUCKET)

@@ -1,12 +1,11 @@
-import { CSP_POLICY, ATON_CONFIG } from '../utils/constants.js';
-import { userIsAuthenticated, userHasPermission } from '../utils/auth.js';
+import { CSP_POLICY } from '../utils/constants.js';
+import { userIsAuthenticated, userHasPermission, userIsAdmin } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
-import { getAtonScene } from '../utils/helpers.js';
 
-export default (router, { services }) => {
+export default (router, { services, database }) => {
 	const { AuthenticationService, ItemsService } = services;
 
 	router.get('/artefacts/:id', async (req, res) => {
@@ -32,6 +31,8 @@ export default (router, { services }) => {
 				return res.status(401).send(render401Page({ activePage: 'collections' }));
 			}
 
+			const isAdmin = await userIsAdmin(req, res, ItemsService);
+
             // Build the Artefact page.
 			const artefactsService = new ItemsService('artefacts', {
 				schema: req.schema,
@@ -41,7 +42,7 @@ export default (router, { services }) => {
             // Fetches artefact from database by ID
 			const artefacts = await artefactsService.readByQuery({
 				fields: [
-					'id', 'title', 'gltf_file', 'obj_file', // e.g., "ben-uuid"
+					'id', 'title', 'published', 'gltf_file', 'obj_file', 'ThreeD_model_id', 'robot_scan_id',
 					'obj_files.directus_files_id', // e.g., ["ben-uuid", "ben_ks-uuid"]
 					// Heritage Asset
 					'description', 'date_timespan', 'dimensions', 'owner', 'textile_category',
@@ -69,9 +70,37 @@ export default (router, { services }) => {
 
 			const artefact = artefacts[0];
 
-			// Build asset URL with obj_files parameter if available
+			// Non-admins cannot access unpublished artefacts.
+			if (!isAdmin && !artefact.published) {
+				return res.status(404).send('Artefact not found');
+			}
+
+			// Fetch all robot images from the same scan as the linked image_id.
+			// Step 1: get scan_id from image_id. Step 2: get all images in that scan.
+			let robotImages = [];
+			let robotImagesError = null;
+			if (artefact.robot_scan_id && database) {
+				try {
+					const ref = await database('robot_images')
+						.where('image_id', artefact.robot_scan_id)
+						.select('scan_id')
+						.first();
+					if (ref) {
+						robotImages = await database('robot_images')
+							.where('scan_id', ref.scan_id)
+							.orderBy('timestamp', 'asc');
+					}
+				} catch (err) {
+					console.error('Failed to fetch robot images:', err.message);
+					robotImagesError = err.message;
+				}
+			}
+
+			// Build asset URL — prefer a linked reconstruction GLB, then fall back to uploaded files
 			let modelUrl = '';
-			if (artefact.gltf_file) {
+			if (artefact.ThreeD_model_id) {
+				modelUrl = `/archive/assets/reconstruction/${artefact.ThreeD_model_id}/model`;
+			} else if (artefact.gltf_file) {
 				modelUrl = `/archive/assets/${artefact.gltf_file}`;
 			} else if (artefact.obj_file) {
 				// Extract file IDs from obj_files relational field
@@ -81,22 +110,6 @@ export default (router, { services }) => {
 				} else {
 					modelUrl = `/archive/assets/${artefact.obj_file}`;
 				}
-			}
-
-			// Build ATON scene URL for this artefact
-			// The URL will be used by the "Annotate with THOTH" button
-			const sceneId = `artefact_${artefact.id}`;
-			let atonSceneUrl = `${ATON_CONFIG.BASE_URL}${ATON_CONFIG.THOTH_PATH}?s=${sceneId}`;
-			
-			// Try to check if scene exists in ATON (optional - will use URL anyway)
-			try {
-				const sceneData = await getAtonScene(ATON_CONFIG.DEFAULT_USER, sceneId);
-				if (sceneData) {
-					atonSceneUrl = sceneData.sceneUrl;
-				}
-			} catch (err) {
-				// Scene might not exist yet - that's ok, URL will still work or user can create it
-				console.log(`Scene ${sceneId} not found in ATON, but URL will still be provided`);
 			}
 
 			const content = `
@@ -119,35 +132,40 @@ ${renderNavbar('collections', true)}
     <div class="row mt-3">
         <div class="col-0 col-lg-2"></div>
         <div class="col-12 col-lg-8">
+            ${modelUrl ? `
             <div class="mt-3 mb-4">
                 <div id="artefact-model" style="height: 555px;">
                    <model-viewer
                      src="${modelUrl}"
                      camera-controls
                      auto-rotate
-                     environment-image="neutral"
-                     exposure="0.7"
-                     shadow-intensity="3"
-                     tone-mapping="neutral"
+                     environment-image="legacy"
+                     exposure="1.2"
+                     shadow-intensity="0.5"
+                     tone-mapping="commerce"
                      style="width:100%; height:100%;">
                    </model-viewer>
                 </div>
             </div>
 
             <div class="row mt-4">
-                <div class="col-12 text-end mb-3">
-                    <div class="feature-card" style="display: inline-block;">
-                        <button onclick="annotateWithThoth(${artefact.id})" class="btn btn-primary">
-                            <i class="fas fa-edit"></i> Annotate with THOTH
-                        </button>
-                    </div>
+                <div class="col-12 mb-3 d-flex justify-content-end gap-2">
+                    <button onclick="annotateWithThoth(${artefact.id})" class="btn btn-red">
+                        <i class="fas fa-edit"></i> Annotate with THOTH
+                    </button>
+                    <!-- <button onclick="location.href='#'" class="btn btn-red">
+                        <i class="fas fa-magnifying-glass"></i> Button 2
+                    </button>
+                    <button onclick="location.href='#'" class="btn btn-red">
+                        <i class="fas fa-layer-group"></i> Button 3
+                    </button> -->
                 </div>
             </div>
 
             <script>
                 /**
                  * Annotate with THOTH - Main function
-                 * 
+                 *
                  * This function:
                  * 1. Shows loading spinner on button
                  * 2. Calls API endpoint to get or create ATON scene
@@ -158,12 +176,12 @@ ${renderNavbar('collections', true)}
                     const originalText = btn.innerHTML;
                     btn.disabled = true;
                     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing scene...';
-                    
+
                     try {
                         // Call endpoint that gets existing scene or creates new one
                         const response = await fetch('/archive/aton/scene/' + artefactId + '/url');
                         const data = await response.json();
-                        
+
                         if (data.success) {
                             console.log('Scene data:', data);
                             // Open THOTH with the scene
@@ -179,6 +197,29 @@ ${renderNavbar('collections', true)}
                     }
                 }
             </script>
+            ` : robotImages.length > 0 ? `
+            <div class="mt-3 mb-4">
+                <!-- <h5 class="mb-3">Robot Scan Images</h5> -->
+                ${robotImagesError ? `<p class="text-danger small mt-2">DB error: ${robotImagesError}</p>` : ''}
+                <div class="row g-2">
+                    ${robotImages.map(img => {
+                        const encodedFilename = encodeURIComponent(img.filename);
+                        const url = `/archive/assets/robot-image/${img.scan_id}/${encodedFilename}`;
+                        return `
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <a href="${url}" target="_blank">
+                            <img
+                                src="${url}"
+                                alt="${img.filename}"
+                                class="img-fluid rounded"
+                                style="width:100%; height:120px; object-fit:cover;"
+                                loading="lazy">
+                        </a>
+                    </div>`;
+                    }).join('\n')}
+                </div>
+            </div>
+            ` : ''}
 
             <div class="row mt-4">
                 <!-- Heritage Asset Section -->
