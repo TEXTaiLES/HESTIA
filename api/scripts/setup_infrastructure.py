@@ -78,6 +78,58 @@ def setup_minio():
 
     logger.info("MinIO setup complete.")
 
+def register_connectors():
+    """Reads JSON files, injects env variables, and registers connectors."""
+    logger.info("Registering Kafka Connectors...")
+
+    connector_files = [
+        "postgres-sink.json",
+        "annotation-sink.json",
+        "robot-sink.json",
+        "sensor-sink.json",
+        "reconstruction-sink.json"
+    ]
+
+    for filename in connector_files:
+        file_path = CONNECTORS_DIR / filename
+        if not file_path.exists():
+            logger.warning(f"Connector file not found: {file_path}")
+            continue
+
+        try:
+            with open(file_path, 'r') as f:
+                connector_conf = json.load(f)
+
+            connector_class = connector_conf.get('config', {}).get('connector.class', '')
+
+            if 'JdbcSinkConnector' in connector_class:
+                logger.info(f"Configuring JDBC settings for {filename}")
+                connector_conf['config']['connection.url'] = f"jdbc:postgresql://{PG_HOST}:{PG_PORT}/{PG_DB}?stringtype=unspecified"
+                connector_conf['config']['connection.user'] = PG_USER
+                connector_conf['config']['connection.password'] = PG_PASSWORD
+            connector_name = connector_conf.get("name")
+
+            # Check if exists
+            resp = requests.get(f"{KAFKA_CONNECT_URL}/connectors/{connector_name}")
+            if resp.status_code == 200:
+                logger.info(f"Connector {connector_name} already exists. Updating...")
+                requests.put(
+                    f"{KAFKA_CONNECT_URL}/connectors/{connector_name}/config",
+                    json=connector_conf["config"]
+                )
+            else:
+                logger.info(f"Creating connector {connector_name}...")
+                resp = requests.post(
+                    f"{KAFKA_CONNECT_URL}/connectors",
+                    json=connector_conf
+                )
+                if resp.status_code != 201:
+                    raise Exception(f"Failed to create {connector_name}: {resp.text}")
+
+        except Exception as e:
+            logger.error(f"Failed to process {filename}: {e}")
+            raise e
+
 if __name__ == "__main__":
     if wait_for_postgres():
         run_migrations()
