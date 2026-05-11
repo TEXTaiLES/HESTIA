@@ -7,7 +7,8 @@ const http = require('http');
 const obj2gltf = require('obj2gltf');
 const crypto = require('crypto');
 
-const MINIO_INTERNAL = process.env.MINIO_INTERNAL_ENDPOINT || 'minio:9000';
+const API_INTERNAL = process.env.API_INTERNAL_ENDPOINT || 'api:5000';
+const API_SECRET_KEY = process.env.API_SECRET_KEY || '';
 
 export default (router, { services }) => {
 	const { ItemsService } = services;
@@ -37,9 +38,9 @@ export default (router, { services }) => {
 		const { scan_id } = req.params;
 		const filename = decodeURIComponent(req.params.filename);
 		const encodedFilename = encodeURIComponent(filename);
-		const minioUrl = `http://${MINIO_INTERNAL}/robot-images/${scan_id}/${encodedFilename}`;
+		const proxyUrl = `http://${API_INTERNAL}/storage/robot-images/${scan_id}/${encodedFilename}`;
 
-		http.get(minioUrl, (minioRes) => {
+		http.get(proxyUrl, { headers: { Authorization: `Bearer ${API_SECRET_KEY}` } }, (minioRes) => {
 			if (minioRes.statusCode !== 200) {
 				return res.status(minioRes.statusCode || 404).send('Image not found in storage');
 			}
@@ -61,9 +62,9 @@ export default (router, { services }) => {
 	// Works because reconstructions are public in MinIO and local, production have the same network.
 	router.get('/assets/reconstruction/:object_id/model', (req, res) => {
 		const { object_id } = req.params;
-		const minioUrl = `http://${MINIO_INTERNAL}/reconstructions/${object_id}/model.glb`;
+		const proxyUrl = `http://${API_INTERNAL}/storage/reconstructions/${object_id}/model.glb`;
 
-		http.get(minioUrl, (minioRes) => {
+		http.get(proxyUrl, { headers: { Authorization: `Bearer ${API_SECRET_KEY}` } }, (minioRes) => {
 			if (minioRes.statusCode !== 200) {
 				return res.status(minioRes.statusCode || 404).send('Model not found in storage');
 			}

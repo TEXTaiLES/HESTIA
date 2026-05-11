@@ -220,6 +220,10 @@ services:
       EMAIL_SMTP_SECURE: ${EMAIL_SMTP_SECURE}
       EMAIL_SMTP_IGNORE_TLS: ${EMAIL_SMTP_IGNORE_TLS}
 
+      # API proxy
+      API_INTERNAL_ENDPOINT: "api:5000"
+      API_SECRET_KEY: ${API_SECRET_KEY}
+
       # Other variables
       ROOT_REDIRECT: "./archive"
 
