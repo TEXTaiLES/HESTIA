@@ -73,4 +73,4 @@ def build_public_url(bucket_name: str, object_name: str) -> str:
         str: The full URL string.
     """
     encoded_key = quote(object_name, safe='/')
-    return f"{PUBLIC_MINIO_SCHEME}://{PUBLIC_MINIO_ENDPOINT}/{bucket_name}/{encoded_key}"
+    return f"{PUBLIC_MINIO_SCHEME}://{PUBLIC_MINIO_ENDPOINT}/storage/{bucket_name}/{encoded_key}"
