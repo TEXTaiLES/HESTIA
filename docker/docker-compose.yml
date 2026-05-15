@@ -151,6 +151,9 @@ services:
       - PG_DB=${POSTGRES_DB}
       - PG_USER=${POSTGRES_USER}
       - PG_PASSWORD=${POSTGRES_PASSWORD}
+      - DIRECTUS_URL=http://directus:8055
+      - DIRECTUS_ADMIN_EMAIL=${DIRECTUS_ADMIN_EMAIL}
+      - DIRECTUS_ADMIN_PASSWORD=${DIRECTUS_ADMIN_PASSWORD}
     restart: always
     depends_on:
       - kafka
