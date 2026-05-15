@@ -30,7 +30,7 @@ export default (router, { services }) => {
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/SAMplify_SuGaR' },
 					{ label: 'Server', url: '#' }
 				]},
-				{ name: 'HESTIA', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png', links: [
+				{ name: 'HESTIA', image: 'Logos/Tools/hestia-logo-1.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/hestia-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/HESTIA' }
 				]},
