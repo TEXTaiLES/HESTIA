@@ -37,6 +37,14 @@ export default (router, { services }) => {
 				{ name: 'INDRA', image: 'Logos/Tools/env_cond_mon_logo.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/Environmental-Condition-Monitoring-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/Environmental-Condition-Monitoring' },
+				]},
+				{ name: 'DegraTwin', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png', links: [
+					{ label: 'Documentation', url: 'https://github.com/TEXTaiLES/DegraTwin-documentation' },
+					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/DegraTwin' }
+				]},
+				{ name: 'TexRevAIve', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png', links: [
+					{ label: 'Documentation', url: 'https://github.com/TEXTaiLES/TexRevAIve-documentation' },
+					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/TexRevAIve' },
 				]}
 			];
 
