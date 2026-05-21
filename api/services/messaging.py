@@ -19,6 +19,9 @@ TOPIC_SENSOR_READINGS = 'sensor_readings'
 TOPIC_ROBOT_IMAGES = 'robot_images'
 TOPIC_RECONSTRUCTIONS = 'reconstructions'
 TOPIC_ANNOTATIONS = 'annotations'
+TOPIC_RESTORATIONS = 'restorations'
+TOPIC_RESTORATION_MEDIA = 'restoration_media'
+TOPIC_RESTORATION_RESULTS = 'restoration_results'
 
 TOPIC_ARTIFACT_UPLOADED = 'artifact_uploaded'
 TOPIC_SENSOR_UPLOADED = 'sensor_reading_uploaded'
@@ -26,6 +29,7 @@ TOPIC_ROBOT_UPLOADED = 'robot_image_uploaded'
 TOPIC_RECONSTRUCTION_UPLOADED = 'reconstruction_uploaded'
 TOPIC_ANNOTATION_UPLOADED = 'annotation_uploaded'
 TOPIC_ANNOTATION_MODIFIED = 'annotation_modified'
+TOPIC_RESTORATION_UPLOADED = 'restoration_uploaded'
 
 # Clients
 simple_producer = Producer({'bootstrap.servers': KAFKA_BROKER})

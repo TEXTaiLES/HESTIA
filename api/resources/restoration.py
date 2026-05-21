@@ -2,15 +2,96 @@ from flask import request, jsonify
 from flask_restful import Resource
 from datetime import datetime, timezone
 from psycopg2.extras import Json
+import json
 import uuid
 import logging
 
 from middleware.security import require_api_key
 from services.database import get_db_connection
+from services.messaging import (
+    send_avro_message,
+    send_simple_message,
+    TOPIC_RESTORATIONS,
+    TOPIC_RESTORATION_MEDIA,
+    TOPIC_RESTORATION_RESULTS,
+    TOPIC_RESTORATION_UPLOADED,
+)
 
 logger = logging.getLogger(__name__)
 
 ARTEFACT_FILTERABLE_FIELDS = {'restoration_artefact_id', 'root_artefact_id', 'created_by'}
+
+# Each Avro schema is flat and 1:1 with its Postgres table, so the JDBC sink can
+# upsert directly. JSONB columns (model, parameters) ride as JSON strings — the JDBC
+# driver casts string→JSONB at insert. UUID[] (input_media_ids) is NOT carried on
+# the wire: the JDBC sink doesn't handle PG arrays well, and the API writes it
+# directly anyway.
+
+RESTORATION_AVRO_SCHEMA = """
+{
+    "type": "record",
+    "name": "RestorationArtefact",
+    "namespace": "com.textailes.restoration",
+    "fields": [
+        {"name": "restoration_artefact_id", "type": "string"},
+        {"name": "title", "type": "string"},
+        {"name": "description", "type": ["null", "string"], "default": null},
+        {"name": "root_artefact_id", "type": ["null", "string"], "default": null},
+        {"name": "primary_image_asset", "type": "string"},
+        {"name": "primary_image_width", "type": ["null", "int"], "default": null},
+        {"name": "primary_image_height", "type": ["null", "int"], "default": null},
+        {"name": "primary_image_mime_type", "type": ["null", "string"], "default": null},
+        {"name": "thumbnail_image_asset", "type": ["null", "string"], "default": null},
+        {"name": "thumbnail_image_width", "type": ["null", "int"], "default": null},
+        {"name": "thumbnail_image_height", "type": ["null", "int"], "default": null},
+        {"name": "thumbnail_image_mime_type", "type": ["null", "string"], "default": null},
+        {"name": "created_at", "type": "string"},
+        {"name": "created_by", "type": ["null", "string"], "default": null},
+        {"name": "updated_at", "type": "string"}
+    ]
+}
+"""
+
+RESTORATION_MEDIA_AVRO_SCHEMA = """
+{
+    "type": "record",
+    "name": "RestorationMedia",
+    "namespace": "com.textailes.restoration",
+    "fields": [
+        {"name": "media_id", "type": "string"},
+        {"name": "restoration_artefact_id", "type": "string"},
+        {"name": "title", "type": ["null", "string"], "default": null},
+        {"name": "description", "type": ["null", "string"], "default": null},
+        {"name": "purpose", "type": ["null", "string"], "default": null},
+        {"name": "asset", "type": ["null", "string"], "default": null},
+        {"name": "mime_type", "type": ["null", "string"], "default": null},
+        {"name": "width", "type": ["null", "int"], "default": null},
+        {"name": "height", "type": ["null", "int"], "default": null},
+        {"name": "source", "type": ["null", "string"], "default": null},
+        {"name": "created_at", "type": "string"},
+        {"name": "created_by", "type": ["null", "string"], "default": null}
+    ]
+}
+"""
+
+RESTORATION_RESULT_AVRO_SCHEMA = """
+{
+    "type": "record",
+    "name": "RestorationResult",
+    "namespace": "com.textailes.restoration",
+    "fields": [
+        {"name": "result_id", "type": "string"},
+        {"name": "restoration_artefact_id", "type": "string"},
+        {"name": "asset", "type": ["null", "string"], "default": null},
+        {"name": "model", "type": ["null", "string"], "default": null},
+        {"name": "run_id", "type": ["null", "string"], "default": null},
+        {"name": "candidate_index", "type": ["null", "int"], "default": null},
+        {"name": "parameters", "type": ["null", "string"], "default": null},
+        {"name": "created_at", "type": "string"},
+        {"name": "created_by", "type": ["null", "string"], "default": null}
+    ]
+}
+"""
 
 
 def _rows_to_dicts(cur, rows):
@@ -256,6 +337,83 @@ class RestorationResource(Resource):
                             r.get('created_by') or body.get('created_by'),
                         )
                     )
+
+            # Publish to Kafka — one topic per table, 1:1 with table columns so the
+            # JDBC sinks can upsert cleanly. API has already written to the DB above,
+            # so any sink upserts are no-ops on existing rows; the Kafka log gives us
+            # event-sourcing parity with the other resources.
+            now_iso = now.isoformat()
+            created_by = body.get('created_by')
+
+            artefact_event = {
+                'restoration_artefact_id': restoration_artefact_id,
+                'title': title,
+                'description': body.get('description'),
+                'root_artefact_id': body.get('root_artefact_id'),
+                'primary_image_asset': primary_image.get('asset'),
+                'primary_image_width': primary_image.get('width'),
+                'primary_image_height': primary_image.get('height'),
+                'primary_image_mime_type': primary_image.get('mime_type'),
+                'thumbnail_image_asset': thumbnail_image.get('asset'),
+                'thumbnail_image_width': thumbnail_image.get('width'),
+                'thumbnail_image_height': thumbnail_image.get('height'),
+                'thumbnail_image_mime_type': thumbnail_image.get('mime_type'),
+                'created_at': now_iso,
+                'created_by': created_by,
+                'updated_at': now_iso,
+            }
+            if not send_avro_message(
+                TOPIC_RESTORATIONS,
+                restoration_artefact_id,
+                artefact_event,
+                RESTORATION_AVRO_SCHEMA
+            ):
+                logger.warning(f"Restoration {restoration_artefact_id} saved but parent Avro publish failed.")
+
+            for m in media_in:
+                media_event = {
+                    'media_id': m['media_id'],
+                    'restoration_artefact_id': restoration_artefact_id,
+                    'title': m.get('title'),
+                    'description': m.get('description'),
+                    'purpose': m.get('purpose'),
+                    'asset': m.get('asset'),
+                    'mime_type': m.get('mime_type'),
+                    'width': m.get('width'),
+                    'height': m.get('height'),
+                    'source': m.get('source'),
+                    'created_at': now_iso,
+                    'created_by': m.get('created_by') or created_by,
+                }
+                if not send_avro_message(
+                    TOPIC_RESTORATION_MEDIA, m['media_id'], media_event, RESTORATION_MEDIA_AVRO_SCHEMA
+                ):
+                    logger.warning(f"Media {m['media_id']} saved but Avro publish failed.")
+
+            for r in results_in:
+                result_event = {
+                    'result_id': r['result_id'],
+                    'restoration_artefact_id': restoration_artefact_id,
+                    'asset': r.get('asset'),
+                    'model': json.dumps(r['model']) if r.get('model') is not None else None,
+                    'run_id': r.get('run_id'),
+                    'candidate_index': r.get('candidate_index'),
+                    'parameters': json.dumps(r['parameters']) if r.get('parameters') is not None else None,
+                    'created_at': now_iso,
+                    'created_by': r.get('created_by') or created_by,
+                }
+                if not send_avro_message(
+                    TOPIC_RESTORATION_RESULTS, r['result_id'], result_event, RESTORATION_RESULT_AVRO_SCHEMA
+                ):
+                    logger.warning(f"Result {r['result_id']} saved but Avro publish failed.")
+
+            # Notify Listeners (mirrors TOPIC_*_UPLOADED pattern used by other resources)
+            if not send_simple_message(
+                TOPIC_RESTORATION_UPLOADED,
+                restoration_artefact_id,
+                {'status': 'completed'}
+            ):
+                logger.warning(f"Restoration {restoration_artefact_id} saved but Kafka notification failed.")
 
             return {
                 'message': "Restoration artefact created.",

@@ -152,7 +152,10 @@ def register_connectors():
         "annotation-sink.json",
         "robot-sink.json",
         "sensor-sink.json",
-        "reconstruction-sink.json"
+        "reconstruction-sink.json",
+        "restoration-sink.json",
+        "restoration-media-sink.json",
+        "restoration-result-sink.json"
     ]
 
     for filename in connector_files:
