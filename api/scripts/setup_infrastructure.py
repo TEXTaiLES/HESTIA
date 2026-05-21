@@ -34,24 +34,89 @@ def wait_for_postgres(retries=10, delay=2):
 def run_migrations():
     """Runs database schema changes."""
     logger.info("Running migrations...")
+    conn = get_db_connection()
     try:
-        conn = get_db_connection()
         cur = conn.cursor()
 
-        # Check and Add 'timestamp_update'
+        # Check and Add 'timestamp_update' (only if artifacts table exists — created lazily by Kafka sink)
+        try:
+            cur.execute("SELECT to_regclass('public.artifacts')")
+            if cur.fetchone()[0] is None:
+                logger.info("Migration: 'artifacts' table does not exist yet (Kafka sink pending); skipping 'timestamp_update' migration.")
+            else:
+                cur.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name='artifacts' AND column_name='timestamp_update'
+                """)
+                if not cur.fetchone():
+                    logger.info("Migration: Adding 'timestamp_update' column.")
+                    cur.execute("""
+                        ALTER TABLE artifacts
+                        ADD COLUMN timestamp_update TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    """)
+                else:
+                    logger.info("Migration: 'timestamp_update' column already exists.")
+            conn.commit()
+        except Exception as e:
+            logger.error(f"'timestamp_update' migration failed (continuing): {e}")
+            conn.rollback()
+
+        # Restoration tool (TexRevAIve) tables
+        logger.info("Migration: Ensuring restoration tables exist.")
         cur.execute("""
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name='artifacts' AND column_name='timestamp_update'
+            CREATE TABLE IF NOT EXISTS restoration_artefacts (
+                restoration_artefact_id UUID PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT,
+                root_artefact_id TEXT,
+                primary_image_asset TEXT NOT NULL,
+                primary_image_width INTEGER,
+                primary_image_height INTEGER,
+                primary_image_mime_type TEXT,
+                thumbnail_image_asset TEXT,
+                thumbnail_image_width INTEGER,
+                thumbnail_image_height INTEGER,
+                thumbnail_image_mime_type TEXT,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_by TEXT,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
         """)
-        if not cur.fetchone():
-            logger.info("Migration: Adding 'timestamp_update' column.")
-            cur.execute("""
-                ALTER TABLE artifacts
-                ADD COLUMN timestamp_update TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            """)
-        else:
-            logger.info("Migration: 'timestamp_update' column already exists.")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS restoration_media (
+                media_id UUID PRIMARY KEY,
+                restoration_artefact_id UUID NOT NULL
+                    REFERENCES restoration_artefacts(restoration_artefact_id) ON DELETE CASCADE,
+                title TEXT,
+                description TEXT,
+                purpose TEXT,
+                asset TEXT,
+                mime_type TEXT,
+                width INTEGER,
+                height INTEGER,
+                source TEXT,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_by TEXT
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS restoration_results (
+                result_id UUID PRIMARY KEY,
+                restoration_artefact_id UUID NOT NULL
+                    REFERENCES restoration_artefacts(restoration_artefact_id) ON DELETE CASCADE,
+                asset TEXT,
+                model JSONB,
+                run_id TEXT,
+                candidate_index INTEGER,
+                input_media_ids UUID[],
+                parameters JSONB,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_by TEXT
+            );
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_restoration_media_artefact ON restoration_media(restoration_artefact_id);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_restoration_results_artefact ON restoration_results(restoration_artefact_id);")
 
         conn.commit()
         cur.close()
