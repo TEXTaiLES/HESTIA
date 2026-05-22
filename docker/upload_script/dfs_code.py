@@ -3,8 +3,8 @@ import shutil
 import requests
 
 # --- API CONFIGURATION ---
-API_KEY = "1f8XEe0OA1FqLAh17yO3cjq9zwuiIfLV"
-API_BASE_URL = "https://api.textailes.athenarc.gr"
+API_KEY = os.environ.get('API_SECRET_KEY')
+API_BASE_URL = f"{os.environ.get('API_PUBLIC_SHEME')}://{os.environ.get('API_PUBLIC_ENDPOINT')}"
 #API_KEY = "change-me-locally"
 #API_BASE_URL = "http://127.0.0.1:5000"
 RECONSTRUCTIONS_ENDPOINT = "/reconstructions"
