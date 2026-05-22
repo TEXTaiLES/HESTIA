@@ -273,7 +273,7 @@ ${renderNavbar('collections', true)}
                         <div class="col-md-6">
                             <dl>
                                 <dt class="samewidth">Reference Name/Number:</dt>
-                                <dd>${artefact.reference_namenumber || 'N/A'}</dd>
+                                <dd>${artefact.reference_name_number || 'N/A'}</dd>
                                 
                                 <dt class="samewidth">Material Analyzed:</dt>
                                 <dd>${artefact.material_analyzed || 'N/A'}</dd>
