@@ -15,8 +15,8 @@ MINIO_ARTIFACT_BUCKET = 'artifacts'
 MINIO_ROBOT_BUCKET = 'robot-images'
 MINIO_RECONSTRUCTION_BUCKET = 'reconstructions'
 
-PUBLIC_MINIO_ENDPOINT = os.environ.get("PUBLIC_MINIO_ENDPOINT", "localhost:9000")
-PUBLIC_MINIO_SCHEME = os.environ.get("PUBLIC_MINIO_SCHEME", "https")
+API_PUBLIC_ENDPOINT = os.environ.get("API_PUBLIC_ENDPOINT", "localhost:5000")
+API_PUBLIC_SHEME = os.environ.get("API_PUBLIC_SHEME", "https")
 
 # Client Initialization
 minio_client = Minio(
@@ -73,4 +73,4 @@ def build_public_url(bucket_name: str, object_name: str) -> str:
         str: The full URL string.
     """
     encoded_key = quote(object_name, safe='/')
-    return f"{PUBLIC_MINIO_SCHEME}://{PUBLIC_MINIO_ENDPOINT}/{bucket_name}/{encoded_key}"
+    return f"{API_PUBLIC_SHEME}://{API_PUBLIC_ENDPOINT}/storage/{bucket_name}/{encoded_key}"
