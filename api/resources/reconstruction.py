@@ -195,28 +195,23 @@ class ReconstructionResource(Resource):
                     record['public_url_glb'] = build_public_url(MINIO_RECONSTRUCTION_BUCKET, glb_object_name)
                     record['filename'] = filename
 
+            # Ensure filename is never None (Avro schema requires a string) eg. if only a texture was uploaded without an OBJ
+            if record['filename'] is None:
+                record['filename'] = secure_filename(files[0].filename)
+
             # 3. Publish to Kafka
-            if not send_avro_message(TOPIC_RECONSTRUCTIONS, object_id, record, RECONSTRUCTION_AVRO_SCHEMA):
+            if send_avro_message(TOPIC_RECONSTRUCTIONS, object_id, record, RECONSTRUCTION_AVRO_SCHEMA):
+
+                # 4. Notify Listeners
+                send_simple_message(TOPIC_RECONSTRUCTION_UPLOADED, object_id, {'status': 'completed'})
+
+                return {
+                    'message': "Reconstruction queued for processing.",
+                    'object_id': object_id,
+                    'data': record
+                }, 201
+            else:
                  return {'error': "Failed to publish to Kafka"}, 500
-
-            keys = [key for key in record.keys()]
-            sql = f"INSERT INTO reconstructions ({', '.join(record.keys())})"
-            sql += f" VALUES ({', '.join(['%s' for _ in record.keys()])})"
-            params = [record[key] for key in record.keys()]
-
-            with get_db_connection() as conn, conn.cursor() as cur:
-                cur.execute(sql, tuple(params))
-                if cur.rowcount == 0:
-                    raise Exception(f"Object {object_id} could not be stored in DB.")
-
-            # 4. Notify Listeners
-            send_simple_message(TOPIC_RECONSTRUCTION_UPLOADED, object_id, {'status': 'completed'})
-
-            return {
-                'message': "Reconstruction queued for processing.",
-                'object_id': object_id,
-                'data': record
-            }, 201
 
         except Exception as e:
             logger.error(f"Reconstruction processing failed: {str(e)}")

@@ -176,16 +176,6 @@ class RobotImageResource(Resource):
         if not send_avro_message(TOPIC_ROBOT_IMAGES, image_id, record, ROBOT_AVRO_SCHEMA):
             raise Exception(f"Failed to send robot image {image_id} to Kafka.")
 
-        keys = [key for key in record.keys()]
-        sql = f"INSERT INTO robot_images ({', '.join(keys)})"
-        sql += f" VALUES ({', '.join(['%s' for _ in keys])})"
-        params = [record[key] for key in keys]
-
-        with get_db_connection() as conn, conn.cursor() as cur:
-            cur.execute(sql, tuple(params))
-            if cur.rowcount == 0:
-                raise Exception(f"Robot image {image_id} could not be stored in DB.")
-
         # STEP 4: Notify Listeners
         notification = {
             'image_id': image_id,
