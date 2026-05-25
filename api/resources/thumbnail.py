@@ -55,6 +55,7 @@ class ThumbnailResource(Resource):
         if not png_bytes:
             return {'error': 'Thumbnail rendering failed'}, 500
 
+        # TODO: Decouple thumbnail generation with file upload, endpoint should return result file.
         # 3. Upload PNG to Directus
         filename = f"{object_id}_thumbnail.png"
         file_id = upload_file(png_bytes, filename)

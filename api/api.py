@@ -46,7 +46,7 @@ api.add_resource(RobotImageResource, '/robot-images')
 api.add_resource(ReconstructionResource, '/reconstructions')
 api.add_resource(AnnotationResource, '/annotations')
 api.add_resource(FileProxyResource, '/storage/<string:bucket_name>/<path:object_name>')
-api.add_resource(ThumbnailResource, '/reconstructions/<string:object_id>/thumbnail')
+api.add_resource(ThumbnailResource, '/reconstructions/<string:object_id>/generate-thumbnail')
 
 @app.route('/health')
 def health_check():
