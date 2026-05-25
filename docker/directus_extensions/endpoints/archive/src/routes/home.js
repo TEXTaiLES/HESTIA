@@ -105,7 +105,7 @@ ${renderNavbar('home', isAuthenticated)}
                 <div class="stat-label">Use Cases</div>
             </div>
             <div class="col-md-4 stat-item">
-                <div class="stat-number">6</div>
+                <div class="stat-number">8</div>
                 <div class="stat-label">Our Tools</div>
             </div>
         </div>
