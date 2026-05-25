@@ -30,13 +30,21 @@ export default (router, { services }) => {
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/SAMplify_SuGaR' },
 					{ label: 'Server', url: '#' }
 				]},
-				{ name: 'HESTIA', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png', links: [
+				{ name: 'HESTIA', image: 'Logos/Tools/hestia-logo-1.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/hestia-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/HESTIA' }
 				]},
 				{ name: 'INDRA', image: 'Logos/Tools/env_cond_mon_logo.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/Environmental-Condition-Monitoring-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/Environmental-Condition-Monitoring' },
+				]},
+				{ name: 'DegraTwin', image: 'Logos/Tools/DegraTwin_dark_logo.png', links: [
+					{ label: 'Documentation', url: 'https://textailes.github.io/DegraTwin-documentation/' },
+					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/DegraTwin' }
+				]},
+				{ name: 'TexRevAIve', image: 'Logos/Tools/TexRevAIve_dark_logo_2.png', links: [
+					{ label: 'Documentation', url: 'https://textailes.github.io/TexRevAIve-documentation/' },
+					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/TexRevAIve' },
 				]}
 			];
 
