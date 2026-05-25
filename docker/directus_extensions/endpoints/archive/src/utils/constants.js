@@ -20,7 +20,7 @@ export const CONTENT_TYPES = {
 export const PATHS = {
 	STATIC_ROOT: '/directus/extensions/endpoints/archive/static',
 	UPLOADS_ROOT: '/directus/uploads',
-	FAVICON: 'Logos/Tools/hestia-logo-1.png'
+	FAVICON: 'Icon/Icon-Textailes-Colour-RGB-Ver.png'
 };
 
 // Content Security Policy for the web pages
@@ -38,7 +38,7 @@ export const ATON_CONFIG = {
 
 // Use Cases for showing cards on collection page and filtering artefacts
 export const USE_CASES = [
-	{ key: 'all', label: 'All Use Cases', image: 'Logos/Tools/hestia-logo-1.png' },
+	{ key: 'all', label: 'All Use Cases', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png' },
 	{ key: '1. greek ancient textiles', label: '1. Greek Ancient Textiles', image: 'Use Case Preview/greek-ancient.jpg' },
 	{ key: '2. textile collection from pompeii', label: '2. Textile Collection from Pompeii', image: 'Use Case Preview/pompeii.png' },
 	{ key: '3. greek bronz age clay sealings', label: '3. Greek Bronz Age clay sealings', image: 'Use Case Preview/bronze-age.jpg' },
