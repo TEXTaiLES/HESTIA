@@ -38,11 +38,11 @@ export default (router, { services }) => {
 					{ label: 'Documentation', url: 'https://textailes.github.io/Environmental-Condition-Monitoring-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/Environmental-Condition-Monitoring' },
 				]},
-				{ name: 'DegraTwin', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png', links: [
+				{ name: 'DegraTwin', image: 'Logos/Tools/DegraTwin_dark_logo.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/DegraTwin-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/DegraTwin' }
 				]},
-				{ name: 'TexRevAIve', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png', links: [
+				{ name: 'TexRevAIve', image: 'Logos/Tools/TexRevAIve_dark_logo_2.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/TexRevAIve-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/TexRevAIve' },
 				]}
