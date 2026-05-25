@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TEXTaiLES Textile Documentation Record (v6) — Documentation</title>
+  <style>
+:root { --bg:#0b1020; --card:#121a33; --text:#e9eefc; --muted:#b8c2e0; --line:#263055; --accent:#7aa2ff; }
+* { box-sizing: border-box; }
+body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: var(--bg); color: var(--text); }
+header { padding: 28px 20px; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, rgba(122,162,255,.14), rgba(122,162,255,0)); }
+
+header h1 { margin: 0 0 8px; font-size: 22px; }
+header p { margin: 0; color: var(--muted); }
+.header-wrapper { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.header-text { max-width: calc(100% - 160px);}
+.header-logo img { height: 100px; max-width: 200px; object-fit: contain;}
+.header-logo a { display: inline-block; border-radius: 12px; }
+.header-logo a:hover { background: rgba(122,162,255,.10); }
+.header-logo img { display: block; }
+main { display: grid; grid-template-columns: 320px 1fr; gap: 18px; padding: 18px; }
+nav { position: sticky; top: 12px; align-self: start; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+nav h2 { margin: 0 0 10px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+nav a { display:block; padding: 7px 8px; border-radius: 10px; text-decoration:none; color: var(--text); }
+nav a:hover { background: rgba(122,162,255,.10); }
+article { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+h2,h3,h4 { margin-top: 22px; }
+.desc { color: var(--muted); }
+table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 12px; border: 1px solid var(--line); }
+th, td { padding: 10px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { text-align: left; font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.03); }
+tr:last-child td { border-bottom: none; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+.pill { display:inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,0.03); font-size: 12px; color: var(--text); }
+.pill.required { border-color: rgba(122,162,255,.55); background: rgba(122,162,255,.10); }
+.pill.optional { color: var(--muted); }
+.chip { display:inline-block; margin: 2px 6px 2px 0; padding: 2px 8px; border-radius: 999px; background: rgba(184,194,224,.08); border: 1px solid rgba(184,194,224,.18); font-size: 12px; color: var(--muted); }
+.note { margin: 10px 0; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(122,162,255,.28); background: rgba(122,162,255,.08); color: var(--muted); }
+details { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 10px 0; background: rgba(255,255,255,0.02); }
+summary { cursor: pointer; color: var(--text); }
+pre.code { background: rgba(0,0,0,0.25); padding: 12px; border-radius: 12px; overflow:auto; border: 1px solid var(--line); }
+footer { padding: 14px 18px 22px; color: var(--muted); }
+@media (max-width: 980px) { main { grid-template-columns: 1fr; } nav { position: relative; top: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-wrapper">
+    <div class="header-text">
+      <h1>TEXTaiLES Textile Documentation Record (v6) — HTML Documentation</h1>
+      <p>Generated from JSON Schema (Draft 2020-12). Schema file:
+        <span class="mono">textailes-documentation.schema.v6.json</span>
+      </p>
+      <p><span class="mono">https://example.org/schemas/textailes-documentation.schema.v6.json</span></p>
+    </div>
+
+    <div class="header-logo">
+      <a href="https://textailes.athenarc.gr" target="_blank" rel="noopener noreferrer">
+      <img src="/archive/static/Logos/Logo-Textailes_Logo-Textailes-Colour-RGB-Hor.svg" alt="TEXTaiLES">
+      </a>
+    </div>
+  </div>
+</header>
+
+
+<main>
+  <nav>
+    <h2>Contents</h2>
+    <a href="#root">Record (root)</a>
+<a href="#identification">Property: identification</a>
+<a href="#technologicalAnalysis">Property: technologicalAnalysis</a>
+    <hr style="border:0;border-top:1px solid var(--line);margin:12px 0;">
+    <a href="textailes-documentation.schema.v6.json">Download TEXTaiLES metadata schema</a>
+  </nav>
+
+  <article>
+    <div class="note">
+      <b>Tip:</b> This page is static HTML. Host the folder (GitHub Pages, any server), or open <span class="mono">index.html</span> locally.
+    </div>
+
+    <section id="root"><h2 id="root">TEXTaiLES Textile Documentation Record (v6)</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Key</th><th>Title</th><th>Type</th><th>Req.</th><th>Description</th><th>Constraints</th>
+        </tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td class="mono">identification</td>
+        <td>Identification</td>
+        <td><span class="pill">object</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>Identification of the cultural heritage asset including basic metadata.</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">technologicalAnalysis</td>
+        <td>Technological analysis (multiple parts)</td>
+        <td><span class="pill">array</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>One cultural heritage asset can have multiple analysed parts. Must include at least one primaryStructure part.</td>
+        <td><span class="chip"><b>minItems</b>: 1</span></td>
+      </tr>
+    </tbody>
+    </table>
+  </section><section id="identification"><h2 id="identification">Identification</h2>
+<p class="desc">Identification of the cultural heritage asset including basic metadata.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Key</th><th>Title</th><th>Type</th><th>Req.</th><th>Description</th><th>Constraints</th>
+        </tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td class="mono">accessionNumber</td>
+        <td>Accession number</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>Unique identifier assigned by the TEXTaiLES consortium</td>
+        <td><span class="chip"><b>minLength</b>: 1</span></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">referenceNameNumber</td>
+        <td>Reference name/number</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>Reference number of the collection where it is kept</td>
+        <td><span class="chip"><b>minLength</b>: 1</span></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">description</td>
+        <td>Cultural Heritage Asset description</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>Brief description of the cultural heritage asset</td>
+        <td><span class="chip"><b>minLength</b>: 1</span></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">currentLocation</td>
+        <td>Current location</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>Where the cultural heritage asset is kept</td>
+        <td><span class="chip"><b>minLength</b>: 1</span></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">origin</td>
+        <td>Origin</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>Geographical origin of the cultural heritage asset</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">provenance</td>
+        <td>Provenance</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>History of ownership of the cultural heritage asset</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">documentedBy</td>
+        <td>Documented by</td>
+        <td><span class="pill">oneOf</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>Name of Cultural Heritage Scientist that documented the asset (choose from list of names or add new)</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">documentationDate</td>
+        <td>Documentation date</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill required">required</span></td>
+        <td></td>
+        <td><span class="chip"><b>format</b>: date</span></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">objectType</td>
+        <td>Object type</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>drop down list of all types of objects in Use cases in alphabetical order [needs to be updated]</td>
+        <td><span class="chip"><b>minLength</b>: 1</span></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">objectSpecificType</td>
+        <td>Object specific type</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>drop down list of all types of objects in Use cases in alphabetical order [needs to be updated]</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">maximumDimensions</td>
+        <td>Maximum dimensions</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>Recommended pattern: H x W x D + unit (e.g., &#39;120 x 80 cm&#39;)</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">datePeriod</td>
+        <td>Date/period</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>Date or timespan the cultural heritage asset was created.</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">belongsToGroup</td>
+        <td>Belongs to group</td>
+        <td><span class="pill">boolean</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>A collection or group it belongs to.</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">belongsToSubgroup</td>
+        <td>Belongs to subgroup</td>
+        <td><span class="pill">boolean</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>A sub-collection or subgroup it belongs to.</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">externalLink</td>
+        <td>External link</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>Link to an external resource about the cultural heritage asset</td>
+        <td><span class="chip"><b>format</b>: uri</span></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">publication</td>
+        <td>Publication</td>
+        <td><span class="pill">object</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td></td>
+        <td></td>
+      </tr>
+    </tbody>
+    </table>
+  </section><section id="technologicalAnalysis"><h2 id="technologicalAnalysis">Technological analysis (multiple parts)</h2>
+<p class="desc">One cultural heritage asset can have multiple analysed parts. Must include at least one primaryStructure part.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Key</th><th>Title</th><th>Type</th><th>Req.</th><th>Description</th><th>Constraints</th>
+        </tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td class="mono">partId</td>
+        <td>Part ID</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill required">required</span></td>
+        <td></td>
+        <td><span class="chip"><b>minLength</b>: 1</span></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">partType</td>
+        <td>Part type</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>Primary structure is mandatory at least once. Decorations are optional and repeatable.</td>
+        <td><span class="chip"><b>enum</b>: primaryStructure, decoration</span></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">partLabel</td>
+        <td>Part label</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>Optional label, e.g. &#39;ground fabric&#39;, &#39;embroidered border&#39;.</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">partLocation</td>
+        <td>Part location</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>Where on the object this part is located (optional).</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">partNotes</td>
+        <td>Part notes</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td></td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">type</td>
+        <td>Type</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill required">required</span></td>
+        <td>Technique/structure label (required)</td>
+        <td><span class="chip"><b>minLength</b>: 1</span></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">weaveType</td>
+        <td>Type of weave</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td></td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">weaveTypeSpecification</td>
+        <td>Weave specification</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td></td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">weaveCount</td>
+        <td>Weave count</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>Recommended: &#39;ends/cm, picks/cm&#39; or a structured convention you define</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">threadDiameter</td>
+        <td>Thread diameter</td>
+        <td><span class="pill">number</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>Numeric value; record unit in threadDiameterUnit</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">threadDiameterUnit</td>
+        <td>Thread diameter unit</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td></td>
+        <td><span class="chip"><b>enum</b>: mm, µm</span></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">threadPly</td>
+        <td>Thread ply</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>E.g., &#39;2-ply&#39;, &#39;S2Z&#39; etc.</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">threadTwist</td>
+        <td>Thread twist</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td>E.g., &#39;S&#39;, &#39;Z&#39;, &#39;S/Z&#39;, &#39;none&#39;</td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">twistAngle</td>
+        <td>Twist angle (degrees)</td>
+        <td><span class="pill">number</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td></td>
+        <td></td>
+      </tr>
+    
+      <tr>
+        <td class="mono">twistMethod</td>
+        <td>Twist method</td>
+        <td><span class="pill">string</span></td>
+        <td><span class="pill optional">optional</span></td>
+        <td></td>
+        <td></td>
+      </tr>
+    </tbody>
+    </table>
+  </section>
+
+    <h2>Raw schema</h2>
+    <details><summary>Show JSON</summary>
+      <pre class="code">{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;$id&quot;: &quot;https://example.org/schemas/textailes-documentation.schema.v6.json&quot;,
+  &quot;title&quot;: &quot;TEXTaiLES Textile Documentation Record (v6)&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;additionalProperties&quot;: false,
+  &quot;required&quot;: [
+    &quot;identification&quot;,
+    &quot;technologicalAnalysis&quot;
+  ],
+  &quot;properties&quot;: {
+    &quot;identification&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;title&quot;: &quot;Identification&quot;,
+      &quot;description&quot;: &quot;Identification of the cultural heritage asset including basic metadata.&quot;,
+      &quot;additionalProperties&quot;: false,
+      &quot;required&quot;: [
+        &quot;accessionNumber&quot;,
+        &quot;referenceNameNumber&quot;,
+        &quot;currentLocation&quot;,
+        &quot;description&quot;,
+        &quot;documentedBy&quot;,
+        &quot;documentationDate&quot;,
+        &quot;origin&quot;,
+        &quot;provenance&quot;,
+        &quot;objectType&quot;
+      ],
+      &quot;properties&quot;: {
+        &quot;accessionNumber&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Accession number&quot;,
+          &quot;description&quot;: &quot;Unique identifier assigned by the TEXTaiLES consortium&quot;,
+          &quot;minLength&quot;: 1
+        },
+        &quot;referenceNameNumber&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Reference name/number&quot;,
+          &quot;description&quot;: &quot;Reference number of the collection where it is kept&quot;,
+          &quot;minLength&quot;: 1
+        },
+        &quot;description&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Cultural Heritage Asset description&quot;,
+          &quot;description&quot;: &quot;Brief description of the cultural heritage asset&quot;,
+          &quot;minLength&quot;: 1
+        },
+        &quot;currentLocation&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Current location&quot;,
+          &quot;description&quot;: &quot;Where the cultural heritage asset is kept&quot;,
+          &quot;minLength&quot;: 1
+        },
+        &quot;origin&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Origin&quot;,
+          &quot;description&quot;: &quot;Geographical origin of the cultural heritage asset&quot;
+        },
+        &quot;provenance&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Provenance&quot;,
+          &quot;description&quot;: &quot;History of ownership of the cultural heritage asset&quot;
+        },
+        &quot;documentedBy&quot;: {
+          &quot;title&quot;: &quot;Documented by&quot;,
+          &quot;oneOf&quot;: [
+            {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;minLength&quot;: 1
+            },
+            {
+              &quot;type&quot;: &quot;array&quot;,
+              &quot;items&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;minLength&quot;: 1
+              },
+              &quot;minItems&quot;: 1,
+              &quot;uniqueItems&quot;: true
+            }
+          ],
+          &quot;description&quot;: &quot;Name of Cultural Heritage Scientist that documented the asset (choose from list of names or add new)&quot;
+        },
+        &quot;documentationDate&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Documentation date&quot;,
+          &quot;format&quot;: &quot;date&quot;
+        },
+        &quot;objectType&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Object type&quot;,
+          &quot;description&quot;: &quot;drop down list of all types of objects in Use cases in alphabetical order [needs to be updated]&quot;,
+          &quot;minLength&quot;: 1
+        },
+        &quot;objectSpecificType&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Object specific type&quot;,
+          &quot;description&quot;: &quot;drop down list of all types of objects in Use cases in alphabetical order [needs to be updated]&quot;
+        },
+        &quot;maximumDimensions&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Maximum dimensions&quot;,
+          &quot;description&quot;: &quot;Recommended pattern: H x W x D + unit (e.g., &#39;120 x 80 cm&#39;)&quot;
+        },
+        &quot;datePeriod&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Date/period&quot;,
+          &quot;description&quot;: &quot;Date or timespan the cultural heritage asset was created.&quot;
+        },
+        &quot;belongsToGroup&quot;: {
+          &quot;type&quot;: &quot;boolean&quot;,
+          &quot;title&quot;: &quot;Belongs to group&quot;,
+          &quot;description&quot;: &quot;A collection or group it belongs to.&quot;
+        },
+        &quot;belongsToSubgroup&quot;: {
+          &quot;type&quot;: &quot;boolean&quot;,
+          &quot;title&quot;: &quot;Belongs to subgroup&quot;,
+          &quot;description&quot;: &quot;A sub-collection or subgroup it belongs to.&quot;
+        },
+        &quot;externalLink&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;External link&quot;,
+          &quot;description&quot;: &quot;Link to an external resource about the cultural heritage asset&quot;,
+          &quot;format&quot;: &quot;uri&quot;
+        },
+        &quot;publication&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;title&quot;: &quot;Publication&quot;,
+          &quot;additionalProperties&quot;: false,
+          &quot;properties&quot;: {
+            &quot;hasPublication&quot;: {
+              &quot;type&quot;: &quot;boolean&quot;
+            },
+            &quot;reference&quot;: {
+              &quot;type&quot;: &quot;string&quot;
+            }
+          },
+          &quot;allOf&quot;: [
+            {
+              &quot;if&quot;: {
+                &quot;properties&quot;: {
+                  &quot;hasPublication&quot;: {
+                    &quot;const&quot;: true
+                  }
+                },
+                &quot;required&quot;: [
+                  &quot;hasPublication&quot;
+                ]
+              },
+              &quot;then&quot;: {
+                &quot;required&quot;: [
+                  &quot;reference&quot;
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    &quot;technologicalAnalysis&quot;: {
+      &quot;type&quot;: &quot;array&quot;,
+      &quot;title&quot;: &quot;Technological analysis (multiple parts)&quot;,
+      &quot;description&quot;: &quot;One cultural heritage asset can have multiple analysed parts. Must include at least one primaryStructure part.&quot;,
+      &quot;minItems&quot;: 1,
+      &quot;required&quot;: [
+        &quot;partId&quot;,
+        &quot;partType&quot;,
+        &quot;type&quot;
+      ],
+      &quot;properties&quot;: {
+        &quot;partId&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Part ID&quot;,
+          &quot;minLength&quot;: 1
+        },
+        &quot;partType&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Part type&quot;,
+          &quot;enum&quot;: [
+            &quot;primaryStructure&quot;,
+            &quot;decoration&quot;
+          ],
+          &quot;description&quot;: &quot;Primary structure is mandatory at least once. Decorations are optional and repeatable.&quot;
+        },
+        &quot;partLabel&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Part label&quot;,
+          &quot;description&quot;: &quot;Optional label, e.g. &#39;ground fabric&#39;, &#39;embroidered border&#39;.&quot;
+        },
+        &quot;partLocation&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Part location&quot;,
+          &quot;description&quot;: &quot;Where on the object this part is located (optional).&quot;
+        },
+        &quot;partNotes&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Part notes&quot;
+        },
+        &quot;type&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Type&quot;,
+          &quot;description&quot;: &quot;Technique/structure label (required)&quot;,
+          &quot;minLength&quot;: 1
+        },
+        &quot;weaveType&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Type of weave&quot;
+        },
+        &quot;weaveTypeSpecification&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Weave specification&quot;
+        },
+        &quot;weaveCount&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Weave count&quot;,
+          &quot;description&quot;: &quot;Recommended: &#39;ends/cm, picks/cm&#39; or a structured convention you define&quot;
+        },
+        &quot;threadDiameter&quot;: {
+          &quot;type&quot;: &quot;number&quot;,
+          &quot;title&quot;: &quot;Thread diameter&quot;,
+          &quot;description&quot;: &quot;Numeric value; record unit in threadDiameterUnit&quot;
+        },
+        &quot;threadDiameterUnit&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Thread diameter unit&quot;,
+          &quot;enum&quot;: [
+            &quot;mm&quot;,
+            &quot;µm&quot;
+          ]
+        },
+        &quot;threadPly&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Thread ply&quot;,
+          &quot;description&quot;: &quot;E.g., &#39;2-ply&#39;, &#39;S2Z&#39; etc.&quot;
+        },
+        &quot;threadTwist&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Thread twist&quot;,
+          &quot;description&quot;: &quot;E.g., &#39;S&#39;, &#39;Z&#39;, &#39;S/Z&#39;, &#39;none&#39;&quot;
+        },
+        &quot;twistAngle&quot;: {
+          &quot;type&quot;: &quot;number&quot;,
+          &quot;title&quot;: &quot;Twist angle (degrees)&quot;
+        },
+        &quot;twistMethod&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;title&quot;: &quot;Twist method&quot;
+        }
+      }
+    }
+  },
+  &quot;allOf&quot;: [
+    {
+      &quot;properties&quot;: {
+        &quot;technologicalAnalysis&quot;: {
+          &quot;contains&quot;: {
+            &quot;type&quot;: &quot;object&quot;,
+            &quot;properties&quot;: {
+              &quot;partType&quot;: {
+                &quot;const&quot;: &quot;primaryStructure&quot;
+              }
+            },
+            &quot;required&quot;: [
+              &quot;partType&quot;
+            ]
+          },
+          &quot;minContains&quot;: 1
+        }
+      }
+    }
+  ]
+}</pre>
+    </details>
+  </article>
+</main>
+
+<footer>Generated by jsonschema-to-html.js</footer>
+</body>
+</html>
