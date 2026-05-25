@@ -11,7 +11,8 @@ from services.storage import (
     set_public_read_policy,
     MINIO_ARTIFACT_BUCKET,
     MINIO_ROBOT_BUCKET,
-    MINIO_RECONSTRUCTION_BUCKET
+    MINIO_RECONSTRUCTION_BUCKET,
+    MINIO_NEFELE_BUCKET,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -53,6 +54,31 @@ def run_migrations():
         else:
             logger.info("Migration: 'timestamp_update' column already exists.")
 
+
+        # Nefele init
+        # vm_comms — mutable job state (PATCH-heavy). NOT created by a JDBC sink
+        # because the row is updated, not upserted. Explicit migration required.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS nefele_jobs (
+                job_id        UUID         PRIMARY KEY,
+                scan_id       TEXT         NOT NULL,
+                dataset_name  TEXT         NOT NULL,
+                model         TEXT         NOT NULL DEFAULT 'sugar',
+                points_json   JSONB,
+                preview       JSONB,
+                instructions  JSONB,
+                status        TEXT         NOT NULL DEFAULT 'points_submitted',
+                stage         TEXT         DEFAULT '',
+                stage_index   INTEGER      DEFAULT -1,
+                message       TEXT         DEFAULT '',
+                error         TEXT,
+                created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_nefele_jobs_status ON nefele_jobs (status)")
+        logger.info("Migration: nefele_jobs table ensured.")
+
         conn.commit()
         cur.close()
         conn.close()
@@ -75,6 +101,10 @@ def setup_minio():
     # 3. Setup Reconstructions (Public)
     init_minio_bucket(MINIO_RECONSTRUCTION_BUCKET)
     set_public_read_policy(MINIO_RECONSTRUCTION_BUCKET)
+
+    # Setup Nefele Previews (Public)
+    init_minio_bucket(MINIO_NEFELE_BUCKET)
+    set_public_read_policy(MINIO_NEFELE_BUCKET)
 
     logger.info("MinIO setup complete.")
 

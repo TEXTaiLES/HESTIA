@@ -26,6 +26,8 @@ TOPIC_ROBOT_UPLOADED = 'robot_image_uploaded'
 TOPIC_RECONSTRUCTION_UPLOADED = 'reconstruction_uploaded'
 TOPIC_ANNOTATION_UPLOADED = 'annotation_uploaded'
 TOPIC_ANNOTATION_MODIFIED = 'annotation_modified'
+TOPIC_NEFELE_JOB_CREATED = 'nefele_job_created'
+TOPIC_NEFELE_JOB_MODIFIED = 'nefele_job_modified'
 
 # Clients
 simple_producer = Producer({'bootstrap.servers': KAFKA_BROKER})
