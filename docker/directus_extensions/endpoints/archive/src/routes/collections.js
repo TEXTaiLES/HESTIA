@@ -1,6 +1,6 @@
 import { CSP_POLICY, USE_CASES, USE_CASE_MAP } from '../utils/constants.js';
 import { matchesByUseCase } from '../utils/helpers.js';
-import { userIsAuthenticated, userHasPermission } from '../utils/auth.js';
+import { userIsAuthenticated, userHasPermission, userIsAdmin } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
 import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
@@ -33,6 +33,8 @@ export default (router, { services }) => {
 			// Check create permission to decide whether to show Add New Artefact button.
 			const isEditor = await userHasPermission(req, res, ItemsService, 'artefacts', 'create');
 
+			const isAdmin = await userIsAdmin(req, res, ItemsService);
+
 			const rawParam = req.params.usecase;
 			const showCards = !rawParam;
 			
@@ -50,9 +52,10 @@ export default (router, { services }) => {
 		accountability: null,
 	});
 
-	// Fetches all artefacts from database.
+	// Fetches all artefacts from database; non-admins only see published ones.
 	const allArtefacts = await artefactsService.readByQuery({
 		fields: ['id', 'title', 'thumbnail', 'use_case', 'collection', 'source', 'time_period'],
+		filter: isAdmin ? {} : { published: { _eq: true } },
 		limit: -1
 	});
 

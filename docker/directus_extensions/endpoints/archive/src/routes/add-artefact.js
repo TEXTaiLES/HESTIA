@@ -147,6 +147,26 @@ ${renderNavbar('collections', true)}
                                     <label for="resolution" class="form-label">Resolution</label>
                                     <input type="text" class="form-control" id="resolution" name="resolution">
                                 </div>
+
+                                <div class="mb-3">
+                                    <label for="robot_scan_id" class="form-label">Robot Scan ID</label>
+                                    <input type="text" class="form-control" id="robot_scan_id" name="robot_scan_id" placeholder="e.g. 7f497280-7917-4e9a-b5ac-e8e887f67e99">
+                                    <small class="form-text text-muted">The scan_id UUID from a robot image batch</small>
+                                </div>
+
+                        <div class="mb-3">
+                                    <label class="form-label" for="thumbnail_file_input">Thumbnail</label>
+
+                                    <!-- hidden native input -->
+                                    <input type="file" id="thumbnail_file_input" name="thumbnail" accept=".png,.jpg,.jpeg" class="visually-hidden" />
+
+                                    <!-- custom UI -->
+                                    <div class="input-group">
+                                        <button type="button" class="btn btn-outline-secondary" id="thumbnail_browse_btn"> Browse… </button>
+                                        <input type="text" class="form-control" id="thumbnail_filename" value="No file chosen" readonly>
+                                    </div>
+                                    <small class="form-text text-muted">Upload a PNG, JPG, or JPEG file</small>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -356,6 +376,16 @@ ${renderNavbar('collections', true)}
         objNameField.value = objInput.files && objInput.files.length ? objInput.files[0].name : 'No file chosen';
     });
 
+    // Handle thumbnail file input
+    const thumbnailInput = document.getElementById('thumbnail_file_input');
+    const thumbnailBtn = document.getElementById('thumbnail_browse_btn');
+    const thumbnailNameField = document.getElementById('thumbnail_filename');
+
+    thumbnailBtn.addEventListener('click', () => thumbnailInput.click());
+    thumbnailInput.addEventListener('change', () => {
+        thumbnailNameField.value = thumbnailInput.files && thumbnailInput.files.length ? thumbnailInput.files[0].name : 'No file chosen';
+    });
+
     // Handle conservation date input
     const dateInput = document.getElementById('conservation_date_input');
     const dateBtn = document.getElementById('conservation_date_btn');
@@ -533,6 +563,26 @@ ${renderFooter()}`;
 							artefactData.obj_file = uploadedFile;
 						} catch (fileError) {
 							console.error('OBJ upload error:', fileError);
+						}
+					}
+
+					if (files.thumbnail && files.thumbnail.filename) {
+						try {
+							const { Readable } = await import('stream');
+							const stream = Readable.from(files.thumbnail.buffer);
+
+							const fileData = {
+								storage: 'local',
+								filename_download: files.thumbnail.filename,
+								type: files.thumbnail.mimeType,
+								filesize: files.thumbnail.size,
+								title: files.thumbnail.filename.split('.')[0],
+							};
+
+							const uploadedFile = await filesService.uploadOne(stream, fileData);
+							artefactData.thumbnail = uploadedFile;
+						} catch (fileError) {
+							console.error('Thumbnail upload error:', fileError);
 						}
 					}
 

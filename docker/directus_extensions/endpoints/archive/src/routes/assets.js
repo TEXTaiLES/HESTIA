@@ -3,8 +3,12 @@ import { serveFile, mapGltfUris } from '../utils/helpers.js';
 
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 const obj2gltf = require('obj2gltf');
 const crypto = require('crypto');
+
+const API_INTERNAL = process.env.API_INTERNAL_ENDPOINT || 'api:5000';
+const API_SECRET_KEY = process.env.API_SECRET_KEY || '';
 
 export default (router, { services }) => {
 	const { ItemsService } = services;
@@ -26,6 +30,103 @@ export default (router, { services }) => {
 	router.get('/favicon.ico', (req, res) => {
 		const faviconPath = path.join(PATHS.STATIC_ROOT, PATHS.FAVICON);
 		serveFile(faviconPath, res, 'image/png');
+	});
+
+	// Route: Proxy a robot image from MinIO by scan_id and filename
+	// Works because robot images are public in MinIO and local, production have the same network.
+	router.get('/assets/robot-image/:scan_id/:filename', (req, res) => {
+		const { scan_id } = req.params;
+		const filename = decodeURIComponent(req.params.filename);
+		const encodedFilename = encodeURIComponent(filename);
+		const proxyUrl = `http://${API_INTERNAL}/storage/robot-images/${scan_id}/${encodedFilename}`;
+
+		http.get(proxyUrl, { headers: { Authorization: `Bearer ${API_SECRET_KEY}` } }, (minioRes) => {
+			if (minioRes.statusCode !== 200) {
+				return res.status(minioRes.statusCode || 404).send('Image not found in storage');
+			}
+			const contentType = minioRes.headers['content-type'] || 'image/jpeg';
+			res.set('Content-Type', contentType);
+			res.set('Cache-Control', 'public, max-age=3600');
+			if (minioRes.headers['content-length']) {
+				res.set('Content-Length', minioRes.headers['content-length']);
+			}
+			minioRes.pipe(res);
+		}).on('error', (err) => {
+			console.error('MinIO robot image proxy error:', err.message);
+			res.status(502).send('Error fetching image from storage');
+		});
+	});
+
+	// Route: Proxy a reconstruction GLB from MinIO by object_id.
+	// Also patches all materials to doubleSided=true so model-viewer renders inner faces (uses both faces of the triangle).
+	// Works because reconstructions are public in MinIO and local, production have the same network.
+	router.get('/assets/reconstruction/:object_id/model', (req, res) => {
+		const { object_id } = req.params;
+		const proxyUrl = `http://${API_INTERNAL}/storage/reconstructions/${object_id}/model.glb`;
+
+		http.get(proxyUrl, { headers: { Authorization: `Bearer ${API_SECRET_KEY}` } }, (minioRes) => {
+			if (minioRes.statusCode !== 200) {
+				return res.status(minioRes.statusCode || 404).send('Model not found in storage');
+			}
+
+			// Stream the GLB from MinIO, parse it, modify materials to be double-sided, and re-serve it.
+			const chunks = [];
+			minioRes.on('data', chunk => chunks.push(chunk));
+			
+			// Process the GLB once fully received - patch logic.
+			minioRes.on('end', () => {
+				try {
+					const glb = Buffer.concat(chunks);
+
+					// GLB binary layout: 12-byte header, then chunks (0 : JSON, 1 : BIN mesh).
+					// Chunk 0: 4-byte length + 4-byte type (JSON) + JSON bytes
+					const jsonChunkLength = glb.readUInt32LE(12);
+					const jsonStart = 20;
+					const jsonEnd = jsonStart + jsonChunkLength;
+
+					const gltf = JSON.parse(glb.toString('utf8', jsonStart, jsonEnd));
+
+					// Force every material to render both sides
+					if (Array.isArray(gltf.materials)) {
+						gltf.materials.forEach(mat => { mat.doubleSided = true; });
+					}
+
+					// Re-encode JSON, pad to 4-byte boundary with spaces (spec requirement)
+					let newJsonStr = JSON.stringify(gltf);
+					const pad = (4 - (newJsonStr.length % 4)) % 4;
+					newJsonStr += ' '.repeat(pad);
+					const newJsonBuf = Buffer.from(newJsonStr, 'utf8');
+
+					// Everything after the original JSON chunk (binary chunk) stays untouched
+					const binChunk = glb.subarray(jsonEnd);
+					const newTotalLength = 12 + 8 + newJsonBuf.length + binChunk.length;
+
+					// Update GLB header and JSON chunk header with new lengths
+					const newGlb = Buffer.alloc(newTotalLength);
+					glb.copy(newGlb, 0, 0, 8);                    // magic + version
+					newGlb.writeUInt32LE(newTotalLength, 8);        // updated total length
+					newGlb.writeUInt32LE(newJsonBuf.length, 12);    // updated JSON chunk length
+					glb.copy(newGlb, 16, 16, 20);                  // JSON chunk type unchanged
+					newJsonBuf.copy(newGlb, 20);                    // new JSON
+					binChunk.copy(newGlb, 20 + newJsonBuf.length);  // binary chunk unchanged
+
+					res.set('Content-Type', 'model/gltf-binary');
+					res.set('Cache-Control', 'public, max-age=3600');
+					res.set('Content-Length', newTotalLength.toString());
+					res.send(newGlb);
+				} catch (err) {
+					console.error('GLB patch error:', err.message);
+					res.status(500).send('Error processing model');
+				}
+			});
+			minioRes.on('error', err => {
+				console.error('MinIO stream error:', err.message);
+				res.status(502).send('Error reading model from storage');
+			});
+		}).on('error', (err) => {
+			console.error('MinIO proxy error:', err.message);
+			res.status(502).send('Error fetching model from storage');
+		});
 	});
 
 	// Route: Proxy endpoint to serve assets publicly
