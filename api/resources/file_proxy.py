@@ -33,6 +33,10 @@ class FileProxyResource(Resource):
                 mimetype = 'image/jpeg'
             elif lower_name.endswith('.png'):
                 mimetype = 'image/png'
+            elif lower_name.endswith(('.tif', '.tiff')):
+                mimetype = 'image/tiff'
+            elif lower_name.endswith('.bmp'):
+                mimetype = 'image/bmp'
             elif lower_name.endswith('.json'):
                 mimetype = 'application/json'
             elif lower_name.endswith('.txt'):
