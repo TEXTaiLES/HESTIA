@@ -15,6 +15,7 @@ MINIO_ARTIFACT_BUCKET = 'artifacts'
 MINIO_ROBOT_BUCKET = 'robot-images'
 MINIO_RECONSTRUCTION_BUCKET = 'reconstructions'
 MINIO_NEFELE_BUCKET = 'nefele'
+MINIO_YARN_SIMULATION_BUCKET = 'yarn-simulations'
 
 API_PUBLIC_ENDPOINT = os.environ.get("API_PUBLIC_ENDPOINT", "localhost:5000")
 API_PUBLIC_SHEME = os.environ.get("API_PUBLIC_SHEME", "https")

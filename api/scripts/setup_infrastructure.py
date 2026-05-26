@@ -13,6 +13,7 @@ from services.storage import (
     MINIO_ROBOT_BUCKET,
     MINIO_RECONSTRUCTION_BUCKET,
     MINIO_NEFELE_BUCKET,
+    MINIO_YARN_SIMULATION_BUCKET,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -171,6 +172,10 @@ def setup_minio():
     # Setup Nefele Previews (Public)
     init_minio_bucket(MINIO_NEFELE_BUCKET)
     set_public_read_policy(MINIO_NEFELE_BUCKET)
+
+    # Setup Yarn Simulation outputs (Public)
+    init_minio_bucket(MINIO_YARN_SIMULATION_BUCKET)
+    set_public_read_policy(MINIO_YARN_SIMULATION_BUCKET)
 
     logger.info("MinIO setup complete.")
 
