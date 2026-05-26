@@ -79,6 +79,72 @@ def run_migrations():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_nefele_jobs_status ON nefele_jobs (status)")
         logger.info("Migration: nefele_jobs table ensured.")
 
+        # Dynamo (numerical simulation) tables — kept in their own Postgres schema.
+        logger.info("Migration: Ensuring dynamo schema and yarn-simulation tables exist.")
+        cur.execute("CREATE SCHEMA IF NOT EXISTS dynamo;")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dynamo.yarn_simulation_input (
+                simulation_id UUID PRIMARY KEY,
+                structure_type TEXT NOT NULL DEFAULT 'Yarn',
+                yarn_level_count INTEGER NOT NULL,
+                yarn_friction_value REAL,
+                yarn_friction_unit TEXT,
+                yarn_adhesion_value REAL,
+                yarn_adhesion_unit TEXT,
+                discretization_period_count INTEGER,
+                discretization_nodes_per_period_count INTEGER,
+                applied_elongation_value REAL,
+                applied_elongation_unit TEXT,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dynamo.yarn_simulation_input_level (
+                level_id UUID PRIMARY KEY,
+                simulation_id UUID NOT NULL
+                    REFERENCES dynamo.yarn_simulation_input(simulation_id) ON DELETE CASCADE,
+                level_number INTEGER NOT NULL,
+                substructure_count INTEGER,
+                twist_core TEXT,
+                pitch_core_value REAL,
+                pitch_core_unit TEXT,
+                material_core TEXT,
+                youngs_modulus_core_value REAL,
+                youngs_modulus_core_unit TEXT,
+                poisson_ratio_core_value REAL,
+                poisson_ratio_core_unit TEXT,
+                radius_core_value REAL,
+                radius_core_unit TEXT,
+                outer_strand_count INTEGER,
+                twist_outer TEXT,
+                pitch_outer_value REAL,
+                pitch_outer_unit TEXT,
+                material_outer TEXT,
+                youngs_modulus_outer_value REAL,
+                youngs_modulus_outer_unit TEXT,
+                poisson_ratio_outer_value REAL,
+                poisson_ratio_outer_unit TEXT,
+                radius_outer_value REAL,
+                radius_outer_unit TEXT,
+                UNIQUE (simulation_id, level_number)
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dynamo.yarn_simulation_output (
+                simulation_id UUID PRIMARY KEY
+                    REFERENCES dynamo.yarn_simulation_input(simulation_id) ON DELETE CASCADE,
+                simulation_completed BOOLEAN NOT NULL DEFAULT FALSE,
+                elongations_unit TEXT,
+                elongations_values JSONB,
+                forces_unit TEXT,
+                forces_values JSONB,
+                visualization_files JSONB,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_yarn_sim_input_level_simulation ON dynamo.yarn_simulation_input_level(simulation_id);")
+
         conn.commit()
         cur.close()
         conn.close()
@@ -117,7 +183,13 @@ def register_connectors():
         "annotation-sink.json",
         "robot-sink.json",
         "sensor-sink.json",
-        "reconstruction-sink.json"
+        "reconstruction-sink.json",
+        "restoration-sink.json",
+        "restoration-media-sink.json",
+        "restoration-result-sink.json",
+        "dynamo-yarn-simulation-sink.json",
+        "dynamo-yarn-simulation-level-sink.json",
+        "dynamo-yarn-simulation-output-sink.json"
     ]
 
     for filename in connector_files:
