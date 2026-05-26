@@ -4,6 +4,7 @@ import { renderLoginPage } from '../templates/login.js';
 import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
+import { renderYarnSimulationModal } from '../templates/yarn-simulation-modal.js';
 
 export default (router, { services, database }) => {
 	const { AuthenticationService, ItemsService } = services;
@@ -153,14 +154,13 @@ ${renderNavbar('collections', true)}
                     <button onclick="annotateWithThoth(${artefact.id})" class="btn btn-red">
                         <i class="fas fa-edit"></i> Annotate with THOTH
                     </button>
-                    <!-- <button onclick="location.href='#'" class="btn btn-red">
-                        <i class="fas fa-magnifying-glass"></i> Button 2
+                    <button type="button" class="btn btn-red" data-bs-toggle="modal" data-bs-target="#yarnSimulationModal">
+                        <i class="fas fa-layer-group"></i> Yarn Simulation
                     </button>
-                    <button onclick="location.href='#'" class="btn btn-red">
-                        <i class="fas fa-layer-group"></i> Button 3
-                    </button> -->
                 </div>
             </div>
+
+            ${renderYarnSimulationModal()}
 
             <script>
                 /**

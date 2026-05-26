@@ -14,7 +14,8 @@ from resources.annotation import AnnotationResource
 from resources.file_proxy import FileProxyResource
 from resources.thumbnail import ThumbnailResource
 from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimResource, NefelePreviewResource
-from resources.restoration import RestorationResource
+# TODO: restoration.py is not yet on this branch — restore from portal/improvement before re-enabling.
+# from resources.restoration import RestorationResource
 from resources.yarn_simulation import YarnSimulationResource, YarnSimulationItemResource
 
 # Setup
@@ -54,7 +55,7 @@ api.add_resource(NefeleResource, '/nefele')
 api.add_resource(NefeleJobResource, '/nefele/<string:job_id>')
 api.add_resource(NefeleClaimResource, '/nefele/claim')
 api.add_resource(NefelePreviewResource, '/nefele/<string:job_id>/preview')
-api.add_resource(RestorationResource, '/restorations')
+# api.add_resource(RestorationResource, '/restorations')
 api.add_resource(YarnSimulationResource, '/dynamo/yarn-simulations')
 api.add_resource(YarnSimulationItemResource, '/dynamo/yarn-simulations/<string:simulation_id>')
 
