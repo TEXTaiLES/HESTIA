@@ -311,7 +311,24 @@ export const renderYarnSimulationModal = () => `
                 if (!parts.length) parts.push(res.statusText || ('HTTP ' + res.status));
                 showAlert('danger', 'Error: ' + parts.join(' — '));
             } else {
-                showAlert('success', 'Submitted. Simulation ID: <code>' + (data.simulation_id || '—') + '</code>');
+                const simId = data.simulation_id;
+                // Match the artefact_id pattern used by the page-level visualization script.
+                const m = window.location.pathname.match(/\\/artefacts\\/(\\d+)/);
+                const artefactId = m ? m[1] : null;
+                if (simId && artefactId) {
+                    sessionStorage.setItem('yarn_simulation_' + artefactId, simId);
+                }
+                showAlert('success',
+                    'Submitted. Simulation ID: <code>' + (simId || '—') + '</code>. '
+                    + 'Loading visualization placeholder…'
+                );
+                // Bounce to the same page with ?yarn_simulation=<id> so the
+                // visualization section on the artefact page activates.
+                if (simId) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('yarn_simulation', simId);
+                    setTimeout(() => { window.location.href = url.toString(); }, 800);
+                }
             }
         } catch (err) {
             showAlert('danger', 'Error: ' + err.message);

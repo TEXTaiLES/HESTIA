@@ -162,6 +162,74 @@ ${renderNavbar('collections', true)}
 
             ${renderYarnSimulationModal()}
 
+            <!-- Yarn Simulation Visualization (renders when ?yarn_simulation=<id> is set or a recent submission exists in sessionStorage) -->
+            <div id="yarnVisualizationSection" class="mt-4" style="display:none;">
+                <h4 class="border-bottom pb-2">Yarn Simulation Result</h4>
+                <div class="text-muted small mb-2">
+                    Simulation ID: <code id="yarnVisualizationSimId">—</code>
+                    <span id="yarnVisualizationStatus" class="ms-2"></span>
+                </div>
+                <div id="yarnVisualizationViewer" style="height: 500px;"></div>
+            </div>
+
+            <script>
+                (function () {
+                    const ARTEFACT_ID = ${artefact.id};
+                    const params = new URLSearchParams(window.location.search);
+                    const simId = params.get('yarn_simulation')
+                        || sessionStorage.getItem('yarn_simulation_' + ARTEFACT_ID);
+                    if (!simId) return;
+
+                    const section = document.getElementById('yarnVisualizationSection');
+                    const idEl = document.getElementById('yarnVisualizationSimId');
+                    const statusEl = document.getElementById('yarnVisualizationStatus');
+                    const viewerEl = document.getElementById('yarnVisualizationViewer');
+                    section.style.display = '';
+                    idEl.textContent = simId;
+
+                    function setStatus(html) { statusEl.innerHTML = html; }
+                    function showSpinner(msg) {
+                        setStatus('<i class="fas fa-spinner fa-spin"></i> ' + msg);
+                        viewerEl.innerHTML = '';
+                    }
+                    function showError(msg) {
+                        setStatus('<span class="text-danger">' + msg + '</span>');
+                    }
+                    function renderViewer() {
+                        const url = '/archive/assets/yarn-simulation/' + encodeURIComponent(simId) + '/visualization.glb';
+                        viewerEl.innerHTML = ''
+                            + '<model-viewer src="' + url + '"'
+                            + ' camera-controls autoplay animation-name="yarn-deformation"'
+                            + ' environment-image="legacy" exposure="1.2" shadow-intensity="0.5"'
+                            + ' tone-mapping="commerce" style="width:100%; height:100%;"></model-viewer>';
+                        setStatus('<span class="text-success">Ready</span>');
+                    }
+
+                    showSpinner('Checking simulation status...');
+                    // cache-bust so a stale 304 from before the simulator
+                    // patched the output doesn't make us think it's still pending.
+                    fetch('/archive/dynamo/yarn-simulations/' + encodeURIComponent(simId) + '?_=' + Date.now(),
+                        { cache: 'no-store' })
+                        .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                        .then(({ ok, data }) => {
+                            if (!ok) {
+                                showError('Could not load simulation: ' + (data.error || 'unknown error'));
+                                return;
+                            }
+                            const out = data.simulationOutput;
+                            const files = (out && out.visualizationFiles) || [];
+                            if (out && out.simulationCompleted && files.length > 0) {
+                                renderViewer();
+                            } else if (out && out.simulationCompleted) {
+                                showError('Simulation completed but produced no visualization files.');
+                            } else {
+                                setStatus('<i class="fas fa-hourglass-half"></i> Simulation pending — reload when ready.');
+                            }
+                        })
+                        .catch(err => showError('Network error: ' + err.message));
+                })();
+            </script>
+
             <script>
                 /**
                  * Annotate with THOTH - Main function

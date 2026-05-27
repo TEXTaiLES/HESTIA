@@ -1,7 +1,9 @@
-from flask import request, jsonify
+from flask import request, jsonify, Response
 from flask_restful import Resource
 from datetime import datetime, timezone
 from psycopg2.extras import Json
+from minio.error import S3Error
+import io
 import json
 import re
 import uuid
@@ -17,6 +19,8 @@ from services.messaging import (
     TOPIC_DYNAMO_YARN_SIMULATION_OUTPUTS,
     TOPIC_DYNAMO_YARN_SIMULATION_UPLOADED,
 )
+from services.storage import minio_client, MINIO_YARN_SIMULATION_BUCKET
+from services.yarn_visualization import build_morph_target_glb
 
 logger = logging.getLogger(__name__)
 
@@ -590,4 +594,126 @@ class YarnSimulationItemResource(Resource):
 
         except Exception as e:
             logger.error(f"Failed to update yarn simulation output {simulation_id}: {e}")
+            return {'error': str(e)}, 500
+
+
+# ---------- visualization resource ----------
+
+VISUALIZATION_OBJECT_KEY = 'visualization.glb'
+
+
+def _minio_object_exists(bucket: str, key: str) -> bool:
+    try:
+        minio_client.stat_object(bucket, key)
+        return True
+    except S3Error as e:
+        if e.code in ('NoSuchKey', 'NoSuchObject'):
+            return False
+        raise
+
+
+class YarnSimulationVisualizationResource(Resource):
+    """
+    GET /dynamo/yarn-simulations/<simulation_id>/visualization.glb
+
+    Streams a single GLB with morph-target animation built from every OBJ
+    listed in `simulationOutput.visualizationFiles`. The result is cached in
+    MinIO at `yarn-simulations/<simulation_id>/visualization.glb` so the
+    expensive merge runs only once per file set.
+    """
+    method_decorators = [require_api_key]
+
+    def get(self, simulation_id):
+        conn = None
+        try:
+            # 1. Fetch the simulation's visualization file list from Postgres.
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT visualization_files, simulation_completed "
+                "FROM dynamo.yarn_simulation_output WHERE simulation_id = %s",
+                (simulation_id,)
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            conn = None
+
+            if not row:
+                return {'error': f"Simulation '{simulation_id}' not found"}, 404
+
+            viz_files, completed = row
+            if not completed:
+                return {'error': "Simulation not completed yet."}, 409
+            if not viz_files or len(viz_files) == 0:
+                return {'error': "Simulation has no visualization files."}, 404
+            if len(viz_files) < 2:
+                return {'error': "Need at least 2 OBJ frames to build an animation."}, 422
+
+            cache_key = f"{simulation_id}/{VISUALIZATION_OBJECT_KEY}"
+
+            # 2. Serve from MinIO cache if present.
+            if _minio_object_exists(MINIO_YARN_SIMULATION_BUCKET, cache_key):
+                logger.info(f"[yarn-viz] cache HIT {cache_key}")
+                obj = minio_client.get_object(MINIO_YARN_SIMULATION_BUCKET, cache_key)
+                try:
+                    glb_bytes = obj.read()
+                finally:
+                    obj.close()
+                    obj.release_conn()
+                return Response(
+                    glb_bytes,
+                    status=200,
+                    mimetype='model/gltf-binary',
+                    headers={
+                        'Cache-Control': 'public, max-age=3600',
+                        'X-Cache': 'HIT',
+                    },
+                )
+
+            # 3. Cache miss: download every OBJ, build GLB, upload result, serve.
+            logger.info(f"[yarn-viz] cache MISS — building from {len(viz_files)} OBJ frames")
+            obj_texts = []
+            for filename in viz_files:
+                key = f"{simulation_id}/{filename}"
+                logger.info(f"[yarn-viz] fetching {key}")
+                obj = minio_client.get_object(MINIO_YARN_SIMULATION_BUCKET, key)
+                try:
+                    obj_texts.append(obj.read().decode('utf-8'))
+                finally:
+                    obj.close()
+                    obj.release_conn()
+
+            glb_bytes = build_morph_target_glb(obj_texts)
+
+            # Persist back to MinIO for subsequent requests.
+            minio_client.put_object(
+                MINIO_YARN_SIMULATION_BUCKET,
+                cache_key,
+                io.BytesIO(glb_bytes),
+                length=len(glb_bytes),
+                content_type='model/gltf-binary',
+            )
+            logger.info(f"[yarn-viz] cached {cache_key} ({len(glb_bytes)} bytes)")
+
+            return Response(
+                glb_bytes,
+                status=200,
+                mimetype='model/gltf-binary',
+                headers={
+                    'Cache-Control': 'public, max-age=3600',
+                    'X-Cache': 'MISS',
+                },
+            )
+
+        except S3Error as e:
+            logger.error(f"[yarn-viz] MinIO error for {simulation_id}: {e}")
+            return {'error': 'Storage error', 'message': str(e)}, 502
+        except ValueError as e:
+            logger.error(f"[yarn-viz] build error for {simulation_id}: {e}")
+            return {'error': str(e)}, 422
+        except Exception as e:
+            logger.exception(f"[yarn-viz] failed for {simulation_id}: {e}")
+            if conn:
+                conn.close()
             return {'error': str(e)}, 500

@@ -1,9 +1,12 @@
 /**
- * Yarn Simulation Proxy Route
+ * Yarn Simulation Routes
  *
- * Forwards portal form submissions to the internal Flask API
- * (POST /dynamo/yarn-simulations) so the browser never needs the
- * API_SECRET_KEY directly.
+ * - POST /dynamo/yarn-simulations           → proxy to Flask API (form submission)
+ * - GET  /dynamo/yarn-simulations/:id       → proxy to Flask API (status + output)
+ * - GET  /assets/yarn-simulation/:id/visualization.glb
+ *        Thin proxy to GET /dynamo/yarn-simulations/:id/visualization.glb on
+ *        the Flask API, which builds (and caches in MinIO) a single GLB with
+ *        morph-target animation from every OBJ in visualizationFiles.
  */
 
 import { userIsAuthenticated } from '../utils/auth.js';
@@ -13,8 +16,8 @@ const http = require('http');
 const API_INTERNAL = process.env.API_INTERNAL_ENDPOINT || 'api:5000';
 const API_SECRET_KEY = process.env.API_SECRET_KEY || '';
 
-// Pull body from the request. Directus may or may not have parsed it as JSON
-// already — fall back to reading the raw stream so we don't silently send {}.
+// ---------- helpers ----------
+
 function readBody(req) {
 	return new Promise((resolve) => {
 		if (req.body && Object.keys(req.body).length > 0) {
@@ -27,56 +30,88 @@ function readBody(req) {
 	});
 }
 
+function apiRequestBuffered(method, pathname, { body = null } = {}) {
+	return new Promise((resolve, reject) => {
+		const url = `http://${API_INTERNAL}${pathname}`;
+		const headers = { Authorization: `Bearer ${API_SECRET_KEY}` };
+		if (body !== null) {
+			headers['Content-Type'] = 'application/json';
+			headers['Content-Length'] = Buffer.byteLength(body);
+		}
+		const req = http.request(url, { method, headers }, (res) => {
+			const chunks = [];
+			res.on('data', (c) => chunks.push(c));
+			res.on('end', () => resolve({ statusCode: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+		});
+		req.on('error', reject);
+		if (body !== null) req.write(body);
+		req.end();
+	});
+}
+
+// ---------- routes ----------
+
 export default (router, { services }) => {
 	const { AuthenticationService } = services;
 
 	router.post('/dynamo/yarn-simulations', async (req, res) => {
 		try {
 			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
-			if (!isAuthenticated) {
-				return res.status(401).json({ error: 'Not authenticated' });
-			}
+			if (!isAuthenticated) return res.status(401).json({ error: 'Not authenticated' });
 
 			const body = await readBody(req);
-			const proxyUrl = `http://${API_INTERNAL}/dynamo/yarn-simulations`;
-			console.log(`[yarn-simulation] proxying POST → ${proxyUrl} (body bytes: ${Buffer.byteLength(body)})`);
-
-			const proxyReq = http.request(
-				proxyUrl,
-				{
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						'Content-Length': Buffer.byteLength(body),
-						Authorization: `Bearer ${API_SECRET_KEY}`
-					}
-				},
-				(apiRes) => {
-					let data = '';
-					apiRes.on('data', (chunk) => { data += chunk; });
-					apiRes.on('end', () => {
-						res.status(apiRes.statusCode || 502);
-						res.set('Content-Type', apiRes.headers['content-type'] || 'application/json');
-						res.send(data);
-					});
-				}
-			);
-
-			proxyReq.on('error', (err) => {
-				console.error('[yarn-simulation] proxy error:', err);
-				res.status(502).json({
-					error: 'API unreachable',
-					message: err.message,
-					code: err.code,
-					target: proxyUrl
-				});
-			});
-
-			proxyReq.write(body);
-			proxyReq.end();
-		} catch (error) {
-			console.error('[yarn-simulation] route error:', error);
-			res.status(500).json({ error: error.message });
+			const result = await apiRequestBuffered('POST', '/dynamo/yarn-simulations', { body });
+			res.status(result.statusCode || 502);
+			res.set('Content-Type', result.headers['content-type'] || 'application/json');
+			res.send(result.body);
+		} catch (err) {
+			console.error('[yarn-simulation] POST error:', err);
+			res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
 		}
+	});
+
+	router.get('/dynamo/yarn-simulations/:simulation_id', async (req, res) => {
+		try {
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
+			if (!isAuthenticated) return res.status(401).json({ error: 'Not authenticated' });
+			const { simulation_id } = req.params;
+			const result = await apiRequestBuffered('GET', `/dynamo/yarn-simulations/${encodeURIComponent(simulation_id)}`);
+			res.status(result.statusCode || 502);
+			res.set('Content-Type', result.headers['content-type'] || 'application/json');
+			res.send(result.body);
+		} catch (err) {
+			console.error('[yarn-simulation] GET error:', err);
+			res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
+		}
+	});
+
+	// Stream the morph-target GLB. May be large (tens of MB) — stream rather
+	// than buffer so the first chunk hits the browser as soon as it leaves
+	// the API. Build/cache lives on the API side.
+	router.get('/assets/yarn-simulation/:simulation_id/visualization.glb', (req, res) => {
+		const { simulation_id } = req.params;
+		const upstreamPath = `/dynamo/yarn-simulations/${encodeURIComponent(simulation_id)}/visualization.glb`;
+		const upstream = http.request(
+			`http://${API_INTERNAL}${upstreamPath}`,
+			{ method: 'GET', headers: { Authorization: `Bearer ${API_SECRET_KEY}` } },
+			(apiRes) => {
+				res.status(apiRes.statusCode || 502);
+				// Forward content-type and cache headers; default to GLB mimetype.
+				res.set('Content-Type', apiRes.headers['content-type'] || 'model/gltf-binary');
+				if (apiRes.headers['cache-control']) res.set('Cache-Control', apiRes.headers['cache-control']);
+				if (apiRes.headers['content-length']) res.set('Content-Length', apiRes.headers['content-length']);
+				if (apiRes.headers['x-cache']) res.set('X-Cache', apiRes.headers['x-cache']);
+				apiRes.pipe(res);
+			}
+		);
+		upstream.on('error', (err) => {
+			console.error('[yarn-simulation] visualization.glb proxy error:', err);
+			if (!res.headersSent) {
+				res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
+			} else {
+				res.end();
+			}
+		});
+		upstream.end();
 	});
 };
