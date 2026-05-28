@@ -17,6 +17,7 @@ from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimR
 # TODO: restoration.py is not yet on this branch — restore from portal/improvement before re-enabling.
 # from resources.restoration import RestorationResource
 from resources.yarn_simulation import YarnSimulationResource, YarnSimulationItemResource, YarnSimulationVisualizationResource
+from resources.patch_simulation import PatchSimulationResource, PatchSimulationItemResource
 
 # Setup
 from scripts.setup_infrastructure import setup_minio, run_migrations, wait_for_postgres
@@ -59,6 +60,8 @@ api.add_resource(NefelePreviewResource, '/nefele/<string:job_id>/preview')
 api.add_resource(YarnSimulationResource, '/dynamo/yarn-simulations')
 api.add_resource(YarnSimulationItemResource, '/dynamo/yarn-simulations/<string:simulation_id>')
 api.add_resource(YarnSimulationVisualizationResource, '/dynamo/yarn-simulations/<string:simulation_id>/visualization.glb')
+api.add_resource(PatchSimulationResource, '/dynamo/patch-simulations')
+api.add_resource(PatchSimulationItemResource, '/dynamo/patch-simulations/<string:simulation_id>')
 
 @app.route('/health')
 def health_check():
