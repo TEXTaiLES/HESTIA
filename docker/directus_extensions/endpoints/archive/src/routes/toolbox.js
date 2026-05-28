@@ -28,7 +28,7 @@ export default (router, { services }) => {
 				{ name: 'NEPHELE', image: 'Logos/Tools/nephele_logo_2.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/SAMplify_SuGaR-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/SAMplify_SuGaR' },
-					{ label: 'Server', url: '#' }
+					{ label: 'Server', url: 'https://nephele.textailes.athenarc.gr' }
 				]},
 				{ name: 'HESTIA', image: 'Icons/Icon-Textailes-Colour-RGB-Ver.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/hestia-documentation/' },
