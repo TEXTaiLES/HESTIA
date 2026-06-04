@@ -185,6 +185,30 @@ services:
     networks:
       - textailes
 
+  yarn_simulator:
+    build:
+      context: ../api
+      dockerfile: Dockerfile.yarn_simulator
+    container_name: yarn_simulator
+    environment:
+      - KAFKA_BROKER=kafka:29092
+      - API_INTERNAL_ENDPOINT=api:5000
+      - API_SECRET_KEY=${API_SECRET_KEY}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - DYNAMO_IMAGE=dynamo:v1
+    # Worker spawns `dynamo:v1` containers on the HOST daemon — needs socket access.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: always
+    depends_on:
+      - kafka
+      - api
+      - minio
+    networks:
+      - textailes
+
   directus:
     image: directus/directus:9.22.0
     container_name: directus

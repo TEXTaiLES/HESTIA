@@ -21,3 +21,10 @@ docker/pg_data/
 docker/plugins/
 docker/directus_uploads/
 docker/kafka_data/
+
+# DynaMo simulator: image tarball + its extracted OCI layout (1.3 GB).
+# The image is loaded into the host daemon with `docker load -i DynaMo_v1.tar`,
+# it is not built from source by docker-compose.
+DynaMo_v1/
+DynaMo_v1.tar
+*.tar

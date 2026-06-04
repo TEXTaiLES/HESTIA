@@ -28,8 +28,8 @@ export const renderYarnSimulationModal = () => `
                     </div>
 
                     <div class="row g-3 mb-3">
-                        ${renderValueUnitPair('Yarn Friction', 'yarnFriction', '0.2', '-')}
-                        ${renderValueUnitPair('Yarn Adhesion', 'yarnAdhesion', '', 'N')}
+                        ${renderValueUnitPair('Yarn Friction', 'yarnFriction', '0.2', '1')}
+                        ${renderValueUnitPair('Yarn Adhesion', 'yarnAdhesion', '', '1')}
                     </div>
 
                     <div class="row g-3 mb-3">
@@ -44,7 +44,7 @@ export const renderYarnSimulationModal = () => `
                     </div>
 
                     <div class="row g-3 mb-4">
-                        ${renderValueUnitPair('Applied Elongation', 'appliedElongation', '', '-')}
+                        ${renderValueUnitPair('Applied Elongation', 'appliedElongation', '', '%')}
                     </div>
 
                     <div id="yarnLevelsContainer"></div>
@@ -118,7 +118,7 @@ export const renderYarnSimulationModal = () => `
                 </div>
                 <div class="row g-3 mb-2">
                     \${valueUnitPairHtmlForLevel("Young's Modulus Core", 'youngsModulusCore', '', 'MPa')}
-                    \${valueUnitPairHtmlForLevel('Poisson Ratio Core', 'poissonRatioCore', '', '-')}
+                    \${valueUnitPairHtmlForLevel('Poisson Ratio Core', 'poissonRatioCore', '', '1')}
                 </div>
 
                 <h6 class="mt-3 mb-2 text-muted">Outer</h6>
@@ -142,7 +142,7 @@ export const renderYarnSimulationModal = () => `
                 </div>
                 <div class="row g-3">
                     \${valueUnitPairHtmlForLevel("Young's Modulus Outer", 'youngsModulusOuter', '', 'MPa')}
-                    \${valueUnitPairHtmlForLevel('Poisson Ratio Outer', 'poissonRatioOuter', '', '-')}
+                    \${valueUnitPairHtmlForLevel('Poisson Ratio Outer', 'poissonRatioOuter', '', '1')}
                 </div>
             </div>
         </div>\`;
