@@ -185,27 +185,39 @@ services:
     networks:
       - textailes
 
+  # DynaMo wrapped as an HTTP service. FROM dynamo:v1 + Flask. The image must
+  # be loaded on the host first: `docker load -i DynaMo_v1.tar`.
+  dynamo_service:
+    build:
+      context: ../dynamo/flaskApp
+      dockerfile: Dockerfile
+    container_name: dynamo_service
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+    restart: always
+    depends_on:
+      - minio
+    networks:
+      - textailes
+
+  # Kafka consumer that drives dynamo_service over HTTP. No docker socket.
   yarn_simulator:
     build:
-      context: ../api
-      dockerfile: Dockerfile.yarn_simulator
+      context: ../dynamo
+      dockerfile: Dockerfile.yarn_simulation
     container_name: yarn_simulator
     environment:
       - KAFKA_BROKER=kafka:29092
       - API_INTERNAL_ENDPOINT=api:5000
       - API_SECRET_KEY=${API_SECRET_KEY}
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
-      - DYNAMO_IMAGE=dynamo:v1
-    # Worker spawns `dynamo:v1` containers on the HOST daemon — needs socket access.
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - DYNAMO_SERVICE_URL=http://dynamo_service:5001
     restart: always
     depends_on:
       - kafka
       - api
-      - minio
+      - dynamo_service
     networks:
       - textailes
 

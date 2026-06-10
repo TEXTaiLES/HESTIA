@@ -153,9 +153,13 @@ def run_migrations():
                 forces_unit TEXT,
                 forces_values JSONB,
                 visualization_files JSONB,
+                simulation_error TEXT,
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        # Backfill column on existing deployments (added when the dynamo simulator
+        # link was wired up; lets the consumer record a failure marker on crashes).
+        cur.execute("ALTER TABLE dynamo.yarn_simulation_output ADD COLUMN IF NOT EXISTS simulation_error TEXT;")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_yarn_sim_input_level_simulation ON dynamo.yarn_simulation_input_level(simulation_id);")
 
         # Dynamo patch-simulation tables — 2 tables: warp/weft are fixed sides,

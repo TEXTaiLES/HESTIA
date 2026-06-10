@@ -242,6 +242,7 @@ def _hydrate_record(input_row, level_rows, output_row):
                 'value': output_row.get('forces_values') or [],
             },
             'visualizationFiles': output_row.get('visualization_files') or [],
+            'simulationError': output_row.get('simulation_error'),
         }
 
     return {
@@ -546,6 +547,8 @@ class YarnSimulationItemResource(Resource):
             update_fields['forces_values'] = Json(forces.get('value'))
         if 'visualizationFiles' in sim_output:
             update_fields['visualization_files'] = Json(sim_output['visualizationFiles'])
+        if 'simulationError' in sim_output:
+            update_fields['simulation_error'] = sim_output['simulationError']
 
         if not update_fields:
             return {'error': "No updatable fields provided in 'simulationOutput'"}, 400

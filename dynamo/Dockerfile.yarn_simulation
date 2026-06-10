@@ -6,6 +6,5 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY yarn_simulation_consumer.py .
-COPY services/ ./services/
 
 CMD ["python", "yarn_simulation_consumer.py"]
