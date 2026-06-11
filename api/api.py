@@ -14,6 +14,10 @@ from resources.annotation import AnnotationResource
 from resources.file_proxy import FileProxyResource
 from resources.thumbnail import ThumbnailResource
 from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimResource, NefelePreviewResource, NefeleCancelResource
+from resources.amalthai_dataset import AmalthaiDatasetResource, AmalthaiDatasetItemResource, AmalthaiDatasetArchiveResource
+from resources.amalthai_model import AmalthaiModelResource, AmalthaiModelItemResource, AmalthaiModelWeightsResource, AmalthaiModelConfigResource
+from resources.amalthai_experiment import AmalthaiExperimentResource, AmalthaiExperimentItemResource
+from resources.amalthai_inference import AmalthaiInferenceResource, AmalthaiInferenceItemResource, AmalthaiInferenceInputsResource, AmalthaiInferenceOutputsResource
 
 # Setup
 from scripts.setup_infrastructure import setup_minio, run_migrations, wait_for_postgres
@@ -53,6 +57,19 @@ api.add_resource(NefeleJobResource, '/nefele/<string:job_id>')
 api.add_resource(NefeleClaimResource, '/nefele/claim')
 api.add_resource(NefelePreviewResource, '/nefele/<string:job_id>/preview')
 api.add_resource(NefeleCancelResource, '/nefele/<string:job_id>/cancel')
+api.add_resource(AmalthaiDatasetResource, '/amalthai/datasets')
+api.add_resource(AmalthaiDatasetItemResource, '/amalthai/datasets/<string:dataset_id>')
+api.add_resource(AmalthaiDatasetArchiveResource, '/amalthai/datasets/<string:dataset_id>/archive')
+api.add_resource(AmalthaiModelResource, '/amalthai/models')
+api.add_resource(AmalthaiModelItemResource, '/amalthai/models/<string:model_id>')
+api.add_resource(AmalthaiModelWeightsResource, '/amalthai/models/<string:model_id>/weights')
+api.add_resource(AmalthaiModelConfigResource, '/amalthai/models/<string:model_id>/config')
+api.add_resource(AmalthaiExperimentResource, '/amalthai/experiments')
+api.add_resource(AmalthaiExperimentItemResource, '/amalthai/experiments/<string:experiment_id>')
+api.add_resource(AmalthaiInferenceResource, '/amalthai/inference-runs')
+api.add_resource(AmalthaiInferenceItemResource, '/amalthai/inference-runs/<string:inference_id>')
+api.add_resource(AmalthaiInferenceInputsResource, '/amalthai/inference-runs/<string:inference_id>/inputs')
+api.add_resource(AmalthaiInferenceOutputsResource, '/amalthai/inference-runs/<string:inference_id>/outputs')
 
 @app.route('/health')
 def health_check():
