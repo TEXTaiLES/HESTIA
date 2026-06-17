@@ -1,0 +1,10 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY patch_simulation_consumer.py .
+
+CMD ["python", "patch_simulation_consumer.py"]

@@ -183,6 +183,8 @@ def run_migrations():
                 warp_yarn_radius_ratio_unit TEXT,
                 warp_yarn_count_per_distance_value REAL,
                 warp_yarn_count_per_distance_unit TEXT,
+                warp_yarn_friction_value REAL,
+                warp_yarn_friction_unit TEXT,
                 weft_material TEXT,
                 weft_youngs_modulus_value REAL,
                 weft_youngs_modulus_unit TEXT,
@@ -194,6 +196,8 @@ def run_migrations():
                 weft_yarn_radius_ratio_unit TEXT,
                 weft_yarn_count_per_distance_value REAL,
                 weft_yarn_count_per_distance_unit TEXT,
+                weft_yarn_friction_value REAL,
+                weft_yarn_friction_unit TEXT,
                 discretization_intermediate_element_count INTEGER,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -210,9 +214,19 @@ def run_migrations():
                 visualization_files_bending11 JSONB,
                 visualization_files_bending22 JSONB,
                 visualization_files_bending12 JSONB,
+                simulation_error TEXT,
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        # Backfill columns on existing deployments (added alongside the dynamo
+        # patch-simulator link). yarnFriction per side is required by DynaMo
+        # but missing from the published schema; simulation_error matches the
+        # yarn output table.
+        cur.execute("ALTER TABLE dynamo.patch_simulation_input ADD COLUMN IF NOT EXISTS warp_yarn_friction_value REAL;")
+        cur.execute("ALTER TABLE dynamo.patch_simulation_input ADD COLUMN IF NOT EXISTS warp_yarn_friction_unit TEXT;")
+        cur.execute("ALTER TABLE dynamo.patch_simulation_input ADD COLUMN IF NOT EXISTS weft_yarn_friction_value REAL;")
+        cur.execute("ALTER TABLE dynamo.patch_simulation_input ADD COLUMN IF NOT EXISTS weft_yarn_friction_unit TEXT;")
+        cur.execute("ALTER TABLE dynamo.patch_simulation_output ADD COLUMN IF NOT EXISTS simulation_error TEXT;")
 
         conn.commit()
         cur.close()

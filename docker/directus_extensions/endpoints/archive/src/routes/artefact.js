@@ -5,6 +5,45 @@ import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 import { renderYarnSimulationModal } from '../templates/yarn-simulation-modal.js';
+import { renderPatchSimulationModal } from '../templates/patch-simulation-modal.js';
+import { renderSimulationMetadataPrefillScript } from '../templates/simulation-metadata-prefill.js';
+
+/**
+ * Pull physics-relevant fields off the artefact record so the simulation
+ * forms can pre-fill (and hide) inputs whose values are already known.
+ *
+ * Convention: each key in the returned dict matches the form field's
+ * `name=` (top-level) or `data-field=` (per-card) attribute exactly.
+ * Value/unit pairs use `{ unit, value }`. Scalars are returned as-is.
+ *
+ * Today this returns `{}` — there are no physics fields on the artefacts
+ * collection yet. As fields are added through the Directus admin UI
+ * (Flat columns on `artefacts`), extend this function to map
+ * `artefact.<column>` → metadata key. The whole client-side framework
+ * is otherwise unchanged.
+ *
+ * Example future addition:
+ *   if (artefact.poisson_ratio_core_value != null) {
+ *       meta.poissonRatioCore = {
+ *           unit:  artefact.poisson_ratio_core_unit  || '1',
+ *           value: artefact.poisson_ratio_core_value,
+ *       };
+ *   }
+ */
+function extractPhysicsMetadata(artefact) {
+    const meta = {};
+    // Intentionally empty for now — extend here when physics fields are added
+    // to the `artefacts` collection in Directus.
+    /* Example future addition:
+    if (artefact.poisson_ratio_core_value != null) {
+        meta.poissonRatioCore = {
+            unit:  artefact.poisson_ratio_core_unit  || '1',
+            value: artefact.poisson_ratio_core_value,
+        };
+    }
+    */
+    return meta;
+}
 
 export default (router, { services, database }) => {
 	const { AuthenticationService, ItemsService } = services;
@@ -59,7 +98,9 @@ export default (router, { services, database }) => {
 					// Interventive conservation
 					'conservation_date', 'cleaning', 'introduction_of_foreign_material', 'specific_foreign_material_introduce',
 					// Legacy fields
-					'creator', 'sensor', 'location', 'source', 'time_period', 'collection', 'use_case'
+					'creator', 'sensor', 'location', 'source', 'time_period', 'collection', 'use_case',
+                    // Physics metadata (for pre-filling simulation forms)
+                    //'poisson_ratio_core_value', 'poisson_ratio_core_unit'
 				],
 				filter: { id: { _eq: req.params.id } },
 				limit: 1
@@ -157,10 +198,21 @@ ${renderNavbar('collections', true)}
                     <button type="button" class="btn btn-red" data-bs-toggle="modal" data-bs-target="#yarnSimulationModal">
                         <i class="fas fa-layer-group"></i> Yarn Simulation
                     </button>
+                    <button type="button" class="btn btn-red" data-bs-toggle="modal" data-bs-target="#patchSimulationModal">
+                        <i class="fas fa-th"></i> Patch Simulation
+                    </button>
                 </div>
             </div>
 
+            <!-- Physics metadata + prefill helper. Must appear BEFORE the
+                 modal HTML so HestiaMetaPrefill is defined when each modal's
+                 inline IIFE runs. Metadata is empty today; extend
+                 extractPhysicsMetadata() in the server route to populate. -->
+            <script>window.HESTIA_PHYSICS_METADATA = ${JSON.stringify(extractPhysicsMetadata(artefact))};</script>
+            ${renderSimulationMetadataPrefillScript()}
+
             ${renderYarnSimulationModal()}
+            ${renderPatchSimulationModal()}
 
             <!-- Yarn Simulation Visualization (renders when ?yarn_simulation=<id> is set or a recent submission exists in sessionStorage) -->
             <div id="yarnVisualizationSection" class="mt-4" style="display:none;">
@@ -224,6 +276,109 @@ ${renderNavbar('collections', true)}
                                 showError('Simulation completed but produced no visualization files.');
                             } else {
                                 setStatus('<i class="fas fa-hourglass-half"></i> Simulation pending — reload when ready.');
+                            }
+                        })
+                        .catch(err => showError('Network error: ' + err.message));
+                })();
+            </script>
+
+            <!-- Patch Simulation Visualization (renders when ?patch_simulation=<id> is set or a recent submission exists in sessionStorage) -->
+            <div id="patchVisualizationSection" class="mt-4" style="display:none;">
+                <h4 class="border-bottom pb-2">Patch Simulation Result</h4>
+                <div class="text-muted small mb-2">
+                    Simulation ID: <code id="patchVisualizationSimId">—</code>
+                    <span id="patchVisualizationStatus" class="ms-2"></span>
+                </div>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <label for="patchExperimentSelect" class="form-label mb-0 small">Experiment:</label>
+                    <select id="patchExperimentSelect" class="form-select form-select-sm" style="width:auto;">
+                        <option value="inplane11">In-plane 11 (warp tension)</option>
+                        <option value="inplane22">In-plane 22 (weft tension)</option>
+                        <option value="inplane12">In-plane 12 (shear)</option>
+                        <option value="bending11">Bending 11 (warp bend)</option>
+                        <option value="bending22">Bending 22 (weft bend)</option>
+                        <option value="bending12">Bending 12 (torsion)</option>
+                    </select>
+                </div>
+                <div id="patchVisualizationViewer" style="height: 500px;"></div>
+            </div>
+
+            <script>
+                (function () {
+                    const ARTEFACT_ID = ${artefact.id};
+                    const params = new URLSearchParams(window.location.search);
+                    const simId = params.get('patch_simulation')
+                        || sessionStorage.getItem('patch_simulation_' + ARTEFACT_ID);
+                    if (!simId) return;
+
+                    const section = document.getElementById('patchVisualizationSection');
+                    const idEl = document.getElementById('patchVisualizationSimId');
+                    const statusEl = document.getElementById('patchVisualizationStatus');
+                    const viewerEl = document.getElementById('patchVisualizationViewer');
+                    const selectEl = document.getElementById('patchExperimentSelect');
+                    section.style.display = '';
+                    idEl.textContent = simId;
+
+                    function setStatus(html) { statusEl.innerHTML = html; }
+                    function showError(msg) { setStatus('<span class="text-danger">' + msg + '</span>'); }
+
+                    // Maps dropdown key → JSON field on simulationOutput.
+                    const expToField = {
+                        inplane11: 'visualizationFiles_inplane11',
+                        inplane22: 'visualizationFiles_inplane22',
+                        inplane12: 'visualizationFiles_inplane12',
+                        bending11: 'visualizationFiles_bending11',
+                        bending22: 'visualizationFiles_bending22',
+                        bending12: 'visualizationFiles_bending12',
+                    };
+                    const experimentsReady = {};
+
+                    function renderViewer(experiment) {
+                        if (!experimentsReady[experiment]) {
+                            viewerEl.innerHTML = '<div class="text-muted">No frames available for ' + experiment + '.</div>';
+                            setStatus('<span class="text-warning">Empty: ' + experiment + '</span>');
+                            return;
+                        }
+                        const url = '/archive/assets/patch-simulation/' + encodeURIComponent(simId)
+                            + '/visualization/' + encodeURIComponent(experiment) + '.glb';
+                        viewerEl.innerHTML = ''
+                            + '<model-viewer src="' + url + '"'
+                            + ' camera-controls autoplay animation-name="yarn-deformation"'
+                            + ' environment-image="legacy" exposure="1.2" shadow-intensity="0.5"'
+                            + ' tone-mapping="commerce" style="width:100%; height:100%;"></model-viewer>';
+                        setStatus('<span class="text-success">Showing: ' + experiment + '</span>');
+                    }
+
+                    selectEl.addEventListener('change', (e) => renderViewer(e.target.value));
+
+                    setStatus('<i class="fas fa-spinner fa-spin"></i> Checking simulation status…');
+                    fetch('/archive/dynamo/patch-simulations/' + encodeURIComponent(simId) + '?_=' + Date.now(),
+                        { cache: 'no-store' })
+                        .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                        .then(({ ok, data }) => {
+                            if (!ok) {
+                                showError('Could not load simulation: ' + (data.error || 'unknown error'));
+                                return;
+                            }
+                            const out = data.simulationOutput;
+                            if (!out || !out.simulationCompleted) {
+                                setStatus('<i class="fas fa-hourglass-half"></i> Simulation pending — reload when ready.');
+                                return;
+                            }
+                            let totalFrames = 0;
+                            for (const [exp, field] of Object.entries(expToField)) {
+                                const files = (out[field] || []);
+                                experimentsReady[exp] = files.length > 0;
+                                totalFrames += files.length;
+                            }
+                            if (totalFrames === 0) {
+                                showError('Simulation completed but produced no visualization files.');
+                                return;
+                            }
+                            const firstReady = Object.keys(expToField).find(e => experimentsReady[e]);
+                            if (firstReady) {
+                                selectEl.value = firstReady;
+                                renderViewer(firstReady);
                             }
                         })
                         .catch(err => showError('Network error: ' + err.message));

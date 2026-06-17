@@ -1,7 +1,9 @@
-from flask import request, jsonify
+from flask import request, jsonify, Response
 from flask_restful import Resource
 from datetime import datetime, timezone
 from psycopg2.extras import Json
+from minio.error import S3Error
+import io
 import json
 import uuid
 import logging
@@ -15,6 +17,8 @@ from services.messaging import (
     TOPIC_DYNAMO_PATCH_SIMULATION_OUTPUTS,
     TOPIC_DYNAMO_PATCH_SIMULATION_UPLOADED,
 )
+from services.storage import minio_client, MINIO_PATCH_SIMULATION_BUCKET
+from services.yarn_visualization import build_morph_target_glb
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +27,17 @@ INPUT_FILTERABLE_FIELDS = {'simulation_id', 'structure_type', 'weave_pattern'}
 # Pairs of (JSON side key, DB column prefix) for the warp/weft sub-objects.
 SIDES = (('warpInput', 'warp'), ('weftInput', 'weft'))
 # {unit, value} fields inside each side.
+# `yarnFriction` is required by DynaMo's PatchStructure (see YarnParameters in
+# TEXTaiLES_DynaMo_Tool.py — accesses dictWarpIn["yarnFriction"]["value"])
+# even though it is missing from the published patch schema. We carry it on
+# our side so submissions don't crash the simulator with a KeyError.
 SIDE_UV_FIELDS = (
     ('youngsModulus', 'youngs_modulus'),
     ('poissonRatio', 'poisson_ratio'),
     ('yarnRadius', 'yarn_radius'),
     ('yarnRadiusRatio', 'yarn_radius_ratio'),
     ('yarnCountPerDistance', 'yarn_count_per_distance'),
+    ('yarnFriction', 'yarn_friction'),
 )
 # The 6 visualization-files arrays on the output.
 VIZ_KEYS = (
@@ -65,6 +74,8 @@ INPUT_AVRO_SCHEMA = """
         {"name": "warp_yarn_radius_ratio_unit", "type": ["null", "string"], "default": null},
         {"name": "warp_yarn_count_per_distance_value", "type": ["null", "float"], "default": null},
         {"name": "warp_yarn_count_per_distance_unit", "type": ["null", "string"], "default": null},
+        {"name": "warp_yarn_friction_value", "type": ["null", "float"], "default": null},
+        {"name": "warp_yarn_friction_unit", "type": ["null", "string"], "default": null},
         {"name": "weft_material", "type": ["null", "string"], "default": null},
         {"name": "weft_youngs_modulus_value", "type": ["null", "float"], "default": null},
         {"name": "weft_youngs_modulus_unit", "type": ["null", "string"], "default": null},
@@ -76,6 +87,8 @@ INPUT_AVRO_SCHEMA = """
         {"name": "weft_yarn_radius_ratio_unit", "type": ["null", "string"], "default": null},
         {"name": "weft_yarn_count_per_distance_value", "type": ["null", "float"], "default": null},
         {"name": "weft_yarn_count_per_distance_unit", "type": ["null", "string"], "default": null},
+        {"name": "weft_yarn_friction_value", "type": ["null", "float"], "default": null},
+        {"name": "weft_yarn_friction_unit", "type": ["null", "string"], "default": null},
         {"name": "discretization_intermediate_element_count", "type": ["null", "int"], "default": null},
         {"name": "created_at", "type": "string"},
         {"name": "updated_at", "type": "string"}
@@ -174,7 +187,10 @@ def _hydrate_record(input_row, output_row):
 
     simulation_output = None
     if output_row:
-        simulation_output = {'simulationCompleted': output_row.get('simulation_completed')}
+        simulation_output = {
+            'simulationCompleted': output_row.get('simulation_completed'),
+            'simulationError': output_row.get('simulation_error'),
+        }
         for viz_key in VIZ_KEYS:
             col = viz_key.replace('visualizationFiles_', 'visualization_files_')
             simulation_output[viz_key] = output_row.get(col) or []
@@ -414,6 +430,8 @@ class PatchSimulationItemResource(Resource):
             if viz_key in sim_output:
                 col = viz_key.replace('visualizationFiles_', 'visualization_files_')
                 update_fields[col] = Json(sim_output[viz_key])
+        if 'simulationError' in sim_output:
+            update_fields['simulation_error'] = sim_output['simulationError']
 
         if not update_fields:
             return {'error': "No updatable fields provided in 'simulationOutput'"}, 400
@@ -462,4 +480,136 @@ class PatchSimulationItemResource(Resource):
 
         except Exception as e:
             logger.error(f"Failed to update patch simulation output {simulation_id}: {e}")
+            return {'error': str(e)}, 500
+
+
+# ---------- visualization resource ----------
+
+# Each "experiment" is one of the 6 disjoint OBJ sets DynaMo writes for patch
+# (3 in-plane × 3 bending stiffness probes). The viewer picks one at a time.
+PATCH_EXPERIMENTS = {
+    'inplane11': 'visualization_files_inplane11',
+    'inplane22': 'visualization_files_inplane22',
+    'inplane12': 'visualization_files_inplane12',
+    'bending11': 'visualization_files_bending11',
+    'bending22': 'visualization_files_bending22',
+    'bending12': 'visualization_files_bending12',
+}
+
+
+def _minio_object_exists(bucket: str, key: str) -> bool:
+    try:
+        minio_client.stat_object(bucket, key)
+        return True
+    except S3Error as e:
+        if e.code in ('NoSuchKey', 'NoSuchObject'):
+            return False
+        raise
+
+
+class PatchSimulationVisualizationResource(Resource):
+    """
+    GET /dynamo/patch-simulations/<simulation_id>/visualization/<experiment>.glb
+
+    `experiment` must be one of inplane11/22/12 or bending11/22/12.
+    Builds a morph-target GLB from the OBJ frames of that single experiment
+    and caches the result at `patch-simulations/<simulation_id>/visualization_<experiment>.glb`.
+    """
+    method_decorators = [require_api_key]
+
+    def get(self, simulation_id, experiment):
+        if experiment not in PATCH_EXPERIMENTS:
+            return {
+                'error': f"Unknown experiment '{experiment}'. Valid: {sorted(PATCH_EXPERIMENTS)}"
+            }, 400
+
+        viz_column = PATCH_EXPERIMENTS[experiment]
+        conn = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(
+                f"SELECT {viz_column}, simulation_completed "
+                f"FROM dynamo.patch_simulation_output WHERE simulation_id = %s",
+                (simulation_id,)
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            conn = None
+
+            if not row:
+                return {'error': f"Simulation '{simulation_id}' not found"}, 404
+
+            viz_files, completed = row
+            if not completed:
+                return {'error': "Simulation not completed yet."}, 409
+            if not viz_files or len(viz_files) == 0:
+                return {'error': f"No visualization files for experiment '{experiment}'."}, 404
+            if len(viz_files) < 2:
+                return {'error': "Need at least 2 OBJ frames to build an animation."}, 422
+
+            cache_key = f"{simulation_id}/visualization_{experiment}.glb"
+
+            if _minio_object_exists(MINIO_PATCH_SIMULATION_BUCKET, cache_key):
+                logger.info(f"[patch-viz] cache HIT {cache_key}")
+                obj = minio_client.get_object(MINIO_PATCH_SIMULATION_BUCKET, cache_key)
+                try:
+                    glb_bytes = obj.read()
+                finally:
+                    obj.close()
+                    obj.release_conn()
+                return Response(
+                    glb_bytes,
+                    status=200,
+                    mimetype='model/gltf-binary',
+                    headers={
+                        'Cache-Control': 'public, max-age=3600',
+                        'X-Cache': 'HIT',
+                    },
+                )
+
+            logger.info(f"[patch-viz] cache MISS — building {experiment} from {len(viz_files)} OBJ frames")
+            obj_texts = []
+            for filename in viz_files:
+                key = f"{simulation_id}/{filename}"
+                logger.info(f"[patch-viz] fetching {key}")
+                obj = minio_client.get_object(MINIO_PATCH_SIMULATION_BUCKET, key)
+                try:
+                    obj_texts.append(obj.read().decode('utf-8'))
+                finally:
+                    obj.close()
+                    obj.release_conn()
+
+            glb_bytes = build_morph_target_glb(obj_texts)
+
+            minio_client.put_object(
+                MINIO_PATCH_SIMULATION_BUCKET,
+                cache_key,
+                io.BytesIO(glb_bytes),
+                length=len(glb_bytes),
+                content_type='model/gltf-binary',
+            )
+            logger.info(f"[patch-viz] cached {cache_key} ({len(glb_bytes)} bytes)")
+
+            return Response(
+                glb_bytes,
+                status=200,
+                mimetype='model/gltf-binary',
+                headers={
+                    'Cache-Control': 'public, max-age=3600',
+                    'X-Cache': 'MISS',
+                },
+            )
+
+        except S3Error as e:
+            logger.error(f"[patch-viz] MinIO error for {simulation_id}/{experiment}: {e}")
+            return {'error': 'Storage error', 'message': str(e)}, 502
+        except ValueError as e:
+            logger.error(f"[patch-viz] build error for {simulation_id}/{experiment}: {e}")
+            return {'error': str(e)}, 422
+        except Exception as e:
+            logger.exception(f"[patch-viz] failed for {simulation_id}/{experiment}: {e}")
+            if conn:
+                conn.close()
             return {'error': str(e)}, 500

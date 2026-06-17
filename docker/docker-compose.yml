@@ -221,6 +221,26 @@ services:
     networks:
       - textailes
 
+  # Patch counterpart to yarn_simulator — same shape, different Kafka topic
+  # and Flask endpoint (/run-patch).
+  patch_simulator:
+    build:
+      context: ../dynamo
+      dockerfile: Dockerfile.patch_simulation
+    container_name: patch_simulator
+    environment:
+      - KAFKA_BROKER=kafka:29092
+      - API_INTERNAL_ENDPOINT=api:5000
+      - API_SECRET_KEY=${API_SECRET_KEY}
+      - DYNAMO_SERVICE_URL=http://dynamo_service:5001
+    restart: always
+    depends_on:
+      - kafka
+      - api
+      - dynamo_service
+    networks:
+      - textailes
+
   directus:
     image: directus/directus:9.22.0
     container_name: directus

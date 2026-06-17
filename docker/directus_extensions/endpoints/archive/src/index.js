@@ -9,6 +9,7 @@ import homeRoutes from './routes/home.js';
 import atonRoutes from './routes/aton.js';
 import metadataRoutes from './routes/metadata.js';
 import yarnSimulationRoutes from './routes/yarn-simulation.js';
+import patchSimulationRoutes from './routes/patch-simulation.js';
 
 export default (router, context) => {
 	// Registers all route modules when Directus loads the extension
@@ -23,4 +24,5 @@ export default (router, context) => {
 	atonRoutes(router, context);
 	metadataRoutes(router, context);
 	yarnSimulationRoutes(router, context);
+	patchSimulationRoutes(router, context);
 };

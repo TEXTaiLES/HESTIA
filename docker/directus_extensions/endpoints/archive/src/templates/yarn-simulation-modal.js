@@ -28,7 +28,7 @@ export const renderYarnSimulationModal = () => `
                     </div>
 
                     <div class="row g-3 mb-3">
-                        ${renderValueUnitPair('Yarn Friction', 'yarnFriction', '0.2', '1')}
+                        ${renderValueUnitPair('Yarn Friction', 'yarnFriction', '', '1')}
                         ${renderValueUnitPair('Yarn Adhesion', 'yarnAdhesion', '', '1')}
                     </div>
 
@@ -180,6 +180,11 @@ export const renderYarnSimulationModal = () => `
         const n = levelsContainer.querySelectorAll('.yarn-level-card').length + 1;
         levelsContainer.insertAdjacentHTML('beforeend', levelCardHtml(n));
         relabelLevels();
+        // Hide any fields already known from artefact metadata on the new card.
+        const newCard = levelsContainer.lastElementChild;
+        if (window.HestiaMetaPrefill && newCard) {
+            window.HestiaMetaPrefill.applyYarnLevelCard(newCard);
+        }
     }
 
     levelsContainer.addEventListener('click', (e) => {
@@ -197,6 +202,12 @@ export const renderYarnSimulationModal = () => `
 
     // Start with one level.
     addLevel();
+
+    // Hide top-level fields already known from artefact metadata. (The
+    // initial level card was already prefilled inside addLevel.)
+    if (window.HestiaMetaPrefill) {
+        window.HestiaMetaPrefill.applyYarn(document.getElementById('yarnSimulationForm'));
+    }
 
     // ----- Submit handler -----
     const form = document.getElementById('yarnSimulationForm');
