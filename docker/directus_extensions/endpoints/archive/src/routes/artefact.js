@@ -150,7 +150,7 @@ ${renderNavbar('collections', true)}
 
             <div class="row mt-4">
                 <div class="col-12 mb-3 d-flex justify-content-end gap-2">
-                    <button onclick="annotateWithThoth(${artefact.id})" class="btn btn-red">
+                    <button onclick="window.open('https://thoth.textailes.athenarc.gr/a/thoth/?id=speveri', '_blank')" class="btn btn-red">
                         <i class="fas fa-edit"></i> Annotate with THOTH
                     </button>
                     <!-- <button onclick="location.href='#'" class="btn btn-red">
