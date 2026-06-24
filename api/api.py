@@ -13,7 +13,7 @@ from resources.reconstruction import ReconstructionResource
 from resources.annotation import AnnotationResource
 from resources.file_proxy import FileProxyResource
 from resources.thumbnail import ThumbnailResource
-from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimResource, NefelePreviewResource
+from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimResource, NefelePreviewResource, NefeleCancelResource
 
 # Setup
 from scripts.setup_infrastructure import setup_minio, run_migrations, wait_for_postgres
@@ -52,6 +52,7 @@ api.add_resource(NefeleResource, '/nefele')
 api.add_resource(NefeleJobResource, '/nefele/<string:job_id>')
 api.add_resource(NefeleClaimResource, '/nefele/claim')
 api.add_resource(NefelePreviewResource, '/nefele/<string:job_id>/preview')
+api.add_resource(NefeleCancelResource, '/nefele/<string:job_id>/cancel')
 
 @app.route('/health')
 def health_check():
