@@ -21,3 +21,14 @@ docker/pg_data/
 docker/plugins/
 docker/directus_uploads/
 docker/kafka_data/
+
+*.bat
+*.sh
+*.png
+*.json
+*.obj
+*.mtl
+*.glb
+
+api/static/multispectral
+api/static/rgb

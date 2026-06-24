@@ -12,8 +12,15 @@ from resources.robot import RobotImageResource
 from resources.reconstruction import ReconstructionResource
 from resources.annotation import AnnotationResource
 from resources.file_proxy import FileProxyResource
+from resources.scene import SceneResource
 from resources.thumbnail import ThumbnailResource
 from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimResource, NefelePreviewResource
+from resources.multispectral import (
+    MultispectralImageFileResource,
+    MultispectralImageListResource,
+    MultispectralImageResource,
+)
+from resources.rgb import RgbImageFileResource, RgbImageListResource, RgbImageResource
 
 # Setup
 from scripts.setup_infrastructure import setup_minio, run_migrations, wait_for_postgres
@@ -52,6 +59,13 @@ api.add_resource(NefeleResource, '/nefele')
 api.add_resource(NefeleJobResource, '/nefele/<string:job_id>')
 api.add_resource(NefeleClaimResource, '/nefele/claim')
 api.add_resource(NefelePreviewResource, '/nefele/<string:job_id>/preview')
+api.add_resource(RgbImageListResource, '/rgb/images')
+api.add_resource(RgbImageResource, '/rgb/image', '/rgb/images/<string:image_name>')
+api.add_resource(RgbImageFileResource, '/rgb/images/<string:image_name>/file')
+api.add_resource(MultispectralImageListResource, '/multispectral/images')
+api.add_resource(MultispectralImageResource, '/multispectral/image', '/multispectral/images/<path:image_name>')
+api.add_resource(MultispectralImageFileResource, '/multispectral/file')
+api.add_resource(SceneResource, '/scenes', '/scenes/<string:scene_id>')
 
 @app.route('/health')
 def health_check():
