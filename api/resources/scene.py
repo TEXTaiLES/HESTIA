@@ -1,30 +1,52 @@
+import io
 import json
+import logging
 import re
-from pathlib import Path
 
 from flask import request
 from flask_restful import Resource
+from minio.error import S3Error
 
 from middleware.security import require_api_key
+from services.storage import MINIO_ARTIFACT_BUCKET, build_public_url, minio_client
 
 
-SCENE_DIR = "I don't know how to configure this"
+logger = logging.getLogger(__name__)
+
+SCENE_PREFIX = "scenes/"
 SAFE_SCENE_ID_PATTERN = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
+# ==============================================================================
+# UTILS
+# ==============================================================================
+
+
 def _clean_scene_id(scene_id: str) -> str:
-    """Return a filesystem-safe scene identifier."""
+    """Return a storage-safe scene identifier."""
     clean_scene_id = SAFE_SCENE_ID_PATTERN.sub("_", str(scene_id or "").strip())
     return clean_scene_id.strip("._")
 
 
-def _get_scene_path(scene_id: str) -> Path:
-    """Return the local JSON path for a scene."""
+def _get_scene_object_name(scene_id: str) -> str:
+    """Return the MinIO object name for a scene."""
     clean_scene_id = _clean_scene_id(scene_id)
     if not clean_scene_id:
         raise ValueError("Missing scene_id")
 
-    return SCENE_DIR / f"{clean_scene_id}.json"
+    return f"{SCENE_PREFIX}{clean_scene_id}.json"
+
+
+def _get_scene_location(scene_id: str) -> str:
+    """Return the MinIO URI for a scene."""
+    object_name = _get_scene_object_name(scene_id)
+    return f"s3://{MINIO_ARTIFACT_BUCKET}/{object_name}"
+
+
+def _get_scene_public_url(scene_id: str) -> str:
+    """Return the public API URL for a stored scene."""
+    object_name = _get_scene_object_name(scene_id)
+    return build_public_url(MINIO_ARTIFACT_BUCKET, object_name)
 
 
 def _empty_metadata() -> dict:
@@ -133,9 +155,21 @@ def _normalize_model(model) -> tuple[str, dict] | None:
             ),
             **artefact,
         },
-        "metadata": model.get("metadata") if isinstance(model.get("metadata"), dict) else _empty_metadata(),
-        "transforms": model.get("transforms") if isinstance(model.get("transforms"), dict) else _empty_transform(),
-        "annotations": model.get("annotations") if isinstance(model.get("annotations"), dict) else _empty_annotations(),
+        "metadata": (
+            model.get("metadata")
+            if isinstance(model.get("metadata"), dict)
+            else _empty_metadata()
+        ),
+        "transforms": (
+            model.get("transforms")
+            if isinstance(model.get("transforms"), dict)
+            else _empty_transform()
+        ),
+        "annotations": (
+            model.get("annotations")
+            if isinstance(model.get("annotations"), dict)
+            else _empty_annotations()
+        ),
         "sensors": model.get("sensors") if isinstance(model.get("sensors"), list) else [],
     }
 
@@ -170,22 +204,73 @@ def _create_scene_content(collaborative: bool = False, models=None) -> dict:
 
 
 def _read_scene(scene_id: str) -> dict | None:
-    """Read one stored scene."""
-    scene_path = _get_scene_path(scene_id)
-    if not scene_path.exists():
-        return None
+    """Read one stored scene from MinIO."""
+    object_name = _get_scene_object_name(scene_id)
+    response = None
+    try:
+        response = minio_client.get_object(MINIO_ARTIFACT_BUCKET, object_name)
+        return json.loads(response.read().decode("utf-8"))
+    except S3Error as exc:
+        if exc.code in {"NoSuchBucket", "NoSuchKey"}:
+            return None
 
-    return json.loads(scene_path.read_text(encoding="utf-8"))
+        logger.error("Failed to read scene '%s' from MinIO: %s", scene_id, exc)
+        raise
+    finally:
+        if response is not None:
+            response.close()
+            response.release_conn()
 
 
 def _write_scene(scene_id: str, content: dict) -> None:
-    """Write one stored scene."""
-    scene_path = _get_scene_path(scene_id)
-    SCENE_DIR.mkdir(parents=True, exist_ok=True)
-    scene_path.write_text(
-        json.dumps(content, indent=4),
-        encoding="utf-8",
+    """Write one scene to MinIO."""
+    object_name = _get_scene_object_name(scene_id)
+    file_data = json.dumps(content, indent=4).encode("utf-8")
+    minio_client.put_object(
+        MINIO_ARTIFACT_BUCKET,
+        object_name,
+        io.BytesIO(file_data),
+        len(file_data),
+        content_type="application/json",
     )
+
+
+def _list_scene_ids() -> list[str]:
+    """Return stored scene identifiers."""
+    try:
+        objects = minio_client.list_objects(
+            MINIO_ARTIFACT_BUCKET,
+            prefix=SCENE_PREFIX,
+            recursive=True,
+        )
+    except S3Error as exc:
+        logger.error("Failed to list scenes from MinIO: %s", exc)
+        return []
+
+    scene_ids = []
+    for obj in objects:
+        object_name = obj.object_name or ""
+        if not object_name.endswith(".json"):
+            continue
+
+        scene_ids.append(
+            object_name
+            .removeprefix(SCENE_PREFIX)
+            .removesuffix(".json")
+        )
+
+    return sorted(scene_ids)
+
+
+def _build_scene_response(scene_id: str, content: dict) -> dict:
+    """Return scene content plus MinIO references."""
+    clean_scene_id = _clean_scene_id(scene_id)
+    return {
+        "scene_id": clean_scene_id,
+        "content": content,
+        "location": _get_scene_location(clean_scene_id),
+        "public_url": _get_scene_public_url(clean_scene_id),
+    }
 
 
 def _get_requested_scene_id(data: dict | None = None) -> str | None:
@@ -193,6 +278,10 @@ def _get_requested_scene_id(data: dict | None = None) -> str | None:
     data = data or {}
     return request.args.get("scene_id") or data.get("scene_id")
 
+
+# ==============================================================================
+# ENDPOINT
+# ==============================================================================
 
 class SceneResource(Resource):
     method_decorators = [require_api_key]
@@ -207,11 +296,9 @@ class SceneResource(Resource):
         try:
             existing_scene = _read_scene(scene_id)
             if existing_scene is not None:
-                return {
-                    "message": "Scene already exists",
-                    "scene_id": _clean_scene_id(scene_id),
-                    "content": existing_scene,
-                }, 200
+                response = _build_scene_response(scene_id, existing_scene)
+                response["message"] = "Scene already exists"
+                return response, 200
 
             content = _create_scene_content(
                 collaborative=data.get("collaborative", False),
@@ -220,30 +307,41 @@ class SceneResource(Resource):
             _write_scene(scene_id, content)
         except ValueError as exc:
             return {"error": str(exc)}, 400
+        except Exception as exc:
+            logger.error("Failed to create scene '%s': %s", scene_id, exc)
+            return {"error": "Failed to create scene"}, 500
 
-        return {
-            "message": "Scene created",
-            "scene_id": _clean_scene_id(scene_id),
-            "content": content,
-        }, 201
+        response = _build_scene_response(scene_id, content)
+        response["message"] = "Scene created"
+        return response, 201
 
     def get(self, scene_id: str | None = None):
         """Return THOTH scene content."""
         scene_id = scene_id or _get_requested_scene_id()
         if not scene_id:
-            return {"error": "Missing scene_id"}, 400
+            return {
+                "scenes": [
+                    {
+                        "scene_id": stored_scene_id,
+                        "location": _get_scene_location(stored_scene_id),
+                        "public_url": _get_scene_public_url(stored_scene_id),
+                    }
+                    for stored_scene_id in _list_scene_ids()
+                ],
+            }, 200
 
         try:
             content = _read_scene(scene_id)
         except ValueError as exc:
             return {"error": str(exc)}, 400
+        except Exception as exc:
+            logger.error("Failed to retrieve scene '%s': %s", scene_id, exc)
+            return {"error": "Failed to retrieve scene"}, 500
 
         if content is None:
             return {"error": f"Scene '{scene_id}' not found"}, 404
 
-        return {
-            "content": content,
-        }, 200
+        return _build_scene_response(scene_id, content), 200
 
     def put(self, scene_id: str | None = None):
         """Replace THOTH scene content."""
@@ -266,9 +364,10 @@ class SceneResource(Resource):
             _write_scene(scene_id, content)
         except ValueError as exc:
             return {"error": str(exc)}, 400
+        except Exception as exc:
+            logger.error("Failed to update scene '%s': %s", scene_id, exc)
+            return {"error": "Failed to update scene"}, 500
 
-        return {
-            "message": "Scene updated",
-            "scene_id": _clean_scene_id(scene_id),
-            "content": content,
-        }, 200
+        response = _build_scene_response(scene_id, content)
+        response["message"] = "Scene updated"
+        return response, 200
