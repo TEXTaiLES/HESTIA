@@ -34,6 +34,28 @@ SENSOR_AVRO_SCHEMA = """
 }
 """
 
+
+class SensorResource(Resource):
+    def get(self):
+        """
+        Retrieves all available sensor IDs.
+        """
+        try:
+            with get_db_connection() as conn, conn.cursor() as cur:
+                # TODO: Temporary solution. Should create a new TABLE just for
+                #       sensors for performance purposes.
+                sql = "SELECT DISTINCT sensor_id FROM sensor_readings;"
+                cur.execute(sql)
+
+                rows: list[tuple] = cur.fetchall()
+                results = [row[0] for row in rows]
+
+                return {'sensors': results}, 200 if results else 204
+
+        except Exception as e:
+            return {'error': str(e)}, 500
+
+
 class SensorReadingResource(Resource):
     method_decorators = [require_api_key]
 
