@@ -138,16 +138,35 @@ class ReconstructionResource(Resource):
             # 1. Process & Upload Raw Files
             for file in files:
                 filename = secure_filename(file.filename)
+                ext = filename.split('.')[-1].lower()
 
                 # Save locally for conversion
                 local_path = os.path.join(tmp_dir, filename)
                 file.save(local_path)
                 file.seek(0)
 
-                if filename.lower().endswith('.obj'):
+                if ext == 'obj':
                     obj_local_path = local_path
                     if record['filename'] is None:
                         record['filename'] = filename
+
+                # GLB uploads go straight to {object_id}/model.glb so the portal's
+                # reconstruction route finds them without an OBJ->GLB conversion.
+                if ext == 'glb':
+                    glb_object_name = f"{object_id}/model.glb"
+                    with open(local_path, 'rb') as glb_file:
+                        glb_bytes = glb_file.read()
+                    minio_client.put_object(
+                        MINIO_RECONSTRUCTION_BUCKET,
+                        glb_object_name,
+                        io.BytesIO(glb_bytes),
+                        len(glb_bytes),
+                        content_type="model/gltf-binary"
+                    )
+                    record['glb_location'] = f"s3://{MINIO_RECONSTRUCTION_BUCKET}/{glb_object_name}"
+                    record['public_url_glb'] = build_public_url(MINIO_RECONSTRUCTION_BUCKET, glb_object_name)
+                    record['filename'] = "model.glb"
+                    continue
 
                 # Upload to Minio
                 object_name = f"{object_id}/raw/{filename}"
@@ -163,11 +182,10 @@ class ReconstructionResource(Resource):
                 s3_loc = f"s3://{MINIO_RECONSTRUCTION_BUCKET}/{object_name}"
                 pub_url = build_public_url(MINIO_RECONSTRUCTION_BUCKET, object_name)
 
-                ext = filename.split('.')[-1].lower()
                 if ext == 'obj':
                     record['model_location'] = s3_loc
                     record['public_url_model'] = pub_url
-                elif ext == 'png' or ext == 'jpg':
+                elif ext in ('png', 'jpg', 'jpeg', 'tif', 'tiff'):
                     record['texture_location'] = s3_loc
                     record['public_url_texture'] = pub_url
                 elif ext == 'mtl':
