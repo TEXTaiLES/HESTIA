@@ -1,6 +1,7 @@
 // Main entry point - imports and registers all routes
 import assetsRoutes from './routes/assets.js';
 import userRoutes from './routes/user.js';
+import egiAuthRoutes from './routes/egi-auth.js';
 import collectionsRoutes from './routes/collections.js';
 import artefactRoutes from './routes/artefact.js';
 import addArtefactRoutes from './routes/add-artefact.js';
@@ -14,6 +15,7 @@ export default (router, context) => {
 	// Each route file then registers its endpoints
 	assetsRoutes(router, context);
 	userRoutes(router, context);
+	egiAuthRoutes(router, context);
 	collectionsRoutes(router, context);
 	artefactRoutes(router, context);
 	addArtefactRoutes(router, context);

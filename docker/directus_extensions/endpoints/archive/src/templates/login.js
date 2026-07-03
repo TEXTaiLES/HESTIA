@@ -1,6 +1,8 @@
 import { renderNavbar } from './navbar.js';
 import { renderHtmlPage, renderFooter } from './layout.js';
 
+const EGI_LOGIN_URL = '/archive/user/egi-login';
+
 export const renderLoginBox = () => `
 <div class="container mb-5">
     <div class="row mt-5">
@@ -24,6 +26,16 @@ export const renderLoginBox = () => `
                     <div id="loginError" class="alert alert-danger mt-3" style="display: none; border-radius: 8px;"></div>
                     <div id="loginSuccess" class="alert alert-success mt-3" style="display: none; border-radius: 8px;">Login successful! Redirecting...</div>
                 </form>
+
+                <div class="d-flex align-items-center my-3">
+                    <hr class="flex-grow-1">
+                    <span class="text-muted px-2 small">OR</span>
+                    <hr class="flex-grow-1">
+                </div>
+
+                <a href="${EGI_LOGIN_URL}" class="btn btn-lg btn-outline-secondary w-100" style="border-radius: 8px;">
+                    <i class="fas fa-key"></i> Login via EGI
+                </a>
 
                 <script>
                     document.getElementById('loginForm').addEventListener('submit', async (e) => {

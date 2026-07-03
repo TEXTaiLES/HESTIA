@@ -237,6 +237,16 @@ services:
       #REFRESH_TOKEN_COOKIE_SAME_SITE: "lax"
       REFRESH_TOKEN_COOKIE_NAME: "textailes_refresh_token"
 
+      # Public URL — must match what's registered with EGI
+      PUBLIC_URL: "https://${HOST_DOMAIN}"
+
+      # EGI endpoints consumed by our custom SSO handler in the archive extension.
+      EGI_CLIENT_ID: ${EGI_CLIENT_ID}
+      EGI_CLIENT_SECRET: ${EGI_CLIENT_SECRET}
+      EGI_AUTHORIZE_URL: ${EGI_AUTHORIZE_URL}
+      EGI_TOKEN_URL: ${EGI_TOKEN_URL}
+      EGI_USERINFO_URL: ${EGI_USERINFO_URL}
+
     restart: always
     depends_on:
       - postgres
