@@ -32,7 +32,8 @@ ANNOTATION_AVRO_SCHEMA = """
         {"name": "collaborative", "type": "boolean", "default": false},
         {"name": "content", "type": ["null", "string"], "default": null},
         {"name": "linked_objects", "type": ["null", "string"], "default": null},
-        {"name": "timestamp", "type": "string"}
+        {"name": "timestamp", "type": "string"},
+        {"name": "artifact_id", "type": ["null", "string"], "default": null}
     ]
 }
 """
@@ -97,6 +98,7 @@ class AnnotationResource(Resource):
                 filename = row[colnames.index('filename')]
                 public_url = row[colnames.index('public_url_glb')]
                 location = row[colnames.index('glb_location')]
+                rec_artifact_id = row[colnames.index('artifact_id')] if 'artifact_id' in colnames else None
 
                 scene_data: dict = {
                     "scene_id": scene_id,
@@ -120,7 +122,8 @@ class AnnotationResource(Resource):
                     'collaborative': scene_data['collaborative'],
                     'content': json.dumps(scene_data['scenegraph']),
                     'linked_objects': json.dumps(scene_data['linked_objects']),
-                    'timestamp': timestamp
+                    'timestamp': timestamp,
+                    'artifact_id': rec_artifact_id,
                 }
 
                 # Verify with Avro
@@ -182,6 +185,9 @@ class AnnotationResource(Resource):
         collaborative = scene_data.get('collaborative', False)
         linked_objects: dict = scene_data.get('linked_objects', None)
 
+        # If caller provides artifact_id, it overrides the reconstruction's value.
+        override_artifact_id = scene_data.get('artifact_id')
+
         try:
             # Prepare Record
             record = {
@@ -192,21 +198,23 @@ class AnnotationResource(Resource):
                 'location': None,
                 'content': json.dumps(scene_data['scenegraph']),
                 'linked_objects': json.dumps(linked_objects) if linked_objects else None,
-                'timestamp': timestamp
+                'timestamp': timestamp,
+                'artifact_id': override_artifact_id,
             }
 
             # Verify with Avro
             if not send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, ANNOTATION_AVRO_SCHEMA):
                 raise Exception("Failed to verify with Avro")
 
-            # Insert record in DB
+            # Insert record in DB. artifact_id is sourced from the joined
+            # reconstruction unless the caller supplied an explicit override.
             with get_db_connection() as conn, conn.cursor() as cur:
                 sql = """
-                    INSERT INTO annotations (scene_id, object_id, collaborative, public_url, content, linked_objects, timestamp, location)
-                    SELECT %s, %s, %s, %s, %s, %s, %s, r.glb_location
+                    INSERT INTO annotations (scene_id, object_id, collaborative, public_url, content, linked_objects, timestamp, location, artifact_id)
+                    SELECT %s, %s, %s, %s, %s, %s, %s, r.glb_location, COALESCE(%s, r.artifact_id)
                     FROM reconstructions r
                     WHERE r.object_id = %s
-                    RETURNING scene_id;
+                    RETURNING scene_id, artifact_id;
                 """
                 params = (
                     record['scene_id'],
@@ -216,12 +224,15 @@ class AnnotationResource(Resource):
                     record['content'],
                     record['linked_objects'],
                     record['timestamp'],
+                    override_artifact_id,
                     record['object_id'],
                 )
 
                 cur.execute(sql, params)
-                if not cur.fetchone():
+                inserted = cur.fetchone()
+                if not inserted:
                     return {'error': f"Scene could not be stored; no reconstruction found for object_id '{object_id}'"}, 404
+                record['artifact_id'] = inserted[1]
 
             # Send to Kafka
             if not send_simple_message(TOPIC_ANNOTATION_UPLOADED, scene_id, {'status': 'saved'}):
