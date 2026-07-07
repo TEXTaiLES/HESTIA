@@ -2,12 +2,15 @@ import io
 import json
 import logging
 import re
+from pathlib import PurePosixPath
+from urllib.parse import unquote, urlparse
 
 from flask import request
 from flask_restful import Resource
 from minio.error import S3Error
 
 from middleware.security import require_api_key
+from resources.artifact import ArtifactAggregateResource
 from services.storage import MINIO_ARTIFACT_BUCKET, build_public_url, minio_client
 
 
@@ -15,6 +18,47 @@ logger = logging.getLogger(__name__)
 
 SCENE_PREFIX = "scenes/"
 SAFE_SCENE_ID_PATTERN = re.compile(r"[^A-Za-z0-9_.-]+")
+METADATA_SCHEMA_NAME = "puc_schema"
+
+SCENE_STRUCTURE_TEMPLATE = {
+    "models": {
+        "<model_id>": {
+            "id": "<model_id>",
+            "artefact": {
+                "title": "",
+                "gltf_file": "",
+                "description": "",
+                "owner": "",
+                "keywords": [],
+                "copyright": "",
+            },
+            "metadata": {
+                "schema": {
+                    "name": METADATA_SCHEMA_NAME,
+                    "version": "",
+                    "description": "",
+                    "url": "",
+                },
+                "attributes": {},
+            },
+            "transforms": {
+                "translation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                },
+                "rotation": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                },
+            },
+            "annotations": {},
+            "sensors": [],
+        },
+    },
+    "collaborative": False,
+}
 
 
 # ==============================================================================
@@ -53,7 +97,7 @@ def _empty_metadata() -> dict:
     """Return an empty THOTH-compatible metadata object."""
     return {
         "schema": {
-            "name": "",
+            "name": METADATA_SCHEMA_NAME,
             "version": "",
             "description": "",
             "url": "",
@@ -75,21 +119,12 @@ def _empty_transform() -> dict:
             "y": 0,
             "z": 0,
         },
-        "scale": {
-            "x": 1,
-            "y": 1,
-            "z": 1,
-        },
     }
 
 
 def _empty_annotations() -> dict:
     """Return an empty THOTH-compatible annotations object."""
-    return {
-        "selections": {},
-        "measurements": {},
-        "semantic_annotations": {},
-    }
+    return {}
 
 
 def _empty_artefact(title: str = "", gltf_file: str = "") -> dict:
@@ -107,14 +142,15 @@ def _empty_artefact(title: str = "", gltf_file: str = "") -> dict:
 def _normalize_model(model) -> tuple[str, dict] | None:
     """Normalize one requested model into a THOTH scene model entry."""
     if isinstance(model, str):
-        model_id = model.strip()
-        if not model_id:
+        gltf_file = model.strip()
+        if not gltf_file:
             return None
 
+        model_id = _get_model_id(gltf_file, {}, gltf_file)
         return model_id, {
+            "id": model_id,
             "artefact": _empty_artefact(
-                title=model_id,
-                gltf_file=model_id,
+                gltf_file=gltf_file,
             ),
             "metadata": _empty_metadata(),
             "transforms": _empty_transform(),
@@ -126,18 +162,6 @@ def _normalize_model(model) -> tuple[str, dict] | None:
         return None
 
     artefact = model.get("artefact") if isinstance(model.get("artefact"), dict) else {}
-    model_id = str(
-        model.get("id") or
-        model.get("model_id") or
-        model.get("name") or
-        model.get("title") or
-        artefact.get("title") or
-        artefact.get("gltf_file") or
-        ""
-    ).strip()
-    if not model_id:
-        return None
-
     gltf_file = (
         artefact.get("gltf_file") or
         model.get("gltf_file") or
@@ -147,10 +171,22 @@ def _normalize_model(model) -> tuple[str, dict] | None:
         ""
     )
 
+    model_id = str(
+        model.get("id") or
+        model.get("model_id") or
+        model.get("name") or
+        ""
+    ).strip()
+    if not model_id:
+        model_id = _get_model_id("", artefact, gltf_file)
+    if not model_id:
+        return None
+
     normalized = {
+        "id": model_id,
         "artefact": {
             **_empty_artefact(
-                title=artefact.get("title") or model.get("title") or model_id,
+                title=artefact.get("title") or model.get("title") or "",
                 gltf_file=gltf_file,
             ),
             **artefact,
@@ -199,6 +235,97 @@ def _create_scene_content(collaborative: bool = False, models=None) -> dict:
     """Create a THOTH-compatible scene content object."""
     return {
         "models": _normalize_models(models),
+        "collaborative": bool(collaborative),
+    }
+
+
+def _get_resource_payload(resource_response) -> tuple[dict | None, int]:
+    """Return JSON payload and HTTP status from an internal resource response."""
+    status_code = 200
+    response = resource_response
+
+    if isinstance(resource_response, tuple):
+        response = resource_response[0]
+        if len(resource_response) > 1:
+            status_code = resource_response[1]
+
+    if hasattr(response, "get_json"):
+        return response.get_json(silent=True), status_code
+
+    return response if isinstance(response, dict) else None, status_code
+
+
+def _get_artifact_payload(artifact_id: str) -> tuple[dict | None, int]:
+    """Return aggregate artifact information from the existing artifact resource."""
+    resource_response = ArtifactAggregateResource().get(artifact_id)
+    return _get_resource_payload(resource_response)
+
+
+def _get_preferred_gltf_file(artifact: dict, reconstructions: list[dict]) -> str:
+    """Return the best available model URL or artifact URL for a scene artefact."""
+    for reconstruction in reconstructions:
+        gltf_file = (
+            reconstruction.get("public_url_glb") or
+            reconstruction.get("glb_location") or
+            reconstruction.get("public_url_model") or
+            reconstruction.get("model_location")
+        )
+        if gltf_file:
+            return gltf_file
+
+    return artifact.get("public_url") or artifact.get("location") or ""
+
+
+def _get_model_id(artifact_id: str, artifact: dict, gltf_file: str) -> str:
+    """Return the model identifier used as the scene model key."""
+    if gltf_file:
+        parsed_path = urlparse(gltf_file).path or gltf_file
+        model_id = PurePosixPath(unquote(parsed_path)).name
+        if model_id:
+            return model_id
+
+    filename = str(artifact.get("filename") or "").strip()
+    return filename or artifact_id
+
+
+def _create_scene_content_from_artifact(
+    artifact_id: str,
+    artifact_payload: dict,
+    collaborative: bool = False,
+) -> dict:
+    """Create a scene content object around aggregate artifact information."""
+    artifact = artifact_payload.get("artifact", {})
+    reconstructions = artifact_payload.get("reconstructions", [])
+    sensors = artifact_payload.get("sensor_readings", [])
+
+    if not isinstance(artifact, dict):
+        artifact = {}
+    if not isinstance(reconstructions, list):
+        reconstructions = []
+    if not isinstance(sensors, list):
+        sensors = []
+
+    gltf_file = _get_preferred_gltf_file(artifact, reconstructions)
+    model_id = _get_model_id(artifact_id, artifact, gltf_file)
+    artefact = {
+        **_empty_artefact(
+            title=artifact.get("title") or "",
+            gltf_file=gltf_file,
+        ),
+        "owner": artifact.get("uploaded_by") or "",
+    }
+
+    return {
+        "models": {
+            model_id: {
+                "id": model_id,
+                "artefact": artefact,
+                "metadata": _empty_metadata(),
+                "transforms": _empty_transform(),
+                "annotations": {},
+                "sensors": sensors,
+            },
+        },
         "collaborative": bool(collaborative),
     }
 
@@ -279,6 +406,17 @@ def _get_requested_scene_id(data: dict | None = None) -> str | None:
     return request.args.get("scene_id") or data.get("scene_id")
 
 
+def _get_requested_artifact_id(data: dict | None = None) -> str | None:
+    """Read optional artifact_id from query params or JSON body."""
+    data = data or {}
+    artifact_id = request.args.get("artifact_id") or data.get("artifact_id")
+    if artifact_id is None:
+        return None
+
+    artifact_id = str(artifact_id).strip()
+    return artifact_id or None
+
+
 # ==============================================================================
 # ENDPOINT
 # ==============================================================================
@@ -287,9 +425,10 @@ class SceneResource(Resource):
     method_decorators = [require_api_key]
 
     def post(self, scene_id: str | None = None):
-        """Create an empty or model-seeded THOTH scene."""
+        """Create an empty, model-seeded, or artifact-backed THOTH scene."""
         data = request.get_json(silent=True) or {}
         scene_id = scene_id or _get_requested_scene_id(data)
+        artifact_id = _get_requested_artifact_id(data)
         if not scene_id:
             return {"error": "Missing scene_id"}, 400
 
@@ -300,10 +439,27 @@ class SceneResource(Resource):
                 response["message"] = "Scene already exists"
                 return response, 200
 
-            content = _create_scene_content(
-                collaborative=data.get("collaborative", False),
-                models=data.get("models"),
-            )
+            if artifact_id is None:
+                content = _create_scene_content(
+                    collaborative=data.get("collaborative", False),
+                    models=data.get("models"),
+                )
+            else:
+                artifact_payload, status_code = _get_artifact_payload(artifact_id)
+                if status_code >= 400:
+                    return (
+                        artifact_payload or {"error": "Failed to retrieve artifact"},
+                        status_code,
+                    )
+                if not artifact_payload or not artifact_payload.get("artifact"):
+                    return {"error": f"Artifact '{artifact_id}' not found"}, 404
+
+                content = _create_scene_content_from_artifact(
+                    artifact_id=artifact_id,
+                    artifact_payload=artifact_payload,
+                    collaborative=data.get("collaborative", False),
+                )
+
             _write_scene(scene_id, content)
         except ValueError as exc:
             return {"error": str(exc)}, 400

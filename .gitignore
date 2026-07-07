@@ -32,3 +32,5 @@ docker/kafka_data/
 
 api/static/multispectral
 api/static/rgb
+
+metadata_conversion/
