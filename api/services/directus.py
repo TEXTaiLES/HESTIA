@@ -64,3 +64,23 @@ def set_artefact_thumbnail(artefact_id: str, file_id: str, collection: str = 'ar
     except Exception as e:
         logger.error(f"Directus artefact update error: {e}")
     return False
+
+
+def set_artefact_digital_twin_uri(artefact_id: str, uri: str, collection: str = 'artefacts') -> bool:
+    """Set the digital_twin_uri field on a Directus artefact item."""
+    token = _get_token()
+    if not token:
+        return False
+    try:
+        resp = requests.patch(
+            f"{DIRECTUS_URL}/items/{collection}/{artefact_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"digital_twin_uri": uri},
+            timeout=10
+        )
+        if resp.ok:
+            return True
+        logger.error(f"Directus artefact update failed ({resp.status_code}): {resp.text}")
+    except Exception as e:
+        logger.error(f"Directus artefact update error: {e}")
+    return False
