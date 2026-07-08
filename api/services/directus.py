@@ -84,3 +84,23 @@ def set_artefact_digital_twin_uri(artefact_id: str, uri: str, collection: str = 
     except Exception as e:
         logger.error(f"Directus artefact update error: {e}")
     return False
+
+
+def get_artefact_digital_twin_uri(artefact_id: str, collection: str = 'artefacts') -> str | None:
+    """Get the digital_twin_uri field from a Directus artefact item."""
+    token = _get_token()
+    if not token:
+        return None
+    try:
+        resp = requests.get(
+            f"{DIRECTUS_URL}/items/{collection}/{artefact_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"fields": "digital_twin_uri"},
+            timeout=10
+        )
+        if resp.ok:
+            return resp.json().get('data', {}).get('digital_twin_uri')
+        logger.error(f"Directus artefact fetch failed ({resp.status_code}): {resp.text}")
+    except Exception as e:
+        logger.error(f"Directus artefact fetch error: {e}")
+    return None

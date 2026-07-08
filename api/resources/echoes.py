@@ -6,6 +6,10 @@ from flask import Response, request
 from flask_restful import Resource
 
 from middleware.security import require_api_key
+from services.directus import (
+    get_artefact_digital_twin_uri,
+    set_artefact_digital_twin_uri,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -26,16 +30,6 @@ ECHOES_TRIPLESTORE_ID = "6a2abf6b5d6646ff24522299"
 ECHOES_AUTH_TOKEN = ""
 
 
-def save_dt_uri(artifact_id: str, dt_uri: str) -> None:
-    """Placeholder for persisting the Digital Twin URI later."""
-    logger.info("Retrieved ECHOES dtUri for artifact %s: %s", artifact_id, dt_uri)
-
-
-def get_dt_uri(artifact_id: str) -> Optional[str]:
-    """Placeholder for retrieving the persisted Digital Twin URI later."""
-    return "http://echoes-eccch.eu/HDT/8O9Pe2xznoA"
-
-
 class EchoesResource(Resource):
     """Register an artifact as an ECHOES Digital Twin."""
 
@@ -43,7 +37,7 @@ class EchoesResource(Resource):
 
     def get(self, artifact_id: str):
         """Download the ECHOES Digital Twin entry for `artifact_id`."""
-        dt_uri = get_dt_uri(artifact_id=artifact_id)
+        dt_uri = get_artefact_digital_twin_uri(artifact_id)
         if not dt_uri:
             return {"error": "Digital Twin URI not found for artifact"}, 404
 
@@ -123,7 +117,11 @@ class EchoesResource(Resource):
                 "response": data if data is not None else response.text,
             }, 502
 
-        save_dt_uri(artifact_id=artifact_id, dt_uri=dt_uri)
+        if not set_artefact_digital_twin_uri(artefact_id=artifact_id, uri=dt_uri):
+            return {
+                "error": f"Failed to update digital_twin_uri on artefact '{artifact_id}'",
+                "dtUri": dt_uri,
+            }, 502
 
         return {
             "message": "ECHOES Digital Twin registered",
@@ -134,7 +132,7 @@ class EchoesResource(Resource):
 
     def put(self, artifact_id: str):
         """Enrich `artifact_id` on ECHOES with RDF content."""
-        dt_uri = get_dt_uri(artifact_id=artifact_id)
+        dt_uri = get_artefact_digital_twin_uri(artifact_id)
         if not dt_uri:
             return {"error": "Digital Twin URI not found for artifact"}, 404
 
