@@ -521,8 +521,29 @@ ${renderFooter()}`;
 						accountability: null,
 					});
 
-					// Prepare artefact data
-					const artefactData = { ...fields };
+					// Prepare artefact data — drop empty strings so blank inputs don't
+					// hit FK/UUID/numeric columns and trigger DB constraint errors.
+					// (Directus's Postgres error handler crashes on the resulting
+					// violation and surfaces it as "undefined.slice" instead of the
+					// real message.)
+					const artefactData = {};
+					for (const [key, value] of Object.entries(fields)) {
+						if (value === '' || value === undefined) continue;
+						artefactData[key] = value;
+					}
+
+					for (const key of ['temperature', 'humidity']) {
+						if (key in artefactData) {
+							const n = Number(artefactData[key]);
+							artefactData[key] = Number.isFinite(n) ? n : null;
+						}
+					}
+					if ('cleaning' in artefactData) {
+						artefactData.cleaning =
+							artefactData.cleaning === 'true' ? true
+							: artefactData.cleaning === 'false' ? false
+							: null;
+					}
 
 					// Upload files if present
 					if (files.gltf_file && files.gltf_file.filename) {
