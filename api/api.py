@@ -15,6 +15,7 @@ from resources.echoes import EchoesResource
 from resources.file_proxy import FileProxyResource
 from resources.scene import SceneResource
 from resources.thumbnail import ThumbnailResource
+from resources.artefact_digital_twin import ArtefactDigitalTwinUriResource
 from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimResource, NefelePreviewResource, NefeleCancelResource
 from resources.amalthai_dataset import AmalthaiDatasetResource, AmalthaiDatasetItemResource, AmalthaiDatasetArchiveResource
 from resources.amalthai_model import AmalthaiModelResource, AmalthaiModelItemResource, AmalthaiModelWeightsResource, AmalthaiModelConfigResource
@@ -63,6 +64,7 @@ api.add_resource(AnnotationResource, '/annotations')
 api.add_resource(EchoesResource, '/echoes/<string:artifact_id>')
 api.add_resource(FileProxyResource, '/storage/<string:bucket_name>/<path:object_name>')
 api.add_resource(ThumbnailResource, '/reconstructions/<string:object_id>/generate-thumbnail')
+api.add_resource(ArtefactDigitalTwinUriResource, '/artefacts/<string:artefact_id>/digital-twin-uri')
 api.add_resource(NefeleResource, '/nefele')
 api.add_resource(NefeleJobResource, '/nefele/<string:job_id>')
 api.add_resource(NefeleClaimResource, '/nefele/claim')
