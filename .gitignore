@@ -34,3 +34,5 @@ api/static/multispectral
 api/static/rgb
 
 metadata_conversion/
+.agents
+.vscode

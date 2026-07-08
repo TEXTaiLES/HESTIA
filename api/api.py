@@ -11,6 +11,7 @@ from resources.sensor import SensorReadingResource
 from resources.robot import RobotImageResource
 from resources.reconstruction import ReconstructionResource
 from resources.annotation import AnnotationResource
+from resources.echoes import EchoesResource
 from resources.file_proxy import FileProxyResource
 from resources.scene import SceneResource
 from resources.thumbnail import ThumbnailResource
@@ -54,6 +55,7 @@ api.add_resource(SensorReadingResource, '/sensor-readings')
 api.add_resource(RobotImageResource, '/robot-images')
 api.add_resource(ReconstructionResource, '/reconstructions')
 api.add_resource(AnnotationResource, '/annotations')
+api.add_resource(EchoesResource, '/echoes/<string:artifact_id>')
 api.add_resource(FileProxyResource, '/storage/<string:bucket_name>/<path:object_name>')
 api.add_resource(ThumbnailResource, '/reconstructions/<string:object_id>/generate-thumbnail')
 api.add_resource(NefeleResource, '/nefele')
