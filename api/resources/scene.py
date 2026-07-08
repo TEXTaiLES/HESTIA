@@ -495,7 +495,7 @@ class SceneResource(Resource):
             return {"error": "Failed to retrieve scene"}, 500
 
         if content is None:
-            return {"error": f"Scene '{scene_id}' not found"}, 404
+            content = _create_scene_content()
 
         return _build_scene_response(scene_id, content), 200
 
