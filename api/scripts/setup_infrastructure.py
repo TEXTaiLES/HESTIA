@@ -13,6 +13,9 @@ from services.storage import (
     MINIO_ROBOT_BUCKET,
     MINIO_RECONSTRUCTION_BUCKET,
     MINIO_NEFELE_BUCKET,
+    MINIO_AMALTHAI_DATASETS_BUCKET,
+    MINIO_AMALTHAI_MODELS_BUCKET,
+    MINIO_AMALTHAI_INFERENCE_BUCKET,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -39,31 +42,23 @@ def run_migrations():
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # 'artifacts' table is created lazily by the Kafka JDBC sink on first POST,
-        # so guard the ALTER and isolate its failure so the rest of the migrations
-        # (nefele, artifact_id back-links) still run on a clean DB.
-        try:
-            cur.execute("SELECT to_regclass('public.artifacts')")
-            if cur.fetchone()[0] is None:
-                logger.info("Migration: 'artifacts' table does not exist yet (Kafka sink pending); skipping 'timestamp_update' migration.")
-            else:
-                cur.execute("""
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_name='artifacts' AND column_name='timestamp_update'
-                """)
-                if not cur.fetchone():
-                    logger.info("Migration: Adding 'timestamp_update' column.")
-                    cur.execute("""
-                        ALTER TABLE artifacts
-                        ADD COLUMN timestamp_update TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                    """)
-                else:
-                    logger.info("Migration: 'timestamp_update' column already exists.")
-            conn.commit()
-        except Exception as e:
-            logger.error(f"'timestamp_update' migration failed (continuing): {e}")
-            conn.rollback()
+        cur.execute("SELECT to_regclass('public.artifacts')")
+        artifacts_exists = cur.fetchone()[0] is not None
+
+        cur.execute("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name='artifacts' AND column_name='timestamp_update'
+        """)
+        has_timestamp_update = cur.fetchone() is not None
+        if artifacts_exists and not has_timestamp_update:
+            logger.info("Migration: Adding 'timestamp_update' column.")
+            cur.execute("""
+                ALTER TABLE artifacts
+                ADD COLUMN timestamp_update TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            """)
+        else:
+            logger.info("Migration: skipping 'timestamp_update' (artifacts absent or column present).")
 
 
         # Nefele init
@@ -93,24 +88,107 @@ def run_migrations():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_nefele_jobs_artifact_id ON nefele_jobs (artifact_id)")
         logger.info("Migration: nefele_jobs table ensured.")
 
-        # artifact_id back-link on Kafka-sink tables. Tables are created lazily
-        # by the JDBC sink on first message, so each ALTER is guarded with
-        # to_regclass and wrapped in its own try/except so a missing table
-        # doesn't poison the rest of the migration. No hard FK constraint
-        # because `artifacts` is also lazily created.
-        for sink_table in ('robot_images', 'reconstructions', 'annotations'):
-            try:
-                cur.execute("SELECT to_regclass(%s)", (f'public.{sink_table}',))
-                if cur.fetchone()[0] is None:
-                    logger.info(f"Migration: '{sink_table}' does not exist yet (Kafka sink pending); skipping artifact_id column add.")
-                else:
-                    cur.execute(f"ALTER TABLE {sink_table} ADD COLUMN IF NOT EXISTS artifact_id UUID")
-                    cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{sink_table}_artifact_id ON {sink_table}(artifact_id)")
-                    logger.info(f"Migration: ensured artifact_id column on '{sink_table}'.")
-                conn.commit()
-            except Exception as e:
-                logger.error(f"'artifact_id' migration on '{sink_table}' failed (continuing): {e}")
-                conn.rollback()
+        # AmalthAI integration tables — mutable registry/job rows (PATCH-heavy),
+        # created with explicit DDL (NOT via Kafka JDBC sinks).
+        # Order matters: datasets -> models -> experiments/inference so FKs resolve.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS amalthai_datasets (
+                dataset_id    UUID         PRIMARY KEY,
+                owner_slug    TEXT         NOT NULL,
+                owner_email   TEXT,
+                name          TEXT         NOT NULL,
+                mode          TEXT         NOT NULL,
+                num_classes   INTEGER,
+                content_hash  TEXT,
+                object_key    TEXT,
+                archive_url   TEXT,
+                manifest      JSONB,
+                size_bytes    BIGINT,
+                linked_scan_id           TEXT,
+                linked_artifact_id       TEXT,
+                linked_reconstruction_id TEXT,
+                status        TEXT         NOT NULL DEFAULT 'ready',
+                created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_amalthai_datasets_owner ON amalthai_datasets (owner_slug)")
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_amalthai_datasets_owner_mode_name
+            ON amalthai_datasets (owner_slug, mode, name)
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS amalthai_models (
+                model_id      UUID         PRIMARY KEY,
+                owner_slug    TEXT         NOT NULL,
+                owner_email   TEXT,
+                name          TEXT         NOT NULL,
+                mode          TEXT         NOT NULL,
+                trained_on    TEXT,
+                dataset_id    UUID         REFERENCES amalthai_datasets(dataset_id),
+                experiment_id UUID,
+                score         DOUBLE PRECISION,
+                metric_name   TEXT,
+                trained_date  TEXT,
+                weights_key   TEXT,
+                weights_url   TEXT,
+                config_key    TEXT,
+                config_url    TEXT,
+                content_hash  TEXT,
+                extra         JSONB,
+                status        TEXT         NOT NULL DEFAULT 'ready',
+                created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_amalthai_models_owner_mode ON amalthai_models (owner_slug, mode)")
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS amalthai_experiments (
+                experiment_id   UUID         PRIMARY KEY,
+                owner_slug      TEXT         NOT NULL,
+                owner_email     TEXT,
+                mode            TEXT         NOT NULL,
+                dataset_id      UUID         REFERENCES amalthai_datasets(dataset_id),
+                dataset_name    TEXT,
+                requested_model TEXT,
+                params          JSONB,
+                instructions    JSONB,
+                metrics         JSONB,
+                result_model_id UUID         REFERENCES amalthai_models(model_id),
+                job_id          TEXT,
+                status          TEXT         NOT NULL DEFAULT 'submitted',
+                error           TEXT,
+                created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_amalthai_experiments_owner ON amalthai_experiments (owner_slug)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_amalthai_experiments_status ON amalthai_experiments (status)")
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS amalthai_inference_runs (
+                inference_id  UUID         PRIMARY KEY,
+                owner_slug    TEXT         NOT NULL,
+                owner_email   TEXT,
+                mode          TEXT         NOT NULL,
+                model_id      UUID         REFERENCES amalthai_models(model_id),
+                model_name    TEXT,
+                dataset_name  TEXT,
+                inputs        JSONB,
+                outputs       JSONB,
+                input_prefix  TEXT,
+                output_prefix TEXT,
+                extra         JSONB,
+                status        TEXT         NOT NULL DEFAULT 'completed',
+                created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_amalthai_inference_owner ON amalthai_inference_runs (owner_slug)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_amalthai_inference_model ON amalthai_inference_runs (model_id)")
+        logger.info("Migration: amalthai_* tables ensured.")
 
         conn.commit()
         cur.close()
@@ -138,6 +216,14 @@ def setup_minio():
     # Setup Nefele Previews (Public)
     init_minio_bucket(MINIO_NEFELE_BUCKET)
     set_public_read_policy(MINIO_NEFELE_BUCKET)
+
+    # Setup AmalthAI Buckets (Public)
+    init_minio_bucket(MINIO_AMALTHAI_DATASETS_BUCKET)
+    set_public_read_policy(MINIO_AMALTHAI_DATASETS_BUCKET)
+    init_minio_bucket(MINIO_AMALTHAI_MODELS_BUCKET)
+    set_public_read_policy(MINIO_AMALTHAI_MODELS_BUCKET)
+    init_minio_bucket(MINIO_AMALTHAI_INFERENCE_BUCKET)
+    set_public_read_policy(MINIO_AMALTHAI_INFERENCE_BUCKET)
 
     logger.info("MinIO setup complete.")
 

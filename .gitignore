@@ -15,6 +15,9 @@ docker/.env
 # Ignore docker compose overrides.
 docker/docker-compose.override.yml
 
+# Ignore local Caddy reverse-proxy config (used only alongside the override).
+docker/Caddyfile
+
 # Ignore docker volume directories.
 docker/minio_data/
 docker/pg_data/

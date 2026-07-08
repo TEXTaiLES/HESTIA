@@ -232,3 +232,39 @@ class NefelePreviewResource(Resource):
         except Exception as e:
             logger.error(f"nefele preview failed: {e}")
             return {'error': str(e)}, 500
+
+
+class NefeleCancelResource(Resource):
+    method_decorators = [require_api_key]
+
+    def post(self, job_id):
+        """POST /nefele/<id>/cancel — atomic cancel of a non-terminal job.
+
+        Sets status='cancelled' iff the job is currently in one of
+        {points_submitted, previewing, preview_ready, running}. If the job
+        already reached a terminal state, returns 409 to make the race visible.
+        """
+        try:
+            with get_db_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE nefele_jobs
+                       SET status = 'cancelled', updated_at = now()
+                     WHERE job_id = %s
+                       AND status IN ('points_submitted','previewing',
+                                      'preview_ready','running')
+                    RETURNING job_id
+                    """,
+                    (job_id,),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    return {'error': f"job {job_id} not cancellable "
+                                     "(missing or terminal)"}, 409
+
+            send_simple_message(TOPIC_NEFELE_JOB_MODIFIED, job_id,
+                                {'job_id': job_id, 'status': 'cancelled'})
+            return {'message': 'cancelled', 'job_id': job_id}, 200
+        except Exception as e:
+            logger.error(f"nefele cancel failed: {e}")
+            return {'error': str(e)}, 500

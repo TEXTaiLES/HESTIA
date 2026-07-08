@@ -15,6 +15,9 @@ MINIO_ARTIFACT_BUCKET = 'artifacts'
 MINIO_ROBOT_BUCKET = 'robot-images'
 MINIO_RECONSTRUCTION_BUCKET = 'reconstructions'
 MINIO_NEFELE_BUCKET = 'nefele'
+MINIO_AMALTHAI_DATASETS_BUCKET = 'amalthai-datasets'
+MINIO_AMALTHAI_MODELS_BUCKET = 'amalthai-models'
+MINIO_AMALTHAI_INFERENCE_BUCKET = 'amalthai-inference'
 
 API_PUBLIC_ENDPOINT = os.environ.get("API_PUBLIC_ENDPOINT", "localhost:5000")
 API_PUBLIC_SHEME = os.environ.get("API_PUBLIC_SHEME", "https")
