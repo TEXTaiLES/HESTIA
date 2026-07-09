@@ -49,14 +49,30 @@ export default (router, { services, database }) => {
 					'keywords', 'inventory_number', 'origin',
 					// Digital Asset
 					'digitization_methods', 'digitization_actor', 'resolution',
-					// Identification
+					// 1. Conservation — Identification
 					'accession_number', 'reference_name_number', 'material_analyzed',
-					// Condition
+					// 1. Conservation — Condition
 					'object_status', 'condition_assessment', 'state_of_preservation', 'type_of_preservation',
-					// Preventive conservation
+					// 1. Conservation — Preventive conservation
 					'temperature', 'humidity', 'type_of_container', 'mount', 'result',
-					// Interventive conservation
-					'conservation_date', 'cleaning', 'introduction_of_foreign_material', 'specific_foreign_material_introduce',
+					// 1. Conservation — Interventive conservation
+					'yes_no', 'conservation_date', 'cleaning', 'introduction_of_foreign_material', 'specific_foreign_material_introduce',
+					// 2. Analysis — Identification
+					'material_analyzed_analysis',
+					// 2. Analysis — Non-destructive analysis
+					'method_of_analysis', 'type_of_instrument', 'aim', 'result_analysis',
+					// 2. Analysis — Destructive analysis
+					'sample_material', 'area_of_sample_on_object', 'size_of_samples', 'sample_weight', 'method_of_destructive_analysis', 'type_of_destructive_instrument', 'aim_destructive', 'result_destructive',
+					// 3. Documentation — Identification
+					'current_location_doc', 'external_link_doc', 'origin_doc','location_doc', 'provenance_doc',
+					'belongs_to_a_group_doc', 'belongs_to_a_subgroup', 'documented_by', 'date_of_upload_doc',
+					'type_of_object_doc', 'specific_type_of_object', 'maximum_dimensions_doc', 'date_period_doc', 'publication_doc',
+					// 3. Documentation — Technological analysis — Primary structure
+					'material_pr_structure', 'type_of_weave_pr_structure', 'type_of_weave_specification_pr_structure', 'weave_count_pr_structure',
+					'thread_diameter_pr_structure', 'thread_ply_pr_structure', 'thread_twist_pr_structure', 'twist_angle_pr_structure', 'twist_method_pr_structure',
+					'thread_diameter_pr_structure_b', 'thread_ply_pr_structure_b', 'thread_twist_pr_structure_b', 'twist_angle_pr_structure_b', 'twist_method_pr_structure_b',
+					// 3. Documentation — Technological analysis — Decoration
+					'type_of_decoration', 'decorations_specifics', 'decoration_material', 'decoration_thread_diameter', 'decoration_thread_specific',
 					// Legacy fields
 					'creator', 'sensor', 'location', 'source', 'time_period', 'collection', 'use_case'
 				],
@@ -295,18 +311,23 @@ ${renderNavbar('collections', true)}
                 <!-- Collapsible content (everything hidden until click) -->
                 <div class="collapse mt-3" id="additionalInfoCollapse">
 
-                <!-- Identification Section -->
+                <!-- =========================================================
+                     CONSERVATION
+                     ========================================================= -->
                 <div class="col-12 mb-4">
-                    <h4 class="border-bottom pb-2">Identification</h4>
+                    <h2 class="border-bottom pb-2 mt-2 fw-bold text-uppercase">CONSERVATION</h2>
+
+                    <!-- Identification -->
+                    <h5 class="mt-4">Identification</h5>
                     <div class="row">
                         <div class="col-md-6">
                             <dl>
                                 <dt class="samewidth">Title:</dt>
                                 <dd>${artefact.title || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">ID:</dt>
                                 <dd>${artefact.id || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Accession Number:</dt>
                                 <dd>${artefact.accession_number || 'N/A'}</dd>
                             </dl>
@@ -315,23 +336,21 @@ ${renderNavbar('collections', true)}
                             <dl>
                                 <dt class="samewidth">Reference Name/Number:</dt>
                                 <dd>${artefact.reference_name_number || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Material Analyzed:</dt>
                                 <dd>${artefact.material_analyzed || 'N/A'}</dd>
                             </dl>
                         </div>
                     </div>
-                </div>
 
-                <!-- Condition Section -->
-                <div class="col-12 mb-4">
-                    <h4 class="border-bottom pb-2">Condition</h4>
+                    <!-- Condition -->
+                    <h5 class="mt-4">Condition</h5>
                     <div class="row">
                         <div class="col-md-6">
                             <dl>
                                 <dt class="samewidth">Object Status:</dt>
                                 <dd>${artefact.object_status || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Condition Assessment:</dt>
                                 <dd>${artefact.condition_assessment || 'N/A'}</dd>
                             </dl>
@@ -340,26 +359,24 @@ ${renderNavbar('collections', true)}
                             <dl>
                                 <dt class="samewidth">State of Preservation:</dt>
                                 <dd>${artefact.state_of_preservation || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Type of Preservation:</dt>
                                 <dd>${artefact.type_of_preservation || 'N/A'}</dd>
                             </dl>
                         </div>
                     </div>
-                </div>
 
-                <!-- Preventive Conservation Section -->
-                <div class="col-12 mb-4">
-                    <h4 class="border-bottom pb-2">Preventive Conservation</h4>
+                    <!-- Preventive Conservation -->
+                    <h5 class="mt-4">Preventive Conservation</h5>
                     <div class="row">
                         <div class="col-md-6">
                             <dl>
                                 <dt class="samewidth">Temperature:</dt>
                                 <dd>${artefact.temperature ? artefact.temperature + '°C' : 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Humidity:</dt>
                                 <dd>${artefact.humidity ? artefact.humidity + '% RH' : 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Type of Container:</dt>
                                 <dd>${artefact.type_of_container || 'N/A'}</dd>
                             </dl>
@@ -368,23 +385,24 @@ ${renderNavbar('collections', true)}
                             <dl>
                                 <dt class="samewidth">Mount:</dt>
                                 <dd>${artefact.mount || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Result:</dt>
                                 <dd>${artefact.result ? `<a href="${artefact.result}" target="_blank">View</a>` : 'N/A'}</dd>
                             </dl>
                         </div>
                     </div>
-                </div>
 
-                <!-- Interventive Conservation Section -->
-                <div class="col-12 mb-4">
-                    <h4 class="border-bottom pb-2">Interventive Conservation</h4>
+                    <!-- Interventive Conservation -->
+                    <h5 class="mt-4">Interventive Conservation</h5>
                     <div class="row">
                         <div class="col-md-6">
                             <dl>
+                                <dt class="samewidth">Interventive Conservation:</dt>
+                                <dd>${artefact.yes_no || 'N/A'}</dd>
+
                                 <dt class="samewidth">Conservation Date:</dt>
                                 <dd>${artefact.conservation_date || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Cleaning:</dt>
                                 <dd>${artefact.cleaning === true ? 'Yes' : artefact.cleaning === false ? 'No' : 'N/A'}</dd>
                             </dl>
@@ -393,7 +411,7 @@ ${renderNavbar('collections', true)}
                             <dl>
                                 <dt class="samewidth">Foreign Material Introduced:</dt>
                                 <dd>${artefact.introduction_of_foreign_material || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Specific Foreign Material:</dt>
                                 <dd>${artefact.specific_foreign_material_introduce || 'N/A'}</dd>
                             </dl>
@@ -401,7 +419,248 @@ ${renderNavbar('collections', true)}
                     </div>
                 </div>
 
-                <!-- Additional Information Section -->
+                <!-- =========================================================
+                     ANALYSIS
+                     ========================================================= -->
+                <div class="col-12 mb-4">
+                    <h2 class="border-bottom pb-2 mt-2 fw-bold text-uppercase">ANALYSIS</h2>
+
+                    <!-- Identification -->
+                    <h5 class="mt-4">Identification</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl>
+                                <dt class="samewidth">Accession Number:</dt>
+                                <dd>${artefact.accession_number || 'N/A'}</dd>
+
+                                <dt class="samewidth">Reference Name/Number:</dt>
+                                <dd>${artefact.reference_name_number || 'N/A'}</dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl>
+                                <dt class="samewidth">Material Analyzed:</dt>
+                                <dd>${artefact.material_analyzed_analysis || 'N/A'}</dd>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <!-- Non-destructive Analysis -->
+                    <h5 class="mt-4">Non-destructive Analysis</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl>
+                                <dt class="samewidth">Method of Analysis:</dt>
+                                <dd>${artefact.method_of_analysis || 'N/A'}</dd>
+
+                                <dt class="samewidth">Type of Instrument:</dt>
+                                <dd>${artefact.type_of_instrument || 'N/A'}</dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl>
+                                <dt class="samewidth">Aim:</dt>
+                                <dd>${artefact.aim || 'N/A'}</dd>
+
+                                <dt class="samewidth">Result:</dt>
+                                <dd>${artefact.result_analysis ? `<a href="${artefact.result_analysis}" target="_blank">View</a>` : 'N/A'}</dd>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <!-- Destructive Analysis -->
+                    <h5 class="mt-4">Destructive Analysis</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl>
+                                <dt class="samewidth">Sample Material:</dt>
+                                <dd>${artefact.sample_material || 'N/A'}</dd>
+
+                                <dt class="samewidth">Area of Sample on Object:</dt>
+                                <dd>${artefact.area_of_sample_on_object || 'N/A'}</dd>
+
+                                <dt class="samewidth">Size of Samples:</dt>
+                                <dd>${artefact.size_of_samples || 'N/A'}</dd>
+
+                                <dt class="samewidth">Sample Weight:</dt>
+                                <dd>${artefact.sample_weight || 'N/A'}</dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl>
+                                <dt class="samewidth">Method of Analysis:</dt>
+                                <dd>${artefact.method_of_destructive_analysis || 'N/A'}</dd>
+
+                                <dt class="samewidth">Type of Instrument:</dt>
+                                <dd>${artefact.type_of_destructive_instrument || 'N/A'}</dd>
+
+                                <dt class="samewidth">Aim:</dt>
+                                <dd>${artefact.aim_destructive || 'N/A'}</dd>
+
+                                <dt class="samewidth">Result:</dt>
+                                <dd>${artefact.result_destructive ? `<a href="${artefact.result_destructive}" target="_blank">View</a>` : 'N/A'}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- =========================================================
+                     DOCUMENTATION
+                     ========================================================= -->
+                <div class="col-12 mb-4">
+                    <h2 class="border-bottom pb-2 mt-2 fw-bold text-uppercase">DOCUMENTATION</h2>
+
+                    <!-- Identification -->
+                    <h5 class="mt-4">Identification</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl>
+                                <dt class="samewidth">Accession Number:</dt>
+                                <dd>${artefact.accession_number || 'N/A'}</dd>
+
+                                <dt class="samewidth">Reference Name/Number:</dt>
+                                <dd>${artefact.reference_name_number || 'N/A'}</dd>
+
+                                <dt class="samewidth">Current Location:</dt>
+                                <dd>${artefact.current_location_doc || 'N/A'}</dd>
+
+                                <dt class="samewidth">External Link:</dt>
+                                <dd>${artefact.external_link_doc ? `<a href="${artefact.external_link_doc}" target="_blank">${artefact.external_link_doc}</a>` : 'N/A'}</dd>
+
+                                <dt class="samewidth">Origin:</dt>
+                                <dd>${artefact.origin_doc || 'N/A'}</dd>
+
+                                <dt class="samewidth">Location:</dt>
+                                <dd>${artefact.location_doc || 'N/A'}</dd>
+
+                                <dt class="samewidth">Provenance:</dt>
+                                <dd>${artefact.provenance_doc || 'N/A'}</dd>
+
+                                <dt class="samewidth">Group:</dt>
+                                <dd>${artefact.belongs_to_a_group_doc || 'N/A'}</dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl>
+                                <dt class="samewidth">Subgroup:</dt>
+                                <dd>${artefact.belongs_to_a_subgroup || 'N/A'}</dd>
+
+                                <dt class="samewidth">Documented By:</dt>
+                                <dd>${artefact.documented_by || 'N/A'}</dd>
+
+                                <dt class="samewidth">Date of Upload:</dt>
+                                <dd>${artefact.date_of_upload_doc || 'N/A'}</dd>
+
+                                <dt class="samewidth">Type of Object:</dt>
+                                <dd>${artefact.type_of_object_doc || 'N/A'}</dd>
+
+                                <dt class="samewidth">Specific Type of Object:</dt>
+                                <dd>${artefact.specific_type_of_object || 'N/A'}</dd>
+
+                                <dt class="samewidth">Maximum Dimensions:</dt>
+                                <dd>${artefact.maximum_dimensions_doc || 'N/A'}</dd>
+
+                                <dt class="samewidth">Date - Period:</dt>
+                                <dd>${artefact.date_period_doc || 'N/A'}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <dl>
+                                <dt class="samewidth">Publication:</dt>
+                                <dd style="white-space: pre-wrap;">${artefact.publication_doc || 'N/A'}</dd>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <!-- Technological Analysis -->
+                    <h5 class="mt-4">Technological Analysis</h5>
+
+                    <!-- Primary Structure -->
+                    <h6 class="mt-3 ms-3"><em>Primary Structure</em></h6>
+                    <div class="row ms-1">
+                        <div class="col-md-6">
+                            <dl>
+                                <dt class="samewidth">Material:</dt>
+                                <dd>${artefact.material_pr_structure || 'N/A'}</dd>
+
+                                <dt class="samewidth">Type of Weave:</dt>
+                                <dd>${artefact.type_of_weave_pr_structure || 'N/A'}</dd>
+
+                                <dt class="samewidth">Type of Weave Specification:</dt>
+                                <dd>${artefact.type_of_weave_specification_pr_structure || 'N/A'}</dd>
+
+                                <dt class="samewidth">Weave Count:</dt>
+                                <dd>${artefact.weave_count_pr_structure || 'N/A'}</dd>
+                            </dl>
+                            <p class="mb-1"><strong>Thread A</strong></p>
+                            <dl>
+                                <dt class="samewidth">Diameter:</dt>
+                                <dd>${artefact.thread_diameter_pr_structure || 'N/A'}</dd>
+
+                                <dt class="samewidth">Ply:</dt>
+                                <dd>${artefact.thread_ply_pr_structure || 'N/A'}</dd>
+
+                                <dt class="samewidth">Twist:</dt>
+                                <dd>${artefact.thread_twist_pr_structure || 'N/A'}</dd>
+
+                                <dt class="samewidth">Twist Angle:</dt>
+                                <dd>${artefact.twist_angle_pr_structure || 'N/A'}</dd>
+
+                                <dt class="samewidth">Twist Method:</dt>
+                                <dd>${artefact.twist_method_pr_structure || 'N/A'}</dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Thread B</strong></p>
+                            <dl>
+                                <dt class="samewidth">Diameter:</dt>
+                                <dd>${artefact.thread_diameter_pr_structure_b || 'N/A'}</dd>
+
+                                <dt class="samewidth">Ply:</dt>
+                                <dd>${artefact.thread_ply_pr_structure_b || 'N/A'}</dd>
+
+                                <dt class="samewidth">Twist:</dt>
+                                <dd>${artefact.thread_twist_pr_structure_b || 'N/A'}</dd>
+
+                                <dt class="samewidth">Twist Angle:</dt>
+                                <dd>${artefact.twist_angle_pr_structure_b || 'N/A'}</dd>
+
+                                <dt class="samewidth">Twist Method:</dt>
+                                <dd>${artefact.twist_method_pr_structure_b || 'N/A'}</dd>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <!-- Decoration -->
+                    <h6 class="mt-3 ms-3"><em>Decoration</em></h6>
+                    <div class="row ms-1">
+                        <div class="col-md-6">
+                            <dl>
+                                <dt class="samewidth">Type of Decoration:</dt>
+                                <dd>${artefact.type_of_decoration || 'N/A'}</dd>
+
+                                <dt class="samewidth">Decoration Specifics:</dt>
+                                <dd>${artefact.decorations_specifics || 'N/A'}</dd>
+
+                                <dt class="samewidth">Decoration Material:</dt>
+                                <dd>${artefact.decoration_material || 'N/A'}</dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl>
+                                <dt class="samewidth">Decoration Thread Diameter:</dt>
+                                <dd>${artefact.decoration_thread_diameter || 'N/A'}</dd>
+
+                                <dt class="samewidth">Decoration Thread Specific:</dt>
+                                <dd>${artefact.decoration_thread_specific || 'N/A'}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Legacy Additional Information -->
                 <div class="col-12 mb-4">
                     <h4 class="border-bottom pb-2">Additional Information</h4>
                     <div class="row">
@@ -409,10 +668,10 @@ ${renderNavbar('collections', true)}
                             <dl>
                                 <dt class="samewidth">Use Case:</dt>
                                 <dd>${artefact.use_case || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Collection:</dt>
                                 <dd>${artefact.collection || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Time Period:</dt>
                                 <dd>${artefact.time_period || 'N/A'}</dd>
                             </dl>
@@ -421,10 +680,10 @@ ${renderNavbar('collections', true)}
                             <dl>
                                 <dt class="samewidth">Creator:</dt>
                                 <dd>${artefact.creator || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Sensor:</dt>
                                 <dd>${artefact.sensor || 'N/A'}</dd>
-                                
+
                                 <dt class="samewidth">Location:</dt>
                                 <dd>${artefact.location || 'N/A'}</dd>
                             </dl>
