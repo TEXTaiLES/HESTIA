@@ -211,3 +211,80 @@ class ArtifactItemResource(Resource):
         except Exception as e:
             if conn: conn.close()
             return {'error': str(e)}, 500
+
+
+def _rows_to_dicts(cur, rows):
+    """Convert psycopg2 rows to JSON-safe dicts (datetime -> isoformat)."""
+    if not cur.description:
+        return []
+    colnames = [d[0] for d in cur.description]
+    out = []
+    for row in rows:
+        d = {}
+        for col, val in zip(colnames, row):
+            d[col] = val.isoformat() if isinstance(val, datetime) else val
+        out.append(d)
+    return out
+
+
+# Tables (besides artifacts itself) carrying an artifact_id column. The aggregate
+# endpoint queries each one; tables that haven't been created yet (Kafka-sink
+# tables that lazily appear on first insert) are silently skipped.
+ARTIFACT_RELATED_TABLES = (
+    ('sensor_readings', 'sensor_readings'),
+    ('robot_images', 'robot_images'),
+    ('reconstructions', 'reconstructions'),
+    ('annotations', 'annotations'),
+    ('nefele_jobs', 'nefele_jobs'),
+)
+
+
+class ArtifactAggregateResource(Resource):
+    """GET /artefacts/<artifact_id> — returns the artefact plus every row
+    referencing it across the related tables, in a single JSON payload."""
+    method_decorators = [require_api_key]
+
+    def get(self, artifact_id):
+        conn = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+
+            cur.execute("SELECT * FROM artifacts WHERE artifact_id = %s", (artifact_id,))
+            artifact_row = cur.fetchone()
+            if not artifact_row:
+                cur.close()
+                conn.close()
+                return {'error': 'Artifact not found'}, 404
+            artifact = _rows_to_dicts(cur, [artifact_row])[0]
+
+            related: dict = {}
+            for table, key in ARTIFACT_RELATED_TABLES:
+                # to_regclass returns NULL for tables the JDBC sink hasn't
+                # created yet — treat those as empty rather than erroring.
+                cur.execute("SELECT to_regclass(%s)", (f'public.{table}',))
+                if cur.fetchone()[0] is None:
+                    related[key] = []
+                    continue
+                try:
+                    cur.execute(
+                        f"SELECT * FROM {table} WHERE artifact_id = %s",
+                        (artifact_id,)
+                    )
+                    related[key] = _rows_to_dicts(cur, cur.fetchall())
+                except Exception as e:
+                    # Most likely cause: artifact_id column not yet added on
+                    # an old deployment. Surface as empty + log.
+                    logger.warning(f"Aggregate query on '{table}' failed: {e}")
+                    conn.rollback()
+                    related[key] = []
+
+            cur.close()
+            conn.close()
+
+            return jsonify({'artifact': artifact, **related})
+
+        except Exception as e:
+            logger.error(f"Error aggregating artefact {artifact_id}: {e}")
+            if conn: conn.close()
+            return {'error': str(e)}, 500

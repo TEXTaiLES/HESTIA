@@ -1,0 +1,135 @@
+{
+  "description": "TEXTaiLES JSON/XML structural mapping. JSON arrays represent ordered XML child fields. null means the element is a scalar or repeated scalar value.",
+  "xml_to_json_key_map": {
+    "reference_name_number": "reference_name",
+    "location": "geolocation",
+    "belongs_to_a_group": "belongs_to_group",
+    "belongs_to_a_subgroup": "belongs_to_subgroup",
+    "primary_structure": "structure",
+    "material": "primary_material",
+    "type_of_weave_specification": "weave_specification",
+    "thread_diameter_warp_element_a": "warp_thread_diameter",
+    "thread_ply_warp_element_a": "warp_thread_ply",
+    "thread_twist_warp_element_a": "warp_thread_twist",
+    "twist_angle_warp_element_a": "warp_twist_angle",
+    "twist_method_warp_element_a": "warp_twist_method",
+    "thread_diameter_weft_element_b": "weft_thread_diameter",
+    "thread_ply_weft_element_b": "weft_thread_ply",
+    "thread_twist_warp_element": "weft_thread_twist",
+    "twist_angle_warp_element_element_b": "weft_twist_angle",
+    "twist_method_weft_element_b": "weft_twist_method",
+    "decoration": "decoration_analysis",
+    "sample_material_more_than_one_samples_may_be_removed_from_each_object": "sample_material",
+    "area_of_sample_on_object": "area_of_sample",
+    "yes_no": "conservation_performed",
+    "specific_foreign_material_introduced": "specific_foreign_material",
+    "face_idx": "face_id"
+  },
+  "json_to_xml_key_map": {
+    "method_of_analysis_destructive": "method_of_analysis",
+    "type_of_instrument_destructive": "type_of_instrument",
+    "aim_destructive": "aim",
+    "result_destructive": "result"
+  },
+  "row_attributes": {
+    "item_source": "metadata.documentation.identification.accession_number",
+    "sample_id_source": "metadata.analysis.identification.accession_number"
+  },
+  "metadata_sections": {
+    "documentation": {
+      "identification": [
+        "accession_number",
+        "reference_name",
+        "current_location",
+        "external_link",
+        "origin",
+        "geolocation",
+        "provenance",
+        "belongs_to_group",
+        "belongs_to_subgroup",
+        "documented_by",
+        "date_of_upload",
+        "type_of_object",
+        "specific_type_of_object",
+        "maximum_dimensions",
+        "date_period",
+        "publication"
+      ],
+      "technological_analysis": {
+        "structure": [
+          "primary_material",
+          "type_of_weave",
+          "weave_specification",
+          "weave_count",
+          "warp_thread_diameter",
+          "warp_thread_ply",
+          "warp_thread_twist",
+          "warp_twist_angle",
+          "warp_twist_method",
+          "weft_thread_diameter",
+          "weft_thread_ply",
+          "weft_thread_twist",
+          "weft_twist_angle",
+          "weft_twist_method"
+        ],
+        "decoration_analysis": [
+          "type_of_decoration",
+          "decoration_specifics",
+          "decoration_material"
+        ]
+      }
+    },
+    "analysis": {
+      "identification": [
+        "accession_number",
+        "reference_name",
+        "material_analysed"
+      ],
+      "non_destructive_analysis": [
+        "method_of_analysis",
+        "type_of_instrument",
+        "aim",
+        "result"
+      ],
+      "destructive_analysis": [
+        "sample_material",
+        "area_of_sample",
+        "size_of_samples",
+        "sample_weight",
+        "method_of_analysis_destructive",
+        "type_of_instrument_destructive",
+        "aim_destructive",
+        "result_destructive"
+      ]
+    },
+    "conservation": {
+      "identification": [
+        "accession_number",
+        "reference_name",
+        "material_analysed"
+      ],
+      "condition": [
+        "object_status",
+        "condition_assessment",
+        "state_of_preservation",
+        "type_of_preservation"
+      ],
+      "preventive_conservation": {
+        "environmental_conditions": [
+          "temperature",
+          "humidity"
+        ],
+        "type_of_container": null,
+        "mount": null,
+        "result": null
+      },
+      "interventive_conservation": [
+        "conservation_performed",
+        "conservation_date",
+        "cleaning",
+        "introduction_of_foreign_material",
+        "specific_foreign_material"
+      ]
+    }
+  }
+}
