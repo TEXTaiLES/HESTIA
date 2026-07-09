@@ -1,7 +1,9 @@
 import io
 import json
 import logging
+import os
 import re
+import uuid
 from pathlib import PurePosixPath
 from urllib.parse import unquote, urlparse
 
@@ -11,6 +13,7 @@ from minio.error import S3Error
 
 from middleware.security import require_api_key
 from resources.artifact import ArtifactAggregateResource
+from resources.artefact_metadata import build_artefact_full_metadata
 from services.storage import MINIO_ARTIFACT_BUCKET, build_public_url, minio_client
 
 
@@ -19,6 +22,14 @@ logger = logging.getLogger(__name__)
 SCENE_PREFIX = "scenes/"
 SAFE_SCENE_ID_PATTERN = re.compile(r"[^A-Za-z0-9_.-]+")
 METADATA_SCHEMA_NAME = "puc_schema"
+TEXTAILES_SCHEMA_NAME = "textailes"
+
+# Kafka-sink artifacts use UUID ids; Directus artefacts use integer ids.
+UUID_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
+)
+
+THOTH_DOMAIN = os.environ.get("THOTH_DOMAIN", "https://thoth.textailes.athenarc.gr")
 
 SCENE_STRUCTURE_TEMPLATE = {
     "models": {
@@ -330,6 +341,90 @@ def _create_scene_content_from_artifact(
     }
 
 
+def _create_scene_content_from_directus_artefact(
+    artefact_id: str,
+    full_metadata: dict,
+    collaborative: bool = False,
+) -> dict:
+    """Create scene content from a Directus artefact's full metadata.
+
+    The artefact's ch_metadata rides along as the model's metadata attributes
+    so THOTH edits operate on the TEXTaiLES schema.
+    """
+    details = full_metadata.get("artefact_details") or {}
+    ch_metadata = full_metadata.get("ch_metadata") or {}
+    annotations = full_metadata.get("annotations") or {}
+    sensors = full_metadata.get("sensor_data") or []
+
+    gltf_file = details.get("gltf_file") or ""
+    model_id = _get_model_id(str(artefact_id), {"filename": ""}, gltf_file) or str(artefact_id)
+
+    title = (
+        ch_metadata.get("documentation", {})
+        .get("identification", {})
+        .get("reference_name")
+        or details.get("use_case")
+        or str(artefact_id)
+    )
+
+    return {
+        "models": {
+            model_id: {
+                "id": model_id,
+                "artefact": {
+                    **_empty_artefact(title=title, gltf_file=gltf_file),
+                },
+                "metadata": {
+                    "schema": {
+                        "name": TEXTAILES_SCHEMA_NAME,
+                        "version": "",
+                        "description": "",
+                        "url": "",
+                    },
+                    "attributes": ch_metadata,
+                },
+                "transforms": _empty_transform(),
+                "annotations": annotations if isinstance(annotations, dict) else {},
+                "sensors": sensors if isinstance(sensors, list) else [],
+            },
+        },
+        "collaborative": bool(collaborative),
+    }
+
+
+def _create_scene_content_for_artifact_id(artifact_id: str, collaborative: bool):
+    """Build scene content for either artefact store.
+
+    Directus artefacts (integer ids) drive the demo flow; UUID ids fall back
+    to the Kafka-sink artifacts aggregate.
+    """
+    if UUID_PATTERN.match(artifact_id):
+        artifact_payload, status_code = _get_artifact_payload(artifact_id)
+        if status_code >= 400:
+            return None, (
+                artifact_payload or {"error": "Failed to retrieve artifact"},
+                status_code,
+            )
+        if not artifact_payload or not artifact_payload.get("artifact"):
+            return None, ({"error": f"Artifact '{artifact_id}' not found"}, 404)
+
+        return _create_scene_content_from_artifact(
+            artifact_id=artifact_id,
+            artifact_payload=artifact_payload,
+            collaborative=collaborative,
+        ), None
+
+    full_metadata = build_artefact_full_metadata(artifact_id)
+    if full_metadata is None:
+        return None, ({"error": f"Artefact '{artifact_id}' not found"}, 404)
+
+    return _create_scene_content_from_directus_artefact(
+        artefact_id=artifact_id,
+        full_metadata=full_metadata,
+        collaborative=collaborative,
+    ), None
+
+
 def _read_scene(scene_id: str) -> dict | None:
     """Read one stored scene from MinIO."""
     object_name = _get_scene_object_name(scene_id)
@@ -390,14 +485,23 @@ def _list_scene_ids() -> list[str]:
 
 
 def _build_scene_response(scene_id: str, content: dict) -> dict:
-    """Return scene content plus MinIO references."""
+    """Return scene content plus MinIO references and the THOTH link."""
     clean_scene_id = _clean_scene_id(scene_id)
     return {
         "scene_id": clean_scene_id,
         "content": content,
         "location": _get_scene_location(clean_scene_id),
         "public_url": _get_scene_public_url(clean_scene_id),
+        "thoth_url": f"{THOTH_DOMAIN}/a/thoth/?scene_id={clean_scene_id}",
     }
+
+
+def _generate_scene_id(artifact_id: str | None = None) -> str:
+    """Generate a scene id, prefixed with the artefact when known."""
+    suffix = uuid.uuid4().hex[:8]
+    if artifact_id:
+        return _clean_scene_id(f"artefact_{artifact_id}_{suffix}")
+    return f"scene_{suffix}"
 
 
 def _get_requested_scene_id(data: dict | None = None) -> str | None:
@@ -425,12 +529,18 @@ class SceneResource(Resource):
     method_decorators = [require_api_key]
 
     def post(self, scene_id: str | None = None):
-        """Create an empty, model-seeded, or artifact-backed THOTH scene."""
+        """Create an empty, model-seeded, or artefact-backed THOTH scene.
+
+        When scene_id is omitted but an artifact_id is given (the demo's
+        "PUT scene" with scene_id=none), a scene id is generated.
+        """
         data = request.get_json(silent=True) or {}
         scene_id = scene_id or _get_requested_scene_id(data)
         artifact_id = _get_requested_artifact_id(data)
         if not scene_id:
-            return {"error": "Missing scene_id"}, 400
+            if artifact_id is None:
+                return {"error": "Missing scene_id"}, 400
+            scene_id = _generate_scene_id(artifact_id)
 
         try:
             existing_scene = _read_scene(scene_id)
@@ -445,20 +555,12 @@ class SceneResource(Resource):
                     models=data.get("models"),
                 )
             else:
-                artifact_payload, status_code = _get_artifact_payload(artifact_id)
-                if status_code >= 400:
-                    return (
-                        artifact_payload or {"error": "Failed to retrieve artifact"},
-                        status_code,
-                    )
-                if not artifact_payload or not artifact_payload.get("artifact"):
-                    return {"error": f"Artifact '{artifact_id}' not found"}, 404
-
-                content = _create_scene_content_from_artifact(
-                    artifact_id=artifact_id,
-                    artifact_payload=artifact_payload,
+                content, error = _create_scene_content_for_artifact_id(
+                    artifact_id,
                     collaborative=data.get("collaborative", False),
                 )
+                if error is not None:
+                    return error
 
             _write_scene(scene_id, content)
         except ValueError as exc:
@@ -500,9 +602,15 @@ class SceneResource(Resource):
         return _build_scene_response(scene_id, content), 200
 
     def put(self, scene_id: str | None = None):
-        """Replace THOTH scene content."""
+        """Replace THOTH scene content, or create a scene from an artefact.
+
+        The demo's "PUT scene" carries scene_id=none plus an artefact_id and
+        expects HESTIA to create the scene — that case delegates to POST.
+        """
         data = request.get_json(silent=True) or {}
         scene_id = scene_id or _get_requested_scene_id(data)
+        if data.get("content") is None and _get_requested_artifact_id(data) is not None:
+            return self.post(scene_id)
         if not scene_id:
             return {"error": "Missing scene_id"}, 400
 

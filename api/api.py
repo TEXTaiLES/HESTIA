@@ -11,6 +11,7 @@ from resources.sensor import SensorResource, SensorReadingResource
 from resources.robot import RobotImageResource
 from resources.reconstruction import ReconstructionResource
 from resources.annotation import AnnotationResource
+from resources.artefact_metadata import ArtefactMetadataResource
 from resources.echoes import EchoesResource
 from resources.file_proxy import FileProxyResource
 from resources.scene import SceneResource
@@ -90,6 +91,7 @@ api.add_resource(MultispectralImageListResource, '/multispectral/images')
 api.add_resource(MultispectralImageResource, '/multispectral/image', '/multispectral/images/<path:image_name>')
 api.add_resource(MultispectralImageFileResource, '/multispectral/file')
 api.add_resource(SceneResource, '/scenes', '/scenes/<string:scene_id>')
+api.add_resource(ArtefactMetadataResource, '/artefact_metadata', '/artefact_metadata/<string:artefact_id>')
 
 @app.route('/health')
 def health_check():
