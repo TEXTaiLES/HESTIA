@@ -61,6 +61,29 @@ def run_migrations():
             logger.info("Migration: skipping 'timestamp_update' (artifacts absent or column present).")
 
 
+        # Sensor registry — one row per sensor, kept current by the
+        # sensor-registry-sink Kafka connector (upsert on sensor_id).
+        # Created here (not left to auto.create) so the PRIMARY KEY the
+        # upsert relies on exists, and backfilled once from historical
+        # readings so pre-existing sensors are not lost.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sensors (
+                sensor_id   TEXT PRIMARY KEY,
+                last_seen   TEXT,
+                artifact_id TEXT
+            )
+        """)
+        cur.execute("SELECT to_regclass('public.sensor_readings')")
+        if cur.fetchone()[0] is not None:
+            cur.execute("""
+                INSERT INTO sensors (sensor_id, last_seen, artifact_id)
+                SELECT DISTINCT ON (sensor_id) sensor_id, timestamp, artifact_id
+                FROM sensor_readings
+                ORDER BY sensor_id, timestamp DESC
+                ON CONFLICT (sensor_id) DO NOTHING
+            """)
+        logger.info("Migration: sensors registry table ensured.")
+
         # Nefele init
         # vm_comms — mutable job state (PATCH-heavy). NOT created by a JDBC sink
         # because the row is updated, not upserted. Explicit migration required.
@@ -233,6 +256,7 @@ def register_connectors():
         "annotation-sink.json",
         "robot-sink.json",
         "sensor-sink.json",
+        "sensor-registry-sink.json",
         "reconstruction-sink.json"
     ]
 

@@ -9,6 +9,7 @@ from services.messaging import (
     send_avro_message,
     send_simple_message,
     TOPIC_SENSOR_READINGS,
+    TOPIC_SENSORS,
     TOPIC_SENSOR_UPLOADED
 )
 
@@ -34,17 +35,37 @@ SENSOR_AVRO_SCHEMA = """
 }
 """
 
+# Sensor registry: one row per sensor, upserted by the JDBC sink on
+# sensor_id, so GET /sensors never has to scan sensor_readings.
+SENSOR_REGISTRY_AVRO_SCHEMA = """
+{
+    "type": "record",
+    "name": "Sensor",
+    "namespace": "com.textailes.sensor",
+    "fields": [
+        {"name": "sensor_id", "type": "string"},
+        {"name": "last_seen", "type": "string"},
+        {"name": "artifact_id", "type": ["null", "string"], "default": null}
+    ]
+}
+"""
+
 
 class SensorResource(Resource):
     def get(self):
         """
-        Retrieves all available sensor IDs.
+        Retrieves all available sensor IDs from the sensors registry table.
         """
         try:
             with get_db_connection() as conn, conn.cursor() as cur:
-                # TODO: Temporary solution. Should create a new TABLE just for
-                #       sensors for performance purposes.
-                sql = "SELECT DISTINCT sensor_id FROM sensor_readings;"
+                # The sensors table holds one row per sensor (upserted via
+                # the sensor-registry Kafka sink), so this stays O(sensors)
+                # no matter how large sensor_readings grows.
+                cur.execute("SELECT to_regclass('public.sensors')")
+                if cur.fetchone()[0] is None:
+                    return {'sensors': []}, 204
+
+                sql = "SELECT sensor_id FROM sensors ORDER BY sensor_id;"
                 cur.execute(sql)
 
                 rows: list[tuple] = cur.fetchall()
@@ -162,7 +183,20 @@ class SensorReadingResource(Resource):
             if not all([key in valid_keys for key in data.keys()]):
                 return {'error': "Not all given keys are valid"}, 400
 
-            # 2. Notify Listeners (Simple JSON)
+            # 2. Update Sensor Registry (Avro, keyed by sensor_id -> upsert)
+            registry_record = {
+                "sensor_id": data['sensor_id'],
+                "last_seen": data['timestamp'],
+                "artifact_id": data.get('artifact_id')
+            }
+            send_avro_message(
+                TOPIC_SENSORS,
+                data['sensor_id'],
+                registry_record,
+                SENSOR_REGISTRY_AVRO_SCHEMA
+            )
+
+            # 3. Notify Listeners (Simple JSON)
             notification = {
                 "sensor_id": data['sensor_id'],
                 "event_type": "sensor_reading_received",

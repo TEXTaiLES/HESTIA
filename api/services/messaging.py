@@ -16,6 +16,7 @@ SCHEMA_REGISTRY_URL = os.environ.get('SCHEMA_REGISTRY_URL', 'http://schema-regis
 # Topic Constants
 TOPIC_ARTIFACTS = 'artifacts'
 TOPIC_SENSOR_READINGS = 'sensor_readings'
+TOPIC_SENSORS = 'sensors'
 TOPIC_ROBOT_IMAGES = 'robot_images'
 TOPIC_RECONSTRUCTIONS = 'reconstructions'
 TOPIC_ANNOTATIONS = 'annotations'
