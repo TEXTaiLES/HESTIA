@@ -1,4 +1,6 @@
 import logging
+import os
+from pathlib import Path
 from typing import Optional
 
 import requests
@@ -6,6 +8,7 @@ from flask import Response, request
 from flask_restful import Resource
 
 from middleware.security import require_api_key
+from scripts.convert_schema import textailes_json_to_xml, textailes_to_hdto
 from services.directus import (
     get_artefact_digital_twin_uri,
     set_artefact_digital_twin_uri,
@@ -25,9 +28,9 @@ ECHOES_ENRICH_ENDPOINT   = "/hdt/enrich"
 ECHOES_DOWNLOAD_ENDPOINT = "/hdt/download/file"
 
 ECHOES_PROJECT_URI = "http://echoes-eccch.eu/TEXTaiLES"
-ECHOES_TRIPLESTORE_ID = "6a2abf6b5d6646ff24522299"
+ECHOES_TRIPLESTORE_ID = os.environ.get('ECHOES_TRIPLESTORE_ID')
 
-ECHOES_AUTH_TOKEN = ""
+ECHOES_AUTH_TOKEN = os.environ.get('ECHOES_AUTH_TOKEN')
 
 
 class EchoesResource(Resource):
@@ -138,14 +141,29 @@ class EchoesResource(Resource):
 
         uploaded_file = request.files.get("file")
         if uploaded_file:
-            rdf_content = uploaded_file.read()
+            raw_content = uploaded_file.read()
             filename = uploaded_file.filename or "data.rdf"
         else:
-            rdf_content = request.get_data()
+            raw_content = request.get_data()
             filename = "data.rdf"
 
-        if not rdf_content:
-            return {"error": "No RDF content provided"}, 400
+        if not raw_content:
+            return {"error": "No content provided"}, 400
+
+        if raw_content.lstrip()[:1] in (b"{", b"["):
+            try:
+                textailes_xml = textailes_json_to_xml(raw_content.decode("utf-8"))
+                rdf_content = textailes_to_hdto(textailes_xml).encode("utf-8")
+            except (ValueError, UnicodeDecodeError) as exc:
+                logger.error(
+                    "Failed to convert JSON to HDTO RDF for artifact %s: %s",
+                    artifact_id,
+                    exc,
+                )
+                return {"error": f"Failed to convert JSON to HDTO RDF: {exc}"}, 400
+            filename = f"{Path(filename).stem}.rdf"
+        else:
+            rdf_content = raw_content
 
         response = requests.post(
             f"{ECHOES_BASE_URL}{ECHOES_ENRICH_ENDPOINT}",
