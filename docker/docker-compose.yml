@@ -154,6 +154,8 @@ services:
       - DIRECTUS_URL=http://directus:8055
       - DIRECTUS_ADMIN_EMAIL=${DIRECTUS_ADMIN_EMAIL}
       - DIRECTUS_ADMIN_PASSWORD=${DIRECTUS_ADMIN_PASSWORD}
+      - ECHOES_TRIPLESTORE_ID=${ECHOES_TRIPLESTORE_ID}
+      - ECHOES_AUTH_TOKEN=${ECHOES_AUTH_TOKEN}
     restart: always
     depends_on:
       - kafka

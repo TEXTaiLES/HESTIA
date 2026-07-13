@@ -35,7 +35,8 @@ ROBOT_AVRO_SCHEMA = """
         {"name": "location", "type": "string"},
         {"name": "public_url", "type": ["null", "string"], "default": null},
         {"name": "timestamp", "type": "string"},
-        {"name": "robot_pose", "type": ["null", "string"], "default": null}
+        {"name": "robot_pose", "type": ["null", "string"], "default": null},
+        {"name": "artifact_id", "type": ["null", "string"], "default": null}
     ]
 }
 """
@@ -120,6 +121,8 @@ class RobotImageResource(Resource):
         if not scan_id:
             scan_id = str(uuid.uuid4())
 
+        artifact_id = request.form.get('artifact_id')
+
         uploaded_images = []
 
         for file in files:
@@ -128,7 +131,7 @@ class RobotImageResource(Resource):
             metadata = metadata_map.get(filename, {})
 
             try:
-                result = self.upload_single_file(file, metadata, scan_id)
+                result = self.upload_single_file(file, metadata, scan_id, artifact_id)
                 if result:
                     uploaded_images.append(result)
             except Exception as e:
@@ -143,7 +146,7 @@ class RobotImageResource(Resource):
             'uploaded_files': uploaded_images
         }, 201
 
-    def upload_single_file(self, file, metadata: dict, scan_id: str) -> dict:
+    def upload_single_file(self, file, metadata: dict, scan_id: str, artifact_id: str = None) -> dict:
         """Helper function to process a single file upload."""
         image_id = str(uuid.uuid4())
 
@@ -172,7 +175,8 @@ class RobotImageResource(Resource):
             'location': location,
             'public_url': public_url,
             'timestamp': timestamp,
-            'robot_pose': robot_pose
+            'robot_pose': robot_pose,
+            'artifact_id': metadata.get('artifact_id') or artifact_id,
         }
 
         # STEP 3: Send to Kafka (Storage)

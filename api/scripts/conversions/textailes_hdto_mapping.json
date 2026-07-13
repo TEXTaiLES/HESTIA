@@ -1,0 +1,187 @@
+{
+  "description": "Data-driven mapping between TEXTaiLES JSON paths and the currently supported HDTO RDF subset. Add new rules here before extending converter behavior.",
+  "namespaces": {
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "crm": "http://www.cidoc-crm.org/cidoc-crm/",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "hdto": "http://isl.ics.forth.gr/ontology/echoes/",
+    "xml": "http://www.w3.org/XML/1998/namespace"
+  },
+  "uri_templates": {
+    "textailes_base": "https://echoes-eccch.eu/TEXTAILES",
+    "echoes_base": "https://echoes-eccch.eu",
+    "object": "{textailes_base}/Object//{value}",
+    "identifier": "{textailes_base}/ID//{value}",
+    "id_type": "{echoes_base}/ID-TYPE/{value}",
+    "appellation": "{echoes_base}/ID/{value}",
+    "place": "{textailes_base}/Place/{value}",
+    "site": "{textailes_base}/Site//{value}",
+    "actor": "{textailes_base}/Actor/{value}",
+    "keyword": "{echoes_base}/KEYWORDS/{value}"
+  },
+  "entity": {
+    "class": "hdto:HC3_Tangible_Heritage_Entity",
+    "about_source": "metadata.documentation.identification.accession_number",
+    "about_template": "object"
+  },
+  "textailes_to_hdto": [
+    {
+      "kind": "note",
+      "source": "artefact.description",
+      "repeat": true
+    },
+    {
+      "kind": "identifier",
+      "source": "metadata.documentation.identification.accession_number",
+      "identifier_type": "accession number"
+    },
+    {
+      "kind": "place",
+      "source": "metadata.documentation.identification.current_location"
+    },
+    {
+      "kind": "title",
+      "source": "artefact.title"
+    },
+    {
+      "kind": "identifier",
+      "source": "metadata.documentation.identification.external_link",
+      "identifier_type": "external link",
+      "about_is_value": true
+    },
+    {
+      "kind": "site",
+      "source": "metadata.documentation.identification.reference_name"
+    },
+    {
+      "kind": "type",
+      "source": "artefact.keywords",
+      "repeat": true
+    },
+    {
+      "kind": "actor",
+      "source": "artefact.owner"
+    },
+    {
+      "kind": "label",
+      "source": "artefact.title"
+    },
+    {
+      "kind": "type",
+      "source": "metadata.documentation.technological_analysis.structure.primary_material"
+    },
+    {
+      "kind": "type",
+      "source": "metadata.documentation.technological_analysis.structure.type_of_weave"
+    },
+    {
+      "kind": "type",
+      "source": "metadata.documentation.identification.date_period"
+    },
+    {
+      "kind": "type",
+      "source": "metadata.documentation.identification.specific_type_of_object"
+    },
+    {
+      "kind": "type",
+      "source": "metadata.documentation.technological_analysis.decoration_analysis.type_of_decoration"
+    },
+    {
+      "kind": "3d_model",
+      "source": "artefact.gltf_file"
+    }
+  ],
+  "hdto_to_textailes": [
+    {
+      "kind": "child_text",
+      "source": "label",
+      "target": "artefact.title",
+      "first": true
+    },
+    {
+      "kind": "child_text",
+      "source": "P3_has_note",
+      "target": "artefact.description",
+      "repeat": true
+    },
+    {
+      "kind": "pref_labels",
+      "target": "artefact.keywords",
+      "repeat": true
+    },
+    {
+      "kind": "identifier",
+      "identifier_type": "accession number",
+      "target": "metadata.documentation.identification.accession_number"
+    },
+    {
+      "kind": "identifier",
+      "identifier_type": "external link",
+      "target": "metadata.documentation.identification.external_link"
+    },
+    {
+      "kind": "nested_label",
+      "property": "P53_has_former_or_current_location",
+      "target": "metadata.documentation.identification.current_location"
+    },
+    {
+      "kind": "nested_label",
+      "property": "P49_has_former_or_current_keeper",
+      "target": "artefact.owner"
+    },
+    {
+      "kind": "nested_label",
+      "property": "P46i_forms_part_of",
+      "target": "metadata.documentation.identification.reference_name"
+    },
+    {
+      "kind": "model_uri",
+      "target": "artefact.gltf_file"
+    },
+    {
+      "kind": "note_containing",
+      "source": "artefact.description",
+      "target": "metadata.documentation.identification.origin",
+      "text": "excavation"
+    },
+    {
+      "kind": "value_from_candidates",
+      "source": "artefact.keywords",
+      "target": "metadata.documentation.identification.specific_type_of_object",
+      "candidates": [
+        "funerary"
+      ]
+    },
+    {
+      "kind": "value_containing",
+      "source": "artefact.keywords",
+      "target": "metadata.documentation.identification.date_period",
+      "text": "BC"
+    },
+    {
+      "kind": "value_from_candidates",
+      "source": "artefact.keywords",
+      "target": "metadata.documentation.technological_analysis.structure.primary_material",
+      "candidates": [
+        "linen"
+      ]
+    },
+    {
+      "kind": "value_from_candidates",
+      "source": "artefact.keywords",
+      "target": "metadata.documentation.technological_analysis.structure.type_of_weave",
+      "candidates": [
+        "plain/tabby"
+      ]
+    },
+    {
+      "kind": "value_from_candidates",
+      "source": "artefact.keywords",
+      "target": "metadata.documentation.technological_analysis.decoration_analysis.type_of_decoration",
+      "candidates": [
+        "knotted pile weave"
+      ]
+    }
+  ]
+}

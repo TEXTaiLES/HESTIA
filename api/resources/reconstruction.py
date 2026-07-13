@@ -47,7 +47,8 @@ RECONSTRUCTION_AVRO_SCHEMA = """
         {"name": "public_url_texture", "type": ["null", "string"], "default": null},
         {"name": "public_url_material", "type": ["null", "string"], "default": null},
         {"name": "public_url_glb", "type": ["null", "string"], "default": null},
-        {"name": "timestamp", "type": "string"}
+        {"name": "timestamp", "type": "string"},
+        {"name": "artifact_id", "type": ["null", "string"], "default": null}
     ]
 }
 """
@@ -111,6 +112,8 @@ class ReconstructionResource(Resource):
         if not scan_id:
              return {'error': "No 'scan_id' provided."}, 400
 
+        artifact_id = request.form.get('artifact_id')
+
         object_id = str(uuid.uuid4())
         timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -127,7 +130,8 @@ class ReconstructionResource(Resource):
             'public_url_model': None,
             'public_url_texture': None,
             'public_url_material': None,
-            'public_url_glb': None
+            'public_url_glb': None,
+            'artifact_id': artifact_id,
         }
 
         tmp_dir = f"/tmp/rec_{object_id}"

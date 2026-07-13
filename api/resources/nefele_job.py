@@ -49,6 +49,7 @@ class NefeleResource(Resource):
         dataset_name = data.get('dataset_name')
         model        = data.get('model', 'sugar')
         points_json  = data.get('points_json')
+        artifact_id  = data.get('artifact_id')
 
         if not scan_id or not dataset_name:
             return {'error': "scan_id and dataset_name are required"}, 400
@@ -60,10 +61,11 @@ class NefeleResource(Resource):
             with get_db_connection() as conn, conn.cursor() as cur:
                 cur.execute(
                     """INSERT INTO nefele_jobs
-                       (job_id, scan_id, dataset_name, model, points_json, status)
-                       VALUES (%s, %s, %s, %s, %s, 'points_submitted')""",
+                       (job_id, scan_id, dataset_name, model, points_json, status, artifact_id)
+                       VALUES (%s, %s, %s, %s, %s, 'points_submitted', %s)""",
                     (job_id, scan_id, dataset_name, model,
-                     json.dumps(points_json) if points_json is not None else None),
+                     json.dumps(points_json) if points_json is not None else None,
+                     artifact_id),
                 )
                 row = _fetch_one(cur, job_id)
 

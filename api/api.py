@@ -6,18 +6,28 @@ from datetime import datetime, timezone
 import logging
 
 # Resources
-from resources.artifact import ArtifactResource, ArtifactItemResource
+from resources.artifact import ArtifactResource, ArtifactItemResource, ArtifactAggregateResource
 from resources.sensor import SensorReadingResource
 from resources.robot import RobotImageResource
 from resources.reconstruction import ReconstructionResource
 from resources.annotation import AnnotationResource
+from resources.echoes import EchoesResource
 from resources.file_proxy import FileProxyResource
+from resources.scene import SceneResource
 from resources.thumbnail import ThumbnailResource
+from resources.artefact_digital_twin import ArtefactDigitalTwinUriResource
 from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimResource, NefelePreviewResource, NefeleCancelResource
 from resources.amalthai_dataset import AmalthaiDatasetResource, AmalthaiDatasetItemResource, AmalthaiDatasetArchiveResource
 from resources.amalthai_model import AmalthaiModelResource, AmalthaiModelItemResource, AmalthaiModelWeightsResource, AmalthaiModelConfigResource
 from resources.amalthai_experiment import AmalthaiExperimentResource, AmalthaiExperimentItemResource
 from resources.amalthai_inference import AmalthaiInferenceResource, AmalthaiInferenceItemResource, AmalthaiInferenceInputsResource, AmalthaiInferenceOutputsResource
+from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimResource, NefelePreviewResource
+from resources.multispectral import (
+    MultispectralImageFileResource,
+    MultispectralImageListResource,
+    MultispectralImageResource,
+)
+from resources.rgb import RgbImageFileResource, RgbImageListResource, RgbImageResource
 
 # Setup
 from scripts.setup_infrastructure import setup_minio, run_migrations, wait_for_postgres
@@ -46,12 +56,15 @@ api = Api(app)
 # Route Registration
 api.add_resource(ArtifactResource, '/artifacts')
 api.add_resource(ArtifactItemResource, '/artifacts/<string:artifact_id>')
+api.add_resource(ArtifactAggregateResource, '/artefacts/<string:artifact_id>')
 api.add_resource(SensorReadingResource, '/sensor-readings')
 api.add_resource(RobotImageResource, '/robot-images')
 api.add_resource(ReconstructionResource, '/reconstructions')
 api.add_resource(AnnotationResource, '/annotations')
+api.add_resource(EchoesResource, '/echoes/<string:artifact_id>')
 api.add_resource(FileProxyResource, '/storage/<string:bucket_name>/<path:object_name>')
 api.add_resource(ThumbnailResource, '/reconstructions/<string:object_id>/generate-thumbnail')
+api.add_resource(ArtefactDigitalTwinUriResource, '/artefacts/<string:artefact_id>/digital-twin-uri')
 api.add_resource(NefeleResource, '/nefele')
 api.add_resource(NefeleJobResource, '/nefele/<string:job_id>')
 api.add_resource(NefeleClaimResource, '/nefele/claim')
@@ -70,6 +83,13 @@ api.add_resource(AmalthaiInferenceResource, '/amalthai/inference-runs')
 api.add_resource(AmalthaiInferenceItemResource, '/amalthai/inference-runs/<string:inference_id>')
 api.add_resource(AmalthaiInferenceInputsResource, '/amalthai/inference-runs/<string:inference_id>/inputs')
 api.add_resource(AmalthaiInferenceOutputsResource, '/amalthai/inference-runs/<string:inference_id>/outputs')
+api.add_resource(RgbImageListResource, '/rgb/images')
+api.add_resource(RgbImageResource, '/rgb/image', '/rgb/images/<string:image_name>')
+api.add_resource(RgbImageFileResource, '/rgb/images/<string:image_name>/file')
+api.add_resource(MultispectralImageListResource, '/multispectral/images')
+api.add_resource(MultispectralImageResource, '/multispectral/image', '/multispectral/images/<path:image_name>')
+api.add_resource(MultispectralImageFileResource, '/multispectral/file')
+api.add_resource(SceneResource, '/scenes', '/scenes/<string:scene_id>')
 
 @app.route('/health')
 def health_check():

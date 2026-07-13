@@ -1,0 +1,97 @@
+{
+  "documentation": {
+    "identification": {
+      "accession_number": "",
+      "reference_name": "",
+      "current_location": "",
+      "external_link": "",
+      "origin": "",
+      "geolocation": "",
+      "provenance": "",
+      "belongs_to_group": false,
+      "belongs_to_subgroup": false,
+      "documented_by": "",
+      "date_of_upload": "",
+      "type_of_object": "",
+      "specific_type_of_object": "",
+      "maximum_dimensions": "",
+      "date_period": "",
+      "publication": ""
+    },
+    "technological_analysis": {
+      "structure": {
+        "primary_material": "",
+        "type_of_weave": "",
+        "weave_specification": "",
+        "weave_count": "",
+        "warp_thread_diameter": "",
+        "warp_thread_ply": "",
+        "warp_thread_twist": "",
+        "warp_twist_angle": "",
+        "warp_twist_method": "",
+        "weft_thread_diameter": "",
+        "weft_thread_ply": "",
+        "weft_thread_twist": "",
+        "weft_twist_angle": "",
+        "weft_twist_method": ""
+      },
+      "decoration_analysis": {
+        "type_of_decoration": "",
+        "decoration_specifics": "",
+        "decoration_material": ""
+      }
+    }
+  },
+  "analysis": {
+    "identification": {
+      "accession_number": "",
+      "reference_name": "",
+      "material_analysed": ""
+    },
+    "non_destructive_analysis": {
+      "method_of_analysis": "",
+      "type_of_instrument": "",
+      "aim": "",
+      "result": ""
+    },
+    "destructive_analysis": {
+      "sample_material": [],
+      "area_of_sample": "",
+      "size_of_samples": "",
+      "sample_weight": "",
+      "method_of_analysis_destructive": "",
+      "type_of_instrument_destructive": "",
+      "aim_destructive": "",
+      "result_destructive": ""
+    }
+  },
+  "conservation": {
+    "identification": {
+      "accession_number": "",
+      "reference_name": "",
+      "material_analysed": ""
+    },
+    "condition": {
+      "object_status": "",
+      "condition_assessment": "",
+      "state_of_preservation": "",
+      "type_of_preservation": ""
+    },
+    "preventive_conservation": {
+      "environmental_conditions": {
+        "temperature": "",
+        "humidity": ""
+      },
+      "type_of_container": [],
+      "mount": "",
+      "result": ""
+    },
+    "interventive_conservation": {
+      "conservation_performed": false,
+      "conservation_date": "",
+      "cleaning": false,
+      "introduction_of_foreign_material": [],
+      "specific_foreign_material": []
+    }
+  }
+}

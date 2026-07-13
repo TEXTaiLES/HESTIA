@@ -78,11 +78,14 @@ def run_migrations():
                 stage_index   INTEGER      DEFAULT -1,
                 message       TEXT         DEFAULT '',
                 error         TEXT,
+                artifact_id   UUID,
                 created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
                 updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
             )
         """)
+        cur.execute("ALTER TABLE nefele_jobs ADD COLUMN IF NOT EXISTS artifact_id UUID")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_nefele_jobs_status ON nefele_jobs (status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_nefele_jobs_artifact_id ON nefele_jobs (artifact_id)")
         logger.info("Migration: nefele_jobs table ensured.")
 
         # AmalthAI integration tables — mutable registry/job rows (PATCH-heavy),
