@@ -27,7 +27,8 @@ ECHOES_REGISTER_ENDPOINT = "/hdt/register"
 ECHOES_ENRICH_ENDPOINT   = "/hdt/enrich"
 ECHOES_DOWNLOAD_ENDPOINT = "/hdt/download/file"
 
-ECHOES_PROJECT_URI = "http://echoes-eccch.eu/TEXTaiLES"
+ECHOES_HERITAGE_ENTITY_BASE_URL = "https://textailes.athenarc.gr/archive/artefacts/"
+ECHOES_PROJECT_URI = "https://textailes-eccch.eu/"
 ECHOES_TRIPLESTORE_ID = os.environ.get('ECHOES_TRIPLESTORE_ID')
 
 # Generate an access token using the refresh token.
@@ -99,10 +100,10 @@ class EchoesResource(Resource):
         response = requests.post(
             f"{ECHOES_BASE_URL}{ECHOES_REGISTER_ENDPOINT}",
             params={
-                "heritageEntityUri": artifact_id,
-                "projectUri": ECHOES_PROJECT_URI,
-                "name": artifact_id,
-                "description": artifact_id,
+                "heritageEntityUri": f"{ECHOES_HERITAGE_ENTITY_BASE_URL}{artifact_id}", # TODO: Ask CH partners about it.
+                "projectUri": ECHOES_PROJECT_URI, # TODO: Check with ECHOES about this value.
+                "name": "Sample TEXTaiLES artefact name", # TODO: Use artefact Title.
+                "description": "Sample TEXTaiLES artefact description", # TODO: Use artefact Description.
             },
             headers={
                 "accept": "application/json",
