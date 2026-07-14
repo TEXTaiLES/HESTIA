@@ -30,8 +30,23 @@ ECHOES_DOWNLOAD_ENDPOINT = "/hdt/download/file"
 ECHOES_PROJECT_URI = "http://echoes-eccch.eu/TEXTaiLES"
 ECHOES_TRIPLESTORE_ID = os.environ.get('ECHOES_TRIPLESTORE_ID')
 
-ECHOES_AUTH_TOKEN = os.environ.get('ECHOES_AUTH_TOKEN')
-
+# Generate an access token using the refresh token.
+ECHOES_AUTH_TOKEN = ""
+ECHOES_REFRESH_TOKEN = os.environ.get('ECHOES_REFRESH_TOKEN')
+if ECHOES_REFRESH_TOKEN:
+    token_response = requests.post(
+        "https://aai-demo.egi.eu/auth/realms/egi/protocol/openid-connect/token",
+        data={
+            "grant_type": "refresh_token",
+            "refresh_token": ECHOES_REFRESH_TOKEN,
+            "client_id": "token-portal",
+            "scope": "openid email profile voperson_id voperson_external_affiliation entitlements eduperson_entitlement"
+        },
+    )
+    if not token_response.ok:
+        logger.error("ECHOES token refresh failed: %s", token_response.text)
+    else:
+        ECHOES_AUTH_TOKEN = token_response.json().get('access_token')
 
 class EchoesResource(Resource):
     """Register an artifact as an ECHOES Digital Twin."""
