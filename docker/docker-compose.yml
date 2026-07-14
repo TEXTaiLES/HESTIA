@@ -156,6 +156,8 @@ services:
       - DIRECTUS_ADMIN_PASSWORD=${DIRECTUS_ADMIN_PASSWORD}
       - ECHOES_TRIPLESTORE_ID=${ECHOES_TRIPLESTORE_ID}
       - ECHOES_AUTH_TOKEN=${ECHOES_AUTH_TOKEN}
+    volumes:
+      - ../api:/app
     restart: always
     depends_on:
       - kafka
