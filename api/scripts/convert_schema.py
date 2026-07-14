@@ -145,6 +145,53 @@ def _first_artefact(metadata: JsonObject) -> tuple[str, JsonObject]:
     return name, artefact_data
 
 
+def _normalize_scene_json(payload: JsonValue) -> JsonObject:
+    """Reshape scene-export JSON into the TEXTaiLES artefact JSON shape.
+
+    The Thoth client exports scenes as {"models": {<name>: {...}}, "scene_id": ...}
+    with metadata nested under `metadata.attributes` and technological_analysis
+    split into weave/warp/weft/decoration groups. This normalizer collapses
+    those wrappers so the schema-driven converter can see every field.
+    Idempotent: JSON already in the expected shape is returned unchanged.
+    """
+    if not isinstance(payload, dict) or not payload:
+        return payload if isinstance(payload, dict) else {}
+
+    models = payload.get("models")
+    if isinstance(models, dict) and models:
+        name, model = next(iter(models.items()))
+        if isinstance(model, dict):
+            artefact_key = _string_value(model.get("id")) or name
+            payload = {artefact_key: model}
+
+    _, artefact_data = next(iter(payload.items()))
+    if not isinstance(artefact_data, dict):
+        return payload
+
+    metadata_section = artefact_data.get("metadata")
+    if isinstance(metadata_section, dict) and isinstance(metadata_section.get("attributes"), dict):
+        artefact_data["metadata"] = metadata_section["attributes"]
+
+    metadata_section = artefact_data.get("metadata")
+    if isinstance(metadata_section, dict):
+        documentation = metadata_section.get("documentation")
+        if isinstance(documentation, dict):
+            technological = documentation.get("technological_analysis")
+            if isinstance(technological, dict):
+                structure = technological.get("structure")
+                structure = structure if isinstance(structure, dict) else {}
+                for group_key in ("weave_analysis", "warp_analysis", "weft_analysis"):
+                    group = technological.pop(group_key, None)
+                    if isinstance(group, dict):
+                        structure.update(group)
+                technological["structure"] = structure
+
+    if isinstance(artefact_data.get("sensors"), list):
+        artefact_data["sensors"] = {}
+
+    return payload
+
+
 # ==============================================================================
 # TEXTAILES JSON <-> XML
 # ==============================================================================
@@ -162,6 +209,7 @@ def textailes_json_to_xml(metadata: JsonObject | str) -> str:
     if isinstance(metadata, str):
         metadata = json.loads(metadata)
 
+    metadata = _normalize_scene_json(metadata)
     artefact_name, artefact_data = _first_artefact(metadata)
     artefact = artefact_data.get("artefact", {})
     metadata_section = artefact_data.get("metadata", {})
