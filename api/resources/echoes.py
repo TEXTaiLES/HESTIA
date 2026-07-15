@@ -168,7 +168,8 @@ class EchoesResource(Resource):
 
         if raw_content.lstrip()[:1] in (b"{", b"["):
             try:
-                textailes_xml = textailes_json_to_xml(raw_content.decode("utf-8"))
+                json_content = raw_content.decode("utf-8").replace('"-"', '""')
+                textailes_xml = textailes_json_to_xml(json_content)
                 rdf_content = textailes_to_hdto(textailes_xml).encode("utf-8")
             except (ValueError, UnicodeDecodeError) as exc:
                 logger.error(
