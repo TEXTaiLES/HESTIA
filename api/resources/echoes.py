@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from pathlib import Path
@@ -8,7 +9,12 @@ from flask import Response, request
 from flask_restful import Resource
 
 from middleware.security import require_api_key
-from scripts.convert_schema import textailes_json_to_xml, textailes_to_hdto
+from scripts.convert_schema import (
+    hdto_to_textailes,
+    textailes_json_to_xml,
+    textailes_to_hdto,
+    textailes_xml_to_json,
+)
 from services.directus import (
     get_artefact_digital_twin_uri,
     set_artefact_digital_twin_uri,
@@ -55,7 +61,7 @@ class EchoesResource(Resource):
     method_decorators = [require_api_key]
 
     def get(self, artifact_id: str):
-        """Download the ECHOES Digital Twin entry for `artifact_id`."""
+        """Download the ECHOES Digital Twin entry for `artifact_id` as TEXTaiLES JSON."""
         dt_uri = get_artefact_digital_twin_uri(artifact_id)
         if not dt_uri:
             return {"error": "Digital Twin URI not found for artifact"}, 404
@@ -65,7 +71,7 @@ class EchoesResource(Resource):
             json={
                 "digitalTwinUri": dt_uri,
                 "tripleStoreIds": [ECHOES_TRIPLESTORE_ID],
-                "format": "application/ld+json",
+                "format": "application/rdf+xml",
             },
             headers={
                 "accept": "application/octet-stream",
@@ -87,11 +93,27 @@ class EchoesResource(Resource):
                 "response": response.text,
             }, 502
 
+        raw_content = response.content
+        if raw_content.lstrip()[:1] in (b"{", b"["):
+            json_bytes = raw_content
+        else:
+            try:
+                textailes_xml = hdto_to_textailes(raw_content)
+                textailes_json = textailes_xml_to_json(textailes_xml)
+                json_bytes = json.dumps(textailes_json, ensure_ascii=False, indent=2).encode("utf-8")
+            except (ValueError, UnicodeDecodeError) as exc:
+                logger.error(
+                    "Failed to convert HDTO RDF to TEXTaiLES JSON for artifact %s: %s",
+                    artifact_id,
+                    exc,
+                )
+                return {"error": f"Failed to convert HDTO RDF to TEXTaiLES JSON: {exc}"}, 502
+
         return Response(
-            response.content,
-            content_type="application/octet-stream",
+            json_bytes,
+            content_type="application/json",
             headers={
-                "Content-Disposition": f'attachment; filename="{artifact_id}.jsonld"',
+                "Content-Disposition": f'attachment; filename="{artifact_id}.json"',
             },
         )
 
