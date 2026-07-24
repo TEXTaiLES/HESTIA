@@ -9,6 +9,9 @@ __pycache__
 .pytest_cache
 *.pyc
 
+# Ignore python virtual environments.
+api/.venv/
+
 # Ignore environmental variables.
 docker/.env
 

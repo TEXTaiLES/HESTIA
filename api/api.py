@@ -21,7 +21,7 @@ from resources.amalthai_dataset import AmalthaiDatasetResource, AmalthaiDatasetI
 from resources.amalthai_model import AmalthaiModelResource, AmalthaiModelItemResource, AmalthaiModelWeightsResource, AmalthaiModelConfigResource
 from resources.amalthai_experiment import AmalthaiExperimentResource, AmalthaiExperimentItemResource
 from resources.amalthai_inference import AmalthaiInferenceResource, AmalthaiInferenceItemResource, AmalthaiInferenceInputsResource, AmalthaiInferenceOutputsResource
-from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimResource, NefelePreviewResource
+from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimResource, NefelePreviewResource # two times imported.
 from resources.multispectral import (
     MultispectralImageFileResource,
     MultispectralImageListResource,
