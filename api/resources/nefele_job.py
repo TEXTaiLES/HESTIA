@@ -53,7 +53,7 @@ class NefeleResource(Resource):
 
         if not scan_id or not dataset_name:
             return {'error': "scan_id and dataset_name are required"}, 400
-        if model not in ('sugar', 'pgsr'):
+        if model not in ('sugar', 'pgsr', 'fastpgsr'):
             model = 'sugar'
 
         job_id = str(uuid.uuid4())
