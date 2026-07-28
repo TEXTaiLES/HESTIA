@@ -18,6 +18,7 @@ export default (router, { services }) => {
                     navbar: 'home',
                     title: 'User Login',
                     subtitle: 'Please login in order to view our collections.',
+                    redirectUrl: req.query.redirect_url,
                 });
                 return res.send(html);
             }

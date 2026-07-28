@@ -33,13 +33,26 @@ const TEMP_COOKIE_OPTIONS = {
     secure: (process.env.PUBLIC_URL || '').startsWith('https'),
 };
 
-// Refuse absolute URLs and protocol-relative URLs to prevent open-redirect
-// vulnerabilities via the ?redirect= query param.
+// Allow same-origin paths, or absolute URLs whose hostname sits under the
+// shared cookie domain (so cross-tool SSO redirects like
+// https://nephele.textailes.athenarc.gr/... are permitted, but arbitrary
+// external hosts are not — prevents open-redirect abuse of ?redirect_url=).
 const sanitizeRedirect = (raw) => {
     if (!raw || typeof raw !== 'string') return '/archive';
-    if (!raw.startsWith('/')) return '/archive';
     if (raw.startsWith('//')) return '/archive';
-    return raw;
+    if (raw.startsWith('/')) return raw;
+
+    try {
+        const url = new URL(raw);
+        if (url.protocol !== 'https:' && url.protocol !== 'http:') return '/archive';
+        const cookieDomain = (process.env.REFRESH_TOKEN_COOKIE_DOMAIN || '').replace(/^\./, '');
+        if (!cookieDomain) return '/archive';
+        const host = url.hostname.toLowerCase();
+        if (host === cookieDomain || host.endsWith('.' + cookieDomain)) return raw;
+        return '/archive';
+    } catch {
+        return '/archive';
+    }
 };
 
 export default (router, { services }) => {
@@ -53,7 +66,7 @@ export default (router, { services }) => {
             // HttpOnly cookies (not accessible via JavaScript, so we cannot store the final redirect in a JS variable. Instead, we store it in a cookie and read it back in the callback)            const state = randomToken(32);
             const state = randomToken(32);
             const { verifier, challenge } = generatePkcePair(); // CSRF check , PKCE pair for OAuth handshake
-            const finalRedirect = sanitizeRedirect(req.query.redirect);
+            const finalRedirect = sanitizeRedirect(req.query.redirect_url || req.query.redirect);
 
             res.cookie(STATE_COOKIE, state, TEMP_COOKIE_OPTIONS);
             res.cookie(VERIFIER_COOKIE, verifier, TEMP_COOKIE_OPTIONS);

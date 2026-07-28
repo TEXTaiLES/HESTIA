@@ -3,7 +3,12 @@ import { renderHtmlPage, renderFooter } from './layout.js';
 
 const EGI_LOGIN_URL = '/archive/user/egi-login';
 
-export const renderLoginBox = () => `
+const buildEgiLoginUrl = (redirectUrl) => {
+    if (!redirectUrl) return EGI_LOGIN_URL;
+    return `${EGI_LOGIN_URL}?redirect_url=${encodeURIComponent(redirectUrl)}`;
+};
+
+export const renderLoginBox = ({ redirectUrl } = {}) => `
 <div class="container mb-5">
     <div class="row mt-5">
         <div class="col-12 text-center">
@@ -33,7 +38,7 @@ export const renderLoginBox = () => `
                     <hr class="flex-grow-1">
                 </div>
 
-                <a href="${EGI_LOGIN_URL}" class="btn btn-lg btn-outline-secondary w-100" style="border-radius: 8px;">
+                <a href="${buildEgiLoginUrl(redirectUrl)}" class="btn btn-lg btn-outline-secondary w-100" style="border-radius: 8px;">
                     <i class="fas fa-key"></i> Login via EGI
                 </a>
 
@@ -78,7 +83,7 @@ export const renderLoginBox = () => `
     </div>
 </div>`;
 
-export const renderLoginPage = ({ navbar = 'home', title = 'Please login', subtitle = 'This page requires login to access.' }) => {
+export const renderLoginPage = ({ navbar = 'home', title = 'Please login', subtitle = 'This page requires login to access.', redirectUrl } = {}) => {
     const content = `
 ${renderNavbar(navbar, false)}
 <!-- Hero Section -->
@@ -88,7 +93,7 @@ ${renderNavbar(navbar, false)}
         <p>${subtitle}</p>
     </div>
 </div>
-${renderLoginBox()}
+${renderLoginBox({ redirectUrl })}
 ${renderFooter()}
 `
     return renderHtmlPage({
