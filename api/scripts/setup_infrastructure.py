@@ -60,6 +60,17 @@ def run_migrations():
         else:
             logger.info("Migration: skipping 'timestamp_update' (artifacts absent or column present).")
 
+        # annotations & reconstructions.artifact_id — resource code (POST /annotations)
+        # INSERTs and SELECTs artifact_id but these tables are created by Kafka JDBC
+        # sinks whose schemas didn't originally include the column. Add it here so
+        # the resource's SQL matches the physical schema.
+        for table in ('annotations', 'reconstructions'):
+            cur.execute("SELECT to_regclass(%s)", (f'public.{table}',))
+            if cur.fetchone()[0] is not None:
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS artifact_id TEXT")
+                logger.info(f"Migration: ensured {table}.artifact_id column.")
+            else:
+                logger.info(f"Migration: skipping {table}.artifact_id (table absent).")
 
         # Nefele init
         # vm_comms — mutable job state (PATCH-heavy). NOT created by a JDBC sink
