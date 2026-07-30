@@ -9,6 +9,7 @@ import psycopg2
 import pytest
 import requests
 from confluent_kafka import Consumer
+from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from dotenv import load_dotenv
 from minio import Minio
@@ -281,6 +282,23 @@ def kafka_consumer_factory(kafka_config):
     def _factory(topics):
         if isinstance(topics, str):
             topics = [topics]
+
+        # Pre-create any missing topics — Kafka doesn't auto-create on subscribe,
+        # so consumers can't get partition assignments for topics that don't exist yet.
+        admin = AdminClient({'bootstrap.servers': kafka_config['broker']})
+        existing = set(admin.list_topics(timeout=5).topics.keys())
+        missing = [NewTopic(t, num_partitions=1, replication_factor=1) for t in topics if t not in existing]
+        if missing:
+            futures = admin.create_topics(missing)
+            for topic_name, fut in futures.items():
+                try:
+                    fut.result(timeout=10)
+                except Exception as e:
+                    # Ignore "topic already exists" races
+                    if 'exists' not in str(e).lower():
+                        raise
+            time.sleep(1.0)  # let metadata propagate before subscribe
+
         consumer = Consumer({
             'bootstrap.servers': kafka_config['broker'],
             'group.id': f'test-{uuid.uuid4().hex[:8]}',
@@ -342,3 +360,59 @@ def real_client_annotation(client, mocker, postgres_config, kafka_config):
     mocker.patch('services.messaging.schema_registry_client', new_sr)
 
     return client
+
+
+# Wires the artifact resource against real Postgres + real Kafka/Schema
+# Registry + real MinIO. Unlike Directus and DB (looked up freshly per call),
+# the module-level minio_client was built with the container-internal endpoint
+# at import time — has to be replaced with a client pointing at localhost.
+@pytest.fixture()
+def real_client_artifact(client, mocker, postgres_config, kafka_config, real_minio_client):
+    mocker.patch('services.database.PG_HOST', postgres_config['host'])
+    mocker.patch('services.database.PG_PORT', postgres_config['port'])
+    mocker.patch('services.database.PG_DB', postgres_config['database'])
+    mocker.patch('services.database.PG_USER', postgres_config['user'])
+    mocker.patch('services.database.PG_PASSWORD', postgres_config['password'])
+
+    new_sr = SchemaRegistryClient({'url': kafka_config['schema_registry']})
+    mocker.patch('services.messaging.schema_registry_client', new_sr)
+
+    mocker.patch('resources.artifact.minio_client', real_minio_client)
+
+    return client
+
+
+# Direct INSERT of an artifacts row for GET/aggregate tests. Skips if the
+# artifacts table doesn't exist yet — the Kafka JDBC sink creates it lazily
+# on first POST, so a bootstrap POST must have run at least once before this
+# fixture can produce test data.
+@pytest.fixture()
+def test_artifact_db_row(real_db_connection):
+    artifact_id = str(uuid.uuid4())
+
+    cur = real_db_connection.cursor()
+    cur.execute("SELECT to_regclass('public.artifacts')")
+    if cur.fetchone()[0] is None:
+        cur.close()
+        pytest.skip('artifacts table does not exist — run POST integration first to let the sink create it')
+
+    cur.execute(
+        "INSERT INTO artifacts (artifact_id, filename, location, drone_id, title, uploaded_by, \"timestamp\") "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        (
+            artifact_id, 'test.jpg', f's3://artifacts/{artifact_id}/test.jpg',
+            'test-drone', 'Test Artifact', 'test-user', '2026-01-01 00:00:00',
+        ),
+    )
+    real_db_connection.commit()
+    cur.close()
+
+    yield {
+        'artifact_id': artifact_id, 'filename': 'test.jpg',
+        'drone_id': 'test-drone', 'title': 'Test Artifact',
+    }
+
+    cur = real_db_connection.cursor()
+    cur.execute("DELETE FROM artifacts WHERE artifact_id = %s", (artifact_id,))
+    real_db_connection.commit()
+    cur.close()
