@@ -1,10 +1,15 @@
 import io
+import json
 import os
+import socket
+import time
 import uuid
 
 import psycopg2
 import pytest
 import requests
+from confluent_kafka import Consumer
+from confluent_kafka.schema_registry import SchemaRegistryClient
 from dotenv import load_dotenv
 from minio import Minio
 from PIL import Image
@@ -236,3 +241,104 @@ def real_client_thumbnail(client, mocker, postgres_config, directus_config):
     render = mocker.patch('resources.thumbnail.render_glb_thumbnail', return_value=png_bytes)
 
     return {'client': client, 'render': render, 'png_bytes': png_bytes}
+
+
+# Kafka broker + Schema Registry endpoints. TCP checks upfront so downstream
+# tests skip cleanly instead of erroring on first send. Requires `kafka` to
+# resolve (add `127.0.0.1 kafka` to hosts on Windows).
+@pytest.fixture(scope='session')
+def kafka_config():
+    broker = os.environ.get('TEST_KAFKA_BROKER', 'localhost:29092')
+    schema_registry = os.environ.get('TEST_SCHEMA_REGISTRY', 'http://localhost:8081')
+
+    try:
+        with socket.create_connection(('localhost', 29092), timeout=3):
+            pass
+    except Exception as e:
+        pytest.skip(f'Kafka broker not reachable at localhost:29092: {e}')
+
+    try:
+        requests.get(f'{schema_registry}/subjects', timeout=3).raise_for_status()
+    except Exception as e:
+        pytest.skip(f'Schema Registry not reachable at {schema_registry}: {e}')
+
+    try:
+        socket.gethostbyname('kafka')
+    except Exception:
+        pytest.skip('Kafka hostname does not resolve — add "127.0.0.1 kafka" to hosts')
+
+    return {'broker': broker, 'schema_registry': schema_registry}
+
+
+# Factory yielding a fresh Kafka consumer subscribed to specified topic(s),
+# primed to only see messages published after the fixture returns
+# (auto.offset.reset=latest + wait for partition assignment). Auto-closes
+# all consumers on teardown.
+@pytest.fixture()
+def kafka_consumer_factory(kafka_config):
+    created: list = []
+
+    def _factory(topics):
+        if isinstance(topics, str):
+            topics = [topics]
+        consumer = Consumer({
+            'bootstrap.servers': kafka_config['broker'],
+            'group.id': f'test-{uuid.uuid4().hex[:8]}',
+            'auto.offset.reset': 'latest',
+            'enable.auto.commit': False,
+        })
+        consumer.subscribe(topics)
+        deadline = time.time() + 10
+        while time.time() < deadline and not consumer.assignment():
+            consumer.poll(0.5)
+        if not consumer.assignment():
+            consumer.close()
+            pytest.fail(f'Kafka consumer failed to assign to {topics}')
+        created.append(consumer)
+        return consumer
+
+    yield _factory
+
+    for c in created:
+        c.close()
+
+
+# Direct INSERT of an annotations row (used by GET/PATCH tests that need an
+# existing row to read/update). Yields scene_id + object_id, deletes on teardown.
+@pytest.fixture()
+def test_annotation_row(real_db_connection):
+    scene_id = f'test-scene-{uuid.uuid4().hex[:8]}'
+    object_id = f'test-obj-{uuid.uuid4().hex[:8]}'
+
+    cur = real_db_connection.cursor()
+    cur.execute(
+        "INSERT INTO annotations (scene_id, object_id, timestamp, collaborative, content, linked_objects) "
+        "VALUES (%s, %s, %s, %s, %s, %s)",
+        (scene_id, object_id, '2026-01-01T00:00:00Z', False, json.dumps({'nodes': {}}), json.dumps({})),
+    )
+    real_db_connection.commit()
+    cur.close()
+
+    yield {'scene_id': scene_id, 'object_id': object_id}
+
+    cur = real_db_connection.cursor()
+    cur.execute("DELETE FROM annotations WHERE scene_id = %s", (scene_id,))
+    real_db_connection.commit()
+    cur.close()
+
+
+# Flask test client wired against real Postgres + real Kafka + real Schema Registry.
+# The schema_registry_client is rebuilt against localhost:8081 (the module-level
+# one was built with the container-internal URL at import time).
+@pytest.fixture()
+def real_client_annotation(client, mocker, postgres_config, kafka_config):
+    mocker.patch('services.database.PG_HOST', postgres_config['host'])
+    mocker.patch('services.database.PG_PORT', postgres_config['port'])
+    mocker.patch('services.database.PG_DB', postgres_config['database'])
+    mocker.patch('services.database.PG_USER', postgres_config['user'])
+    mocker.patch('services.database.PG_PASSWORD', postgres_config['password'])
+
+    new_sr = SchemaRegistryClient({'url': kafka_config['schema_registry']})
+    mocker.patch('services.messaging.schema_registry_client', new_sr)
+
+    return client

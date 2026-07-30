@@ -297,25 +297,42 @@ class TestPatch:
         assert r.status_code == 201
         assert r.get_json()['object_id'] == OBJECT_ID
 
-    # Sending a scenegraph patch merges into the existing content JSON, then UPDATEs.
-    # NOTE: must include 'collaborative' to avoid a KeyError in the resource
-    # ([annotation.py:299]) — fields_to_update['collaborative'] is looked up
-    # eagerly before the "field in fields_to_update" guard checks it. Real bug.
-    def test_scenegraph_merge_updates_content(self, client, auth_headers, mock_db, mock_kafka):
+    # Sending a scenegraph-only patch (no 'collaborative') merges into the
+    # existing content JSON and UPDATEs. Regression guard for the KeyError
+    # bug in [annotation.py:299] where fields_to_update['collaborative'] was
+    # looked up eagerly before the "field in fields_to_update" guard.
+    def test_scenegraph_only_merge_updates_content(self, client, auth_headers, mock_db, mock_kafka):
         existing_content = {'nodes': {'model.glb': {'urls': ['https://old']}}}
         _, cur = mock_db(fetchone=(json.dumps(existing_content), json.dumps({})), rowcount=1)
 
         r = client.patch(URL, headers=auth_headers, json={
             'scene_id': SCENE_ID,
-            'collaborative': True,
             'scenegraph': {'nodes': {'model.glb': {'urls': ['https://new']}}},
         })
 
         assert r.status_code == 201
         sql, params = cur.execute.call_args.args
         assert sql.startswith('UPDATE annotations SET')
+        # collaborative was NOT patched, so its column should not appear in the SET clause
+        assert 'collaborative = %s' not in sql
         merged_json = next(p for p in params if isinstance(p, str) and 'https://new' in p)
         assert 'https://new' in merged_json
+
+    # Sending a linked_objects-only patch (no 'collaborative') UPDATEs the
+    # linked_objects column without crashing. Same regression guard for the
+    # same code path, different field.
+    def test_linked_objects_only_updates_field(self, client, auth_headers, mock_db, mock_kafka):
+        _, cur = mock_db(fetchone=(json.dumps({}), json.dumps({'parent_object': 'a'})), rowcount=1)
+
+        r = client.patch(URL, headers=auth_headers, json={
+            'scene_id': SCENE_ID,
+            'linked_objects': {'parent_object': 'b'},
+        })
+
+        assert r.status_code == 201
+        sql, _params = cur.execute.call_args.args
+        assert 'linked_objects = %s' in sql
+        assert 'collaborative = %s' not in sql
 
     # Kafka simple-message failure after successful UPDATE surfaces as 500.
     def test_kafka_simple_failure_returns_500(self, client, auth_headers, mock_db, mock_kafka):
