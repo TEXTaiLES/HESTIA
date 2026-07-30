@@ -1,11 +1,9 @@
-import os
-
-# Must set before importing api, since middleware.security captures the key at module import time.
-os.environ.setdefault('API_SECRET_KEY', 'test-api-key')
-
 import pytest
 
+import middleware.security as security
 from api import app as flask_app
+
+API_KEY = 'test-api-key'
 
 
 def pytest_ignore_collect(collection_path, config):
@@ -22,10 +20,14 @@ def pytest_ignore_collect(collection_path, config):
     return None  # no -m at all: collect everything
 
 
-# Returns the API secret key for use in tests. This fixture is session-scoped, meaning it is created once per test session and shared across all tests that require it.
+@pytest.fixture(autouse=True)
+def api_secret_key(monkeypatch):
+    monkeypatch.setattr(security, 'MASTER_API_KEY', API_KEY)
+
+
 @pytest.fixture(scope='session')
 def api_key():
-    return os.environ['API_SECRET_KEY']
+    return API_KEY
 
 # Enables the Flask app to be used in tests, with its config restored afterwards.
 @pytest.fixture()
