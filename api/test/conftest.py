@@ -12,11 +12,16 @@ from api import app as flask_app
 def api_key():
     return os.environ['API_SECRET_KEY']
 
-# Enables the Flask app to be used in tests.
+# Enables the Flask app to be used in tests, with its config restored afterwards.
 @pytest.fixture()
 def app():
+    original_config = dict(flask_app.config)
     flask_app.config.update(TESTING=True)
-    return flask_app
+
+    yield flask_app
+
+    flask_app.config.clear()
+    flask_app.config.update(original_config)
 
 # Create a test client for the Flask app, to make HTTP requests to the API without running a live server.
 @pytest.fixture()
