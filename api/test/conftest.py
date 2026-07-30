@@ -7,6 +7,21 @@ import pytest
 
 from api import app as flask_app
 
+
+def pytest_ignore_collect(collection_path, config):
+    """Skip the integration package entirely unless integration tests were asked for."""
+
+    if collection_path.name != 'integration':
+        return None
+
+    markexpr = config.getoption('markexpr', default='') or ''
+    if 'not integration' in markexpr:
+        return True
+    if 'integration' in markexpr:
+        return None  # explicitly requested with `pytest -m integration`
+    return None  # no -m at all: collect everything
+
+
 # Returns the API secret key for use in tests. This fixture is session-scoped, meaning it is created once per test session and shared across all tests that require it.
 @pytest.fixture(scope='session')
 def api_key():
