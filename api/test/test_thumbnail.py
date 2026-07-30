@@ -1,6 +1,8 @@
 import pytest
 
 
+RESOURCE_MODULE = 'resources.thumbnail'
+
 OBJECT_ID = 'recon-abc'
 ARTEFACT_ID = 'art-123'
 URL = f'/reconstructions/{OBJECT_ID}/generate-thumbnail'
@@ -11,29 +13,11 @@ PNG_BYTES = b'\x89PNG\r\n\x1a\nfake'
 DIRECTUS_FILE_ID = 'file-xyz'
 
 
-# Builds a fake (conn, cursor) pair for get_db_connection and returns them so
-# individual tests can inspect execute()/close() calls without repeating setup.
-@pytest.fixture()
-def mock_db(mocker):
-    # It's a factory so that individual tests can specify the row returned by fetchone().
-    def _factory(row):
-        conn = mocker.MagicMock(name='pg_conn')
-        cur = mocker.MagicMock(name='pg_cursor')
-        cur.fetchone.return_value = row
-        conn.cursor.return_value = cur
-        mocker.patch(
-            'resources.thumbnail.get_db_connection',
-            return_value=conn,
-        )
-        return conn, cur
-    return _factory
-
-
 @pytest.fixture()
 def happy_pipeline(mocker, mock_db):
     """Wire the whole pipeline for a successful run; individual tests can override any step."""
     # Database returns a row with a valid GLB location.
-    conn, cur = mock_db(row=(GLB_LOCATION,))
+    conn, cur = mock_db(fetchone=(GLB_LOCATION,))
     render = mocker.patch(
         'resources.thumbnail.render_glb_thumbnail',
         return_value=PNG_BYTES,
@@ -84,7 +68,7 @@ class TestDbLookup:
 
     # Stimulate a sucesful database connection but no reconstruction.
     def test_returns_404_when_no_row(self, client, auth_headers, mock_db, mocker):
-        mock_db(row=None)
+        mock_db(fetchone=None)
         render = mocker.patch('resources.thumbnail.render_glb_thumbnail')
         upload = mocker.patch('resources.thumbnail.upload_file')
         set_thumb = mocker.patch('resources.thumbnail.set_artefact_thumbnail')
@@ -100,7 +84,7 @@ class TestDbLookup:
     # Checks two cases where the GLB location is either None or an empty string, but the reconstruction row exists.
     @pytest.mark.parametrize('glb_location', [None, ''])
     def test_returns_400_when_glb_location_empty(self, client, auth_headers, mock_db, mocker, glb_location):
-        mock_db(row=(glb_location,))
+        mock_db(fetchone=(glb_location,))
         render = mocker.patch('resources.thumbnail.render_glb_thumbnail')
         upload = mocker.patch('resources.thumbnail.upload_file')
         set_thumb = mocker.patch('resources.thumbnail.set_artefact_thumbnail')

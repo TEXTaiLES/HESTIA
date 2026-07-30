@@ -5,29 +5,14 @@ import uuid
 import pytest
 
 
+RESOURCE_MODULE = 'resources.artifact'
+
 LIST_URL = '/artifacts'
 ITEM_URL = '/artifacts/{}'
 AGGREGATE_URL = '/artefacts/{}'  # note: 'artefacts' (British spelling), a distinct endpoint
 
 FAKE_UUID = uuid.UUID('12345678-1234-5678-1234-567812345678')
 FAKE_UUID_STR = str(FAKE_UUID)
-
-
-# Mock (conn, cur) supporting the direct usage all methods in artifact.py rely on:
-# conn = get_db_connection(); cur = conn.cursor(); ... cur.close(); conn.close().
-@pytest.fixture()
-def mock_db(mocker):
-    def _factory(fetchall=None, fetchone=None, description=None, rowcount=1):
-        conn = mocker.MagicMock(name='pg_conn')
-        cur = mocker.MagicMock(name='pg_cursor')
-        cur.fetchall.return_value = fetchall if fetchall is not None else []
-        cur.fetchone.return_value = fetchone
-        cur.description = description
-        cur.rowcount = rowcount
-        conn.cursor.return_value = cur
-        mocker.patch('resources.artifact.get_db_connection', return_value=conn)
-        return conn, cur
-    return _factory
 
 
 # Patches MinIO put_object + both Kafka helpers to happy defaults. Also patches

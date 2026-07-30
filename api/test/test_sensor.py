@@ -3,28 +3,13 @@ from datetime import datetime, timezone
 import pytest
 
 
+RESOURCE_MODULE = 'resources.sensor'
+
 URL = '/sensor-readings'
 SENSOR_ID = 'Teapot-Sensor-1'
 TIMESTAMP = '2026-01-01T00:00:00+00:00'
 
 VALID_READING = {'sensor_id': SENSOR_ID, 'temperature': 21.5, 'humidity': 40.0}
-
-
-# Builds a mock (conn, cursor) pair for the direct usage GET does
-# (`conn = get_db_connection(); cur = conn.cursor()`). Rows and description are
-# configurable per test so each one only states what it cares about.
-@pytest.fixture()
-def mock_db(mocker):
-    def _factory(fetchall=None, description=None):
-        conn = mocker.MagicMock(name='pg_conn')
-        cur = mocker.MagicMock(name='pg_cursor')
-        cur.fetchall.return_value = fetchall if fetchall is not None else []
-        cur.description = description
-        conn.cursor.return_value = cur
-
-        mocker.patch('resources.sensor.get_db_connection', return_value=conn)
-        return conn, cur
-    return _factory
 
 
 # Patches both Kafka publish helpers to succeed by default. Tests override

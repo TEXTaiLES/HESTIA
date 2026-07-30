@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 import pytest
 
 
+RESOURCE_MODULE = 'resources.robot'
+
 URL = '/robot-images'
 SCAN_ID = 'scan-1'
 ARTIFACT_ID = 'art-123'
@@ -23,31 +25,6 @@ def _multipart(metadata_map=None, filename=FILENAME, **form):
     if metadata_map is not None:
         data['metadata_map'] = json.dumps(metadata_map)
     return data
-
-
-# Builds a mock (conn, cursor) pair that supports BOTH the direct usage GET does
-# (`conn = get_db_connection(); cur = conn.cursor()`) and the context-manager
-# usage the upload helper does (`with get_db_connection() as conn, conn.cursor() as cur`).
-# Rows, description and rowcount are configurable per test.
-@pytest.fixture()
-def mock_db(mocker):
-    def _factory(fetchall=None, description=None, rowcount=1):
-        conn = mocker.MagicMock(name='pg_conn')
-        conn.__enter__.return_value = conn
-        conn.__exit__.return_value = False
-
-        cur = mocker.MagicMock(name='pg_cursor')
-        cur.__enter__.return_value = cur
-        cur.__exit__.return_value = False
-        cur.fetchall.return_value = fetchall if fetchall is not None else []
-        cur.description = description
-        cur.rowcount = rowcount
-
-        conn.cursor.return_value = cur
-
-        mocker.patch('resources.robot.get_db_connection', return_value=conn)
-        return conn, cur
-    return _factory
 
 
 # Wires the whole POST pipeline for a successful upload: MinIO accepts the object,

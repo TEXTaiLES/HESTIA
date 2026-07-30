@@ -3,6 +3,8 @@ import json
 import pytest
 
 
+RESOURCE_MODULE = 'resources.annotation'
+
 URL = '/annotations'
 OBJECT_ID = 'obj-123'
 SCENE_ID = 'scene-abc'
@@ -15,32 +17,6 @@ VALID_SCENEGRAPH = {
     },
     'edges': {'.': ['model.glb']},
 }
-
-
-# Builds a mock (conn, cursor) pair that supports BOTH the direct usage GET
-# does (`conn = get_db_connection(); cur = conn.cursor()`) and the context-manager
-# usage POST/PATCH do (`with get_db_connection() as conn, conn.cursor() as cur`).
-# Row + description + rowcount are configurable per test.
-@pytest.fixture()
-def mock_db(mocker):
-    def _factory(fetchall=None, fetchone=None, description=None, rowcount=1):
-        conn = mocker.MagicMock(name='pg_conn')
-        conn.__enter__.return_value = conn
-        conn.__exit__.return_value = False
-
-        cur = mocker.MagicMock(name='pg_cursor')
-        cur.__enter__.return_value = cur
-        cur.__exit__.return_value = False
-        cur.fetchall.return_value = fetchall if fetchall is not None else []
-        cur.fetchone.return_value = fetchone
-        cur.description = description
-        cur.rowcount = rowcount
-
-        conn.cursor.return_value = cur
-
-        mocker.patch('resources.annotation.get_db_connection', return_value=conn)
-        return conn, cur
-    return _factory
 
 
 # Patches both Kafka publish helpers to return True by default. Tests override
