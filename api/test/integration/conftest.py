@@ -8,7 +8,7 @@ import uuid
 import psycopg2
 import pytest
 import requests
-from confluent_kafka import Consumer
+from confluent_kafka import Consumer, TopicPartition
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from dotenv import load_dotenv
@@ -312,6 +312,15 @@ def kafka_consumer_factory(kafka_config):
         if not consumer.assignment():
             consumer.close()
             pytest.fail(f'Kafka consumer failed to assign to {topics}')
+
+        # Explicitly seek each partition to its current end offset. Without
+        # this, `auto.offset.reset='latest'` only decides the position on the
+        # first FETCH, not on assignment — leaving a race where a message
+        # published between assignment and the first poll can be missed.
+        for tp in consumer.assignment():
+            _low, high = consumer.get_watermark_offsets(tp, timeout=5)
+            consumer.seek(TopicPartition(tp.topic, tp.partition, high))
+
         created.append(consumer)
         return consumer
 
@@ -380,6 +389,57 @@ def real_client_artifact(client, mocker, postgres_config, kafka_config, real_min
     mocker.patch('resources.artifact.minio_client', real_minio_client)
 
     return client
+
+
+# Wires the nefele resource against real Postgres + real Kafka + real MinIO.
+# nefele publishes only simple JSON messages (no Avro / no schema registry),
+# but it does upload previews to MinIO — hence the client patch.
+@pytest.fixture()
+def real_client_nefele(client, mocker, postgres_config, kafka_config, real_minio_client):
+    mocker.patch('services.database.PG_HOST', postgres_config['host'])
+    mocker.patch('services.database.PG_PORT', postgres_config['port'])
+    mocker.patch('services.database.PG_DB', postgres_config['database'])
+    mocker.patch('services.database.PG_USER', postgres_config['user'])
+    mocker.patch('services.database.PG_PASSWORD', postgres_config['password'])
+
+    mocker.patch('resources.nefele_job.minio_client', real_minio_client)
+
+    # kafka_config is a required dep so this fixture skips cleanly when Kafka
+    # isn't reachable, matching the pattern of the other integration fixtures.
+    _ = kafka_config
+    return client
+
+
+# Direct INSERT of a nefele_jobs row (nefele_jobs table is created by an
+# explicit migration in setup_infrastructure.py, so it always exists).
+# Yields job_id + created status, deletes on teardown. Any previews written
+# to MinIO by the resource under test are also cleaned up.
+@pytest.fixture()
+def test_nefele_job_row(real_db_connection, real_minio_client):
+    job_id = str(uuid.uuid4())
+
+    cur = real_db_connection.cursor()
+    cur.execute(
+        "INSERT INTO nefele_jobs (job_id, scan_id, dataset_name, model, status) "
+        "VALUES (%s, %s, %s, %s, %s)",
+        (job_id, f'test-scan-{job_id[:6]}', f'test-ds-{job_id[:6]}', 'sugar', 'points_submitted'),
+    )
+    real_db_connection.commit()
+    cur.close()
+
+    yield {'job_id': job_id, 'status': 'points_submitted'}
+
+    # Delete any preview objects the test uploaded under this job_id prefix.
+    try:
+        for obj in real_minio_client.list_objects('nefele', prefix=f'{job_id}/', recursive=True):
+            real_minio_client.remove_object('nefele', obj.object_name)
+    except Exception:
+        pass
+
+    cur = real_db_connection.cursor()
+    cur.execute("DELETE FROM nefele_jobs WHERE job_id = %s", (job_id,))
+    real_db_connection.commit()
+    cur.close()
 
 
 # Direct INSERT of an artifacts row for GET/aggregate tests. Skips if the
