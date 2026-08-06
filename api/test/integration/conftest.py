@@ -391,6 +391,55 @@ def real_client_artifact(client, mocker, postgres_config, kafka_config, real_min
     return client
 
 
+# Wires the amalthai_dataset resource against real Postgres + real MinIO.
+# amalthai_common.upload_filestorage / stream_object use services.storage.minio_client
+# (imported into resources.amalthai_common at module load), so we patch that
+# module-level reference to point at localhost. No Kafka involved.
+@pytest.fixture()
+def real_client_amalthai_dataset(client, mocker, postgres_config, real_minio_client):
+    mocker.patch('services.database.PG_HOST', postgres_config['host'])
+    mocker.patch('services.database.PG_PORT', postgres_config['port'])
+    mocker.patch('services.database.PG_DB', postgres_config['database'])
+    mocker.patch('services.database.PG_USER', postgres_config['user'])
+    mocker.patch('services.database.PG_PASSWORD', postgres_config['password'])
+
+    mocker.patch('resources.amalthai_common.minio_client', real_minio_client)
+    return client
+
+
+# Direct INSERT of an amalthai_datasets row. Yields dataset_id + fields used
+# by tests; deletes the row and any MinIO objects under its prefix on teardown.
+@pytest.fixture()
+def test_amalthai_dataset_row(real_db_connection, real_minio_client):
+    dataset_id = str(uuid.uuid4())
+    owner_slug = f'test-owner-{dataset_id[:6]}'
+    name = f'test-ds-{dataset_id[:6]}'
+    mode = 'classification'
+
+    cur = real_db_connection.cursor()
+    cur.execute(
+        "INSERT INTO amalthai_datasets (dataset_id, owner_slug, name, mode, status) "
+        "VALUES (%s, %s, %s, %s, %s)",
+        (dataset_id, owner_slug, name, mode, 'ready'),
+    )
+    real_db_connection.commit()
+    cur.close()
+
+    yield {'dataset_id': dataset_id, 'owner_slug': owner_slug, 'name': name, 'mode': mode}
+
+    # Cleanup any archive uploads under this dataset's prefix
+    try:
+        for obj in real_minio_client.list_objects('amalthai-datasets', prefix=f'{dataset_id}/', recursive=True):
+            real_minio_client.remove_object('amalthai-datasets', obj.object_name)
+    except Exception:
+        pass
+
+    cur = real_db_connection.cursor()
+    cur.execute("DELETE FROM amalthai_datasets WHERE dataset_id = %s", (dataset_id,))
+    real_db_connection.commit()
+    cur.close()
+
+
 # Wires the nefele resource against real Postgres + real Kafka + real MinIO.
 # nefele publishes only simple JSON messages (no Avro / no schema registry),
 # but it does upload previews to MinIO — hence the client patch.
