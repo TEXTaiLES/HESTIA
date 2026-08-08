@@ -13,7 +13,8 @@
 	],
 	"directus:extension": {
 		"type": "endpoint",
-		"path": "dist/index.js",
+		"_comment": "path must stay 'index.js': Directus 9 hardcodes entrypoint 'index.js' for local (non-npm) extensions and ignores this field, so building anywhere else produces a file it never reads.",
+		"path": "index.js",
 		"source": "src/index.js",
 		"host": "^9.22.0",
 		"id": "archive"

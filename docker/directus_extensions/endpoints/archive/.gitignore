@@ -2,3 +2,5 @@
 node_modules
 dist
 index.js
+# Build-freshness stamp written by docker/build-extensions.sh
+.build-stamp

@@ -249,6 +249,23 @@ services:
     volumes:
       - ./directus_uploads:/directus/uploads
       - ./directus_extensions:/directus/extensions
+      - ./build-extensions.sh:/build-extensions.sh:ro
+    # Rebuild extensions from src/ before Directus boots.
+    #
+    # The compiled bundle (index.js) is gitignored, so git never updates it on
+    # checkout and it outlives the source it was built from — a branch without
+    # a feature would still serve that feature's routes and buttons. Doing this
+    # in `command:` rather than a depends_on service means it also runs on
+    # `docker compose restart directus`, which does not re-evaluate depends_on.
+    #
+    # `;` not `&&`: the script deliberately never fails, so a broken build
+    # costs you the portal but never the admin UI.
+    #
+    # Tail must stay identical to the image's default CMD.
+    command:
+      - /bin/sh
+      - -c
+      - 'if [ -f /build-extensions.sh ]; then /bin/sh /build-extensions.sh; else echo "[ext] WARNING - build-extensions.sh is not mounted, extensions will NOT be rebuilt and may be stale"; fi; npx directus bootstrap && npx directus start'
     environment:
       KEY: ${DIRECTUS_KEY}
       SECRET: ${DIRECTUS_SECRET}
