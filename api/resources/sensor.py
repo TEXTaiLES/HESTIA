@@ -125,21 +125,14 @@ class SensorReadingResource(Resource):
         if 'timestamp' not in data:
              data['timestamp'] = datetime.now(timezone.utc).isoformat()
 
+        valid_keys = ['sensor_id', 'timestamp', 'temperature', 'humidity', 'uv_intensity', 'luminosity', 'atmospheric_pressure', 'elevation', 'artifact_id']
+        if not all([key in valid_keys for key in data.keys()]):
+            return {'error': "Not all given keys are valid"}, 400
+
         message_key = f"{data['sensor_id']}_{data['timestamp']}"
 
         # 1. Send to Storage Topic (Avro)
-        success = send_avro_message(
-            TOPIC_SENSOR_READINGS,
-            message_key,
-            data,
-            SENSOR_AVRO_SCHEMA
-        )
-
-        if success:
-            valid_keys = ['sensor_id', 'timestamp', 'temperature', 'humidity', 'uv_intensity', 'luminosity', 'atmospheric_pressure', 'elevation', 'artifact_id']
-            if not all([key in valid_keys for key in data.keys()]):
-                return {'error': "Not all given keys are valid"}, 400
-
+        if success := send_avro_message(TOPIC_SENSOR_READINGS, message_key, data, SENSOR_AVRO_SCHEMA):
             # 2. Notify Listeners (Simple JSON)
             notification = {
                 "sensor_id": data['sensor_id'],

@@ -296,7 +296,7 @@ class AnnotationResource(Resource):
                         update_clause.append(f"{col_name} = %s")
                         params.append(value)
 
-                append_field_in_update_clause('collaborative', 'collaborative', fields_to_update['collaborative'])
+                append_field_in_update_clause('collaborative', 'collaborative', fields_to_update.get('collaborative'))
                 append_field_in_update_clause('scenegraph', 'content', json.dumps(content))
                 append_field_in_update_clause('linked_objects', 'linked_objects', json.dumps(linked_objects))
 
