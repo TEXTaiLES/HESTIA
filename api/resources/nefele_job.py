@@ -6,6 +6,7 @@ import io
 import json
 import logging
 
+from resources.resource_base import ResourceBase
 from middleware.security import require_api_key
 from services.database import get_db_connection
 from services.storage import (
@@ -40,8 +41,17 @@ def _fetch_one(cur, job_id):
     return _row_to_dict([c[0] for c in cur.description], row)
 
 
-class NefeleResource(Resource):
-    method_decorators = [require_api_key]
+class NefeleResource(ResourceBase):
+    table = "nefele_jobs"
+    order_by = "created_at DESC"
+
+    def build_GET_conditions(self):
+        conditions = []
+        if status := request.args.get('status'):
+            conditions.append(('status', '=', status))
+        if scan_id := request.args.get('scan_id'):
+            conditions.append(('scan_id', '=', scan_id))
+        return conditions
 
     def post(self):
         data = request.get_json(silent=True) or {}
@@ -77,27 +87,6 @@ class NefeleResource(Resource):
         except Exception as e:
             logger.error(f"nefele create failed: {e}")
             return {'error': str(e)}, 500
-
-    def get(self):
-        status   = request.args.get('status')
-        scan_id  = request.args.get('scan_id')
-        page     = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 50))
-        offset   = (page - 1) * per_page
-
-        sql, params = "SELECT * FROM nefele_jobs WHERE 1=1", []
-        if status:
-            sql += " AND status = %s";  params.append(status)
-        if scan_id:
-            sql += " AND scan_id = %s"; params.append(scan_id)
-        sql += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
-        params += [per_page, offset]
-
-        with get_db_connection() as conn, conn.cursor() as cur:
-            cur.execute(sql, tuple(params))
-            cols = [c[0] for c in cur.description]
-            rows = [_row_to_dict(cols, r) for r in cur.fetchall()]
-        return jsonify(rows)
 
 
 class NefeleJobResource(Resource):
