@@ -10,6 +10,10 @@ from services.database import get_db_connection
 logger = logging.getLogger(__name__)
 
 
+class BadRequest(Exception):
+    """Raised when the client's input is invalid."""
+
+
 class ResourceBase(Resource):
     method_decorators = [require_api_key]
     required_attributes = ("table",)
@@ -77,6 +81,8 @@ class ResourceBase(Resource):
                     results.append(row_dict)
 
             return results, 200
+        except BadRequest as e:
+            return {'error': str(e)}, 400
         except Exception as e:
             logger.error(f"Error fetching {self.table}: {e}")
             return {'error': 'Internal server error'}, 500
