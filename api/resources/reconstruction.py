@@ -1,5 +1,4 @@
-from flask import request, jsonify
-from flask_restful import Resource
+from flask import request
 from werkzeug.utils import secure_filename
 from datetime import datetime, timezone
 import uuid
@@ -8,7 +7,7 @@ import os
 import logging
 import shutil
 
-from middleware.security import require_api_key
+from resources.resource_base import ResourceBase
 from services.database import get_db_connection
 from services.storage import (
     minio_client,
@@ -52,55 +51,38 @@ RECONSTRUCTION_AVRO_SCHEMA = """
 }
 """
 
-class ReconstructionResource(Resource):
-    method_decorators = [require_api_key]
 
-    def get(self):
-        """
-        Retrieve reconstructions from the Read-Database (populated by Kafka).
-        """
-        conn = None
-        try:
-            scan_id = request.args.get('scan_id')
-            page = int(request.args.get('page', 1))
-            per_page = int(request.args.get('per_page', 50))
-            offset = (page - 1) * per_page
+class ReconstructionResource(ResourceBase):
+    avro_schema = """
+    {
+        "type": "record",
+        "name": "Reconstruction",
+        "namespace": "com.textailes.reconstruction",
+        "fields": [
+            {"name": "object_id", "type": "string"},
+            {"name": "scan_id", "type": "string"},
+            {"name": "filename", "type": "string"},
+            {"name": "model_location", "type": ["null", "string"], "default": null},
+            {"name": "texture_location", "type": ["null", "string"], "default": null},
+            {"name": "material_location", "type": ["null", "string"], "default": null},
+            {"name": "glb_location", "type": ["null", "string"], "default": null},
+            {"name": "public_url_model", "type": ["null", "string"], "default": null},
+            {"name": "public_url_texture", "type": ["null", "string"], "default": null},
+            {"name": "public_url_material", "type": ["null", "string"], "default": null},
+            {"name": "public_url_glb", "type": ["null", "string"], "default": null},
+            {"name": "timestamp", "type": "string"},
+            {"name": "artifact_id", "type": ["null", "string"], "default": null}
+        ]
+    }
+    """
+    table = "reconstructions"
+    order_by = "timestamp DESC"
 
-            sql = "SELECT * FROM reconstructions WHERE 1=1"
-            params = []
-
-            if scan_id:
-                sql += " AND scan_id = %s"
-                params.append(scan_id)
-
-            sql += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
-            params.extend([per_page, offset])
-
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute(sql, tuple(params))
-
-            rows = cur.fetchall()
-            results = []
-            if cur.description:
-                colnames = [desc[0] for desc in cur.description]
-                for row in rows:
-                    row_dict = {}
-                    for col, val in zip(colnames, row):
-                        if isinstance(val, datetime):
-                            row_dict[col] = val.isoformat()
-                        else:
-                            row_dict[col] = val
-                    results.append(row_dict)
-
-            cur.close()
-            conn.close()
-            return jsonify(results)
-
-        except Exception as e:
-            logger.error(f"Error fetching reconstructions: {e}")
-            if conn: conn.close()
-            return {'error': "Reconstructions not available yet (Kafka Sync pending) or DB Error."}, 500
+    def build_GET_conditions(self):
+        conditions = []
+        if scan_id := request.args.get('scan_id'):
+            conditions.append(('scan_id', '=', scan_id))
+        return conditions
 
     def post(self):
         files = request.files.getlist('file')
