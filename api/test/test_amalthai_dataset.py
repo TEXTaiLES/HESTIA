@@ -47,7 +47,8 @@ def mock_db(mocker):
         cur.description = description
 
         conn.cursor.return_value = cur
-        mocker.patch('resources.amalthai_dataset.get_db_connection', return_value=conn)
+        for target in ('resources.amalthai_dataset', 'resources.resource_base'):
+            mocker.patch(f'{target}.get_db_connection', return_value=conn)
         return conn, cur
     return _factory
 

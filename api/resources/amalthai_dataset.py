@@ -5,17 +5,15 @@ stored as a single canonical archive blob in the ``amalthai-datasets`` bucket;
 metadata + a manifest live in the ``amalthai_datasets`` table.
 """
 from flask import request, jsonify
-from flask_restful import Resource
 from minio.error import S3Error
 import uuid
 import json
 import logging
 
-from middleware.security import require_api_key
 from services.database import get_db_connection
+from resources.resource_base import ResourceBase, BadRequest
 from services.storage import build_public_url, MINIO_AMALTHAI_DATASETS_BUCKET
 from resources.amalthai_common import (
-    rows_to_dicts,
     fetch_one_dict,
     upload_filestorage,
     stream_object,
@@ -29,8 +27,10 @@ def _fetch_dataset(cur, dataset_id):
     return fetch_one_dict(cur)
 
 
-class AmalthaiDatasetResource(Resource):
-    method_decorators = [require_api_key]
+class AmalthaiDatasetResource(ResourceBase):
+    table = "amalthai_datasets"
+    order_by = "created_at DESC"
+    per_page_default = 100
 
     def post(self):
         """Register (or upsert) a dataset by (owner_slug, mode, name)."""
@@ -75,33 +75,21 @@ class AmalthaiDatasetResource(Resource):
             logger.error(f"amalthai dataset create failed: {e}")
             return {'error': str(e)}, 500
 
-    def get(self):
-        """List / resolve datasets, scoped to an owner."""
+    def build_GET_conditions(self):
         owner_slug = request.args.get('owner_slug')
         if not owner_slug:
-            return {'error': "owner_slug is required"}, 400
-        mode = request.args.get('mode')
-        name = request.args.get('name')
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 100))
-        offset = (page - 1) * per_page
+            raise BadRequest('owner_slug is required')
 
-        sql, params = "SELECT * FROM amalthai_datasets WHERE owner_slug = %s", [owner_slug]
-        if mode:
-            sql += " AND mode = %s"; params.append(mode)
-        if name:
-            sql += " AND name = %s"; params.append(name)
-        sql += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
-        params += [per_page, offset]
-
-        with get_db_connection() as conn, conn.cursor() as cur:
-            cur.execute(sql, tuple(params))
-            rows = rows_to_dicts(cur)
-        return jsonify(rows)
+        conditions = [('owner_slug', '=', owner_slug)]
+        if mode := request.args.get('mode'):
+            conditions.append(('mode', '=', mode))
+        if name := request.args.get('name'):
+            conditions.append(('name', '=', name))
+        return conditions
 
 
-class AmalthaiDatasetItemResource(Resource):
-    method_decorators = [require_api_key]
+class AmalthaiDatasetItemResource(ResourceBase):
+    table = "amalthai_datasets"
 
     def get(self, dataset_id):
         with get_db_connection() as conn, conn.cursor() as cur:
@@ -111,8 +99,8 @@ class AmalthaiDatasetItemResource(Resource):
         return jsonify(row)
 
 
-class AmalthaiDatasetArchiveResource(Resource):
-    method_decorators = [require_api_key]
+class AmalthaiDatasetArchiveResource(ResourceBase):
+    table = "amalthai_datasets"
 
     def post(self, dataset_id):
         """Upload the canonical dataset archive blob (tar.gz/zip)."""
