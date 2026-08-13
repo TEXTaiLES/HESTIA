@@ -1,12 +1,10 @@
 from flask import request, jsonify
-from flask_restful import Resource
 from datetime import datetime, timezone
 import uuid
-import os
 import json
 import logging
 
-from middleware.security import require_api_key
+from resources.resource_base import ResourceBase, BadRequest
 from services.database import get_db_connection
 from services.messaging import (
     send_avro_message,
@@ -39,54 +37,51 @@ ANNOTATION_AVRO_SCHEMA = """
 """
 
 
-class AnnotationResource(Resource):
-    method_decorators = [require_api_key]
+class AnnotationResource(ResourceBase):
+    avro_schema = """
+    {
+        "type": "record",
+        "name": "Annotation",
+        "namespace": "com.textailes.annotation",
+        "fields": [
+            {"name": "scene_id", "type": "string"},
+            {"name": "object_id", "type": "string"},
+            {"name": "public_url", "type": ["null", "string"], "default": null},
+            {"name": "location", "type": ["null", "string"], "default": null},
+            {"name": "collaborative", "type": "boolean", "default": false},
+            {"name": "content", "type": ["null", "string"], "default": null},
+            {"name": "linked_objects", "type": ["null", "string"], "default": null},
+            {"name": "timestamp", "type": "string"},
+            {"name": "artifact_id", "type": ["null", "string"], "default": null}
+        ]
+    }
+    """
+    table = "annotations"
+    order_by = "timestamp DESC"
+
+    def build_GET_conditions(self):
+        conditions = []
+        if object_id := request.args.get('object_id'):
+            conditions.append(('object_id', '=', object_id))
+        return conditions
 
     def get(self):
         """Retrieve annotations/scenes from DB (populated by Kafka Sink)."""
         conn = None
         try:
-            conn = get_db_connection()
-            cur = conn.cursor()
+            payload, status_code = super().get()
+            if status_code != 200:
+                return payload, status_code
+            if payload:
+                return {'scenes': payload}, 200
+            return payload, 204
 
-            object_id = request.args.get('object_id')
-            page = int(request.args.get('page', 1))
-            per_page = int(request.args.get('per_page', 50))
-            offset = (page - 1) * per_page
-
-            sql = "SELECT * FROM annotations WHERE 1=1"
-            params: list = []
-
-            if object_id:
-                sql += " AND object_id = %s"
-                params.append(object_id)
-
-            sql += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
-            params.extend([per_page, offset])
-
-            cur.execute(sql, tuple(params))
-            rows: list[tuple] = cur.fetchall()
-
-            results = []
-            if cur.description:
-                colnames = [desc[0] for desc in cur.description]
-                for row in rows:
-                    row_dict = dict(zip(colnames, row))
-
-                    for k, v in row_dict.items():
-                        if isinstance(v, datetime):
-                            row_dict[k] = v.isoformat()
-                    results.append(row_dict)
-
-                cur.close()
-                conn.close()
-                return {'scenes': results}, 200 if results else 204
-
-            if object_id:
+            if object_id := request.args.get('object_id'):
                 sql = "SELECT * FROM reconstructions WHERE object_id = %s"
-                cur.execute(sql, (object_id,))
-                if cur.description is None:
-                    return {'error': f"Object '{object_id}' does not exist."}, 400
+                with get_db_connection() as conn, conn.cursor() as cur:
+                    cur.execute(sql, (object_id,))
+                    if cur.description is None:
+                        raise BadRequest(f"Object '{object_id}' does not exist.")
 
                 row = cur.fetchone()
 
@@ -127,7 +122,7 @@ class AnnotationResource(Resource):
                 }
 
                 # Verify with Avro
-                if not send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, ANNOTATION_AVRO_SCHEMA):
+                if not send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, self.avro_schema):
                     raise Exception("Failed to verify with Avro")
 
                 # Insert/Update record in DB
@@ -152,9 +147,13 @@ class AnnotationResource(Resource):
                     'data': record
                 }, 201
 
+        except BadRequest as e:
+            return {'error': str(e)}, 400
         except Exception as e:
-            if conn: conn.close()
             return {'error': str(e)}, 500
+        finally:
+            if conn:
+                conn.close()
 
     def post(self):
         scene_data = request.get_json()
