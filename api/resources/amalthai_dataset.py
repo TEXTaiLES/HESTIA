@@ -95,7 +95,7 @@ class AmalthaiDatasetItemResource(ResourceBase):
         with get_db_connection() as conn, conn.cursor() as cur:
             row = _fetch_dataset(cur, dataset_id)
         if row is None:
-            return {'error': f"dataset {dataset_id} not found"}, 404
+            return {'error': f"dataset {dataset_id} not found"}, 404  # NOTE: Maybe this should return 400 (BadRequest)?
         return jsonify(row)
 
 
