@@ -1,12 +1,11 @@
-from flask import request, jsonify
-from flask_restful import Resource
+from flask import request
 from datetime import datetime, timezone
 import uuid
 import io
 import json
 import logging
 
-from middleware.security import require_api_key
+from resources.resource_base import ResourceBase
 from services.database import get_db_connection
 from services.storage import (
     minio_client,
@@ -42,64 +41,32 @@ ROBOT_AVRO_SCHEMA = """
 """
 
 
-class RobotImageResource(Resource):
-    method_decorators = [require_api_key]
+class RobotImageResource(ResourceBase):
+    avro_schema = """
+    {
+        "type": "record",
+        "name": "RobotImage",
+        "namespace": "com.textailes.robot",
+        "fields": [
+            {"name": "image_id", "type": "string"},
+            {"name": "scan_id", "type": "string"},
+            {"name": "filename", "type": "string"},
+            {"name": "location", "type": "string"},
+            {"name": "public_url", "type": ["null", "string"], "default": null},
+            {"name": "timestamp", "type": "string"},
+            {"name": "robot_pose", "type": ["null", "string"], "default": null},
+            {"name": "artifact_id", "type": ["null", "string"], "default": null}
+        ]
+    }
+    """
+    table = "robot_images"
+    order_by = "timestamp ASC"
 
-    def get(self):
-        """
-        Retrieve robot images.
-
-        Query Params:
-            scan_id (str): The Batch/Scan ID.
-            page (int): Pagination page.
-            per_page (int): Items per page.
-        """
-        conn = None
-        try:
-            scan_id = request.args.get('scan_id')
-            try:
-                page = int(request.args.get('page', 1))
-                per_page = int(request.args.get('per_page', 50))
-            except ValueError:
-                return {'error': 'Page and per_page must be integers'}, 400
-            offset = (page - 1) * per_page
-
-            # Base Query
-            sql = "SELECT * FROM robot_images WHERE 1=1"
-            params = []
-
-            if scan_id:
-                sql += " AND scan_id = %s"
-                params.append(scan_id)
-
-            sql += " ORDER BY timestamp ASC LIMIT %s OFFSET %s"
-            params.extend([per_page, offset])
-
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute(sql, tuple(params))
-
-            rows = cur.fetchall()
-            results = []
-            if cur.description:
-                colnames = [desc[0] for desc in cur.description]
-                for row in rows:
-                    row_dict = {}
-                    for col, val in zip(colnames, row):
-                        if isinstance(val, datetime):
-                            row_dict[col] = val.isoformat()
-                        else:
-                            row_dict[col] = val
-                    results.append(row_dict)
-
-            cur.close()
-            conn.close()
-            return jsonify(results)
-
-        except Exception as e:
-            logger.error(f"Error fetching robot images: {e}")
-            if conn: conn.close()
-            return {'error': str(e)}, 500
+    def build_GET_conditions(self):
+        conditions = []
+        if scan_id := request.args.get('scan_id'):
+            conditions.append(('scan_id', '=', scan_id))
+        return conditions
 
     def post(self):
         files = request.files.getlist('file')

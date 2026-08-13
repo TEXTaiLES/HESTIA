@@ -151,7 +151,7 @@ class TestGet:
         conn, cur = mock_db(description=self._description())
         client.get(URL, headers=auth_headers)
 
-        cur.close.assert_called_once()
+        cur.__exit__.assert_called_once()
         conn.close.assert_called_once()
 
     # A DB connection failure is caught by the outer try and surfaces as a 500.
