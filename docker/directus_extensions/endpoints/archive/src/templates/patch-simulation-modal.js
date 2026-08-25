@@ -96,12 +96,12 @@ export const renderPatchSimulationModal = () => `
                     \${valueUnitPairHtmlForSide('Poisson Ratio', 'poissonRatio', '', '')}
                 </div>
                 <div class="row g-3 mb-2">
-                    \${valueUnitPairHtmlForSide('Yarn Radius', 'yarnRadius', '', '')}
-                    \${valueUnitPairHtmlForSide('Yarn Radius Ratio', 'yarnRadiusRatio', '', '')}
+                    \${valueUnitPairHtmlForSide('Thread Radius', 'yarnRadius', '', '')}
+                    \${valueUnitPairHtmlForSide('Thread Radius Ratio', 'yarnRadiusRatio', '', '')}
                 </div>
                 <div class="row g-3">
-                    \${valueUnitPairHtmlForSide('Yarn Count Per Distance', 'yarnCountPerDistance', '', '')}
-                    \${valueUnitPairHtmlForSide('Yarn Friction', 'yarnFriction', '', '')}
+                    \${valueUnitPairHtmlForSide('Thread Count Per Distance', 'yarnCountPerDistance', '', '')}
+                    \${valueUnitPairHtmlForSide('Thread Friction', 'yarnFriction', '', '')}
                 </div>
             </div>
         </div>\`;

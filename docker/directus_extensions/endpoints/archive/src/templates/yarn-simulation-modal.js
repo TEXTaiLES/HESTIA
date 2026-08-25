@@ -12,7 +12,7 @@ export const renderYarnSimulationModal = () => `
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="yarnSimulationModalLabel">Yarn Simulation</h5>
+                <h5 class="modal-title" id="yarnSimulationModalLabel">Thread Simulation</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -23,13 +23,13 @@ export const renderYarnSimulationModal = () => `
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Structure Type</label>
-                            <input type="text" class="form-control" name="structureType" value="Yarn" required>
+                            <input type="text" class="form-control" name="structureType" value="Thread" required>
                         </div>
                     </div>
 
                     <div class="row g-3 mb-3">
-                        ${renderValueUnitPair('Yarn Friction', 'yarnFriction', '', '1')}
-                        ${renderValueUnitPair('Yarn Adhesion', 'yarnAdhesion', '', '1')}
+                        ${renderValueUnitPair('Thread Friction', 'yarnFriction', '', '1')}
+                        ${renderValueUnitPair('Thread Adhesion', 'yarnAdhesion', '', '1')}
                     </div>
 
                     <div class="row g-3 mb-3">
@@ -289,8 +289,13 @@ export const renderYarnSimulationModal = () => `
             simulationInput['inputLevel' + (idx + 1)] = readLevel(card);
         });
 
+        // Display label is "Thread" but the DynaMo simulator's IO.json schema
+        // still requires structureType='Yarn'; translate on the way out.
+        const rawStructureType = str(fd.get('structureType')) || 'Thread';
+        const structureType = rawStructureType === 'Thread' ? 'Yarn' : rawStructureType;
+
         return {
-            structureType: str(fd.get('structureType')) || 'Yarn',
+            structureType: structureType,
             simulationInput: simulationInput,
         };
     }

@@ -196,7 +196,7 @@ ${renderNavbar('collections', true)}
                         <i class="fas fa-edit"></i> Annotate with THOTH
                     </button>
                     <button type="button" class="btn btn-red" data-bs-toggle="modal" data-bs-target="#yarnSimulationModal">
-                        <i class="fas fa-layer-group"></i> Yarn Simulation
+                        <i class="fas fa-layer-group"></i> Thread Simulation
                     </button>
                     <button type="button" class="btn btn-red" data-bs-toggle="modal" data-bs-target="#patchSimulationModal">
                         <i class="fas fa-th"></i> Patch Simulation
@@ -216,7 +216,7 @@ ${renderNavbar('collections', true)}
 
             <!-- Yarn Simulation Visualization (renders when ?yarn_simulation=<id> is set or a recent submission exists in sessionStorage) -->
             <div id="yarnVisualizationSection" class="mt-4" style="display:none;">
-                <h4 class="border-bottom pb-2">Yarn Simulation Result</h4>
+                <h4 class="border-bottom pb-2">Thread Simulation Result</h4>
                 <div class="text-muted small mb-2">
                     Simulation ID: <code id="yarnVisualizationSimId">—</code>
                     <span id="yarnVisualizationStatus" class="ms-2"></span>
