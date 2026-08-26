@@ -216,8 +216,13 @@ ${renderNavbar('collections', true)}
 
             <!-- Yarn Simulation Visualization (renders when ?yarn_simulation=<id> is set or a recent submission exists in sessionStorage) -->
             <div id="yarnVisualizationSection" class="mt-4" style="display:none;">
-                <h4 class="border-bottom pb-2">Thread Simulation Result</h4>
-                <div class="text-muted small mb-2">
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-2">
+                    <h4 class="mb-0">Thread Simulation Result</h4>
+                    <a id="yarnDownloadBtn" href="#" class="btn btn-sm btn-outline-secondary" style="display:none;" download>
+                        <i class="fas fa-download"></i> Download
+                    </a>
+                </div>
+                <div class="text-muted small mt-2 mb-2">
                     Simulation ID: <code id="yarnVisualizationSimId">—</code>
                     <span id="yarnVisualizationStatus" class="ms-2"></span>
                 </div>
@@ -242,8 +247,11 @@ ${renderNavbar('collections', true)}
                     const idEl = document.getElementById('yarnVisualizationSimId');
                     const statusEl = document.getElementById('yarnVisualizationStatus');
                     const viewerEl = document.getElementById('yarnVisualizationViewer');
+                    const dlBtn = document.getElementById('yarnDownloadBtn');
                     section.style.display = '';
                     idEl.textContent = simId;
+                    dlBtn.href = '/archive/dynamo/yarn-simulations/' + encodeURIComponent(simId) + '/download.zip';
+                    dlBtn.style.display = '';
 
                     function setStatus(html) { statusEl.innerHTML = html; }
                     function showSpinner(msg) {
@@ -341,8 +349,13 @@ ${renderNavbar('collections', true)}
 
             <!-- Patch Simulation Visualization (renders when ?patch_simulation=<id> is set or a recent submission exists in sessionStorage) -->
             <div id="patchVisualizationSection" class="mt-4" style="display:none;">
-                <h4 class="border-bottom pb-2">Patch Simulation Result</h4>
-                <div class="text-muted small mb-2">
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-2">
+                    <h4 class="mb-0">Patch Simulation Result</h4>
+                    <a id="patchDownloadBtn" href="#" class="btn btn-sm btn-outline-secondary" style="display:none;" download>
+                        <i class="fas fa-download"></i> Download
+                    </a>
+                </div>
+                <div class="text-muted small mt-2 mb-2">
                     Simulation ID: <code id="patchVisualizationSimId">—</code>
                     <span id="patchVisualizationStatus" class="ms-2"></span>
                 </div>
@@ -373,8 +386,11 @@ ${renderNavbar('collections', true)}
                     const statusEl = document.getElementById('patchVisualizationStatus');
                     const viewerEl = document.getElementById('patchVisualizationViewer');
                     const selectEl = document.getElementById('patchExperimentSelect');
+                    const dlBtn = document.getElementById('patchDownloadBtn');
                     section.style.display = '';
                     idEl.textContent = simId;
+                    dlBtn.href = '/archive/dynamo/patch-simulations/' + encodeURIComponent(simId) + '/download.zip';
+                    dlBtn.style.display = '';
 
                     function setStatus(html) { statusEl.innerHTML = html; }
                     function showError(msg) { setStatus('<span class="text-danger">' + msg + '</span>'); }

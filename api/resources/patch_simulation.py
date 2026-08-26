@@ -6,6 +6,7 @@ from minio.error import S3Error
 import io
 import json
 import uuid
+import zipfile
 import logging
 
 from middleware.security import require_api_key
@@ -613,3 +614,64 @@ class PatchSimulationVisualizationResource(Resource):
             if conn:
                 conn.close()
             return {'error': str(e)}, 500
+
+
+# ---------- download resource ----------
+
+class PatchSimulationDownloadResource(Resource):
+    """
+    GET /dynamo/patch-simulations/<simulation_id>/download.zip
+
+    Returns a ZIP bundle with:
+      - simulation.json — the full sim record (input + output, hydrated)
+      
+    """
+    method_decorators = [require_api_key]
+
+    def get(self, simulation_id):
+        conn = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT * FROM dynamo.patch_simulation_input WHERE simulation_id = %s",
+                (simulation_id,)
+            )
+            input_row = _row_to_dict(cur, cur.fetchone())
+            if not input_row:
+                cur.close()
+                conn.close()
+                return {'error': f"Simulation '{simulation_id}' not found"}, 404
+
+            cur.execute(
+                "SELECT * FROM dynamo.patch_simulation_output WHERE simulation_id = %s",
+                (simulation_id,)
+            )
+            output_row = _row_to_dict(cur, cur.fetchone())
+            if output_row:
+                output_row.pop('simulation_id', None)
+
+            cur.close()
+            conn.close()
+
+            input_row['simulation_id'] = str(input_row['simulation_id'])
+            record = _hydrate_record(input_row, output_row)
+        except Exception as e:
+            logger.error(f"[patch-download] fetch failed for {simulation_id}: {e}")
+            if conn:
+                conn.close()
+            return {'error': str(e)}, 500
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('simulation.json', json.dumps(record, indent=2, default=str))
+
+        return Response(
+            buf.getvalue(),
+            status=200,
+            mimetype='application/zip',
+            headers={
+                'Content-Disposition': f'attachment; filename="patch-simulation-{simulation_id}.zip"',
+                'Cache-Control': 'no-store',
+            },
+        )

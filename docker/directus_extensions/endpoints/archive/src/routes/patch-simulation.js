@@ -4,6 +4,7 @@
  * - POST /dynamo/patch-simulations                                  → JSON proxy (form submission)
  * - GET  /dynamo/patch-simulations/:id                              → JSON proxy (status + output)
  * - GET  /assets/patch-simulation/:id/visualization/:experiment.glb → streams the per-experiment morph GLB
+ * - GET  /dynamo/patch-simulations/:id/download.zip                 → streams the simulation ZIP
  *
  * Patch produces 6 distinct OBJ animations (inplane11, inplane22, inplane12,
  * bending11, bending22, bending12); the page picks one at a time via a selector.
@@ -105,6 +106,35 @@ export default (router, { services }) => {
 		);
 		upstream.on('error', (err) => {
 			console.error('[patch-simulation] GLB proxy error:', err);
+			if (!res.headersSent) {
+				res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
+			} else {
+				res.end();
+			}
+		});
+		upstream.end();
+	});
+
+	// Download ZIP (simulation.json only for now; polar-plot PNGs land here once
+	// the new DynaMo schema is in place). Streamed and the Content-Disposition
+	// is forwarded so the browser triggers a save dialog.
+	router.get('/dynamo/patch-simulations/:simulation_id/download.zip', (req, res) => {
+		const { simulation_id } = req.params;
+		const upstreamPath = `/dynamo/patch-simulations/${encodeURIComponent(simulation_id)}/download.zip`;
+		const upstream = http.request(
+			`http://${API_INTERNAL}${upstreamPath}`,
+			{ method: 'GET', headers: { Authorization: `Bearer ${API_SECRET_KEY}` } },
+			(apiRes) => {
+				res.status(apiRes.statusCode || 502);
+				res.set('Content-Type', apiRes.headers['content-type'] || 'application/zip');
+				if (apiRes.headers['content-disposition']) res.set('Content-Disposition', apiRes.headers['content-disposition']);
+				if (apiRes.headers['content-length']) res.set('Content-Length', apiRes.headers['content-length']);
+				res.set('Cache-Control', 'no-store');
+				apiRes.pipe(res);
+			}
+		);
+		upstream.on('error', (err) => {
+			console.error('[patch-simulation] download.zip proxy error:', err);
 			if (!res.headersSent) {
 				res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
 			} else {

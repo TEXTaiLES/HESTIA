@@ -7,6 +7,7 @@ import io
 import json
 import re
 import uuid
+import zipfile
 import logging
 
 from middleware.security import require_api_key
@@ -21,6 +22,7 @@ from services.messaging import (
 )
 from services.storage import minio_client, MINIO_YARN_SIMULATION_BUCKET
 from services.yarn_visualization import build_morph_target_glb
+from services.simulation_plots import render_force_elongation_png
 
 logger = logging.getLogger(__name__)
 
@@ -720,3 +722,88 @@ class YarnSimulationVisualizationResource(Resource):
             if conn:
                 conn.close()
             return {'error': str(e)}, 500
+
+
+# ---------- download resource ----------
+
+class YarnSimulationDownloadResource(Resource):
+    """
+    GET /dynamo/yarn-simulations/<simulation_id>/download.zip
+
+    Returns a ZIP bundle with:
+      - simulation.json         — the full sim record (input + output, hydrated)
+      - force_elongation.png    — matplotlib-rendered curve (omitted if arrays missing/empty)
+
+    Rendered at request time from the DB row; no MinIO caching (the ZIP is small
+    and the plot is cheap). 
+    """
+    method_decorators = [require_api_key]
+
+    def get(self, simulation_id):
+        conn = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT * FROM dynamo.yarn_simulation_input WHERE simulation_id = %s",
+                (simulation_id,)
+            )
+            input_row = _row_to_dict(cur, cur.fetchone())
+            if not input_row:
+                cur.close()
+                conn.close()
+                return {'error': f"Simulation '{simulation_id}' not found"}, 404
+
+            cur.execute(
+                "SELECT * FROM dynamo.yarn_simulation_input_level WHERE simulation_id = %s ORDER BY level_number ASC",
+                (simulation_id,)
+            )
+            level_rows = _rows_to_dicts(cur, cur.fetchall())
+            for lvl in level_rows:
+                lvl.pop('simulation_id', None)
+                lvl.pop('level_id', None)
+
+            cur.execute(
+                "SELECT * FROM dynamo.yarn_simulation_output WHERE simulation_id = %s",
+                (simulation_id,)
+            )
+            output_row = _row_to_dict(cur, cur.fetchone())
+            if output_row:
+                output_row.pop('simulation_id', None)
+
+            cur.close()
+            conn.close()
+
+            input_row['simulation_id'] = str(input_row['simulation_id'])
+            record = _hydrate_record(input_row, level_rows, output_row)
+        except Exception as e:
+            logger.error(f"[yarn-download] fetch failed for {simulation_id}: {e}")
+            if conn:
+                conn.close()
+            return {'error': str(e)}, 500
+
+        sim_output = record.get('simulationOutput') or {}
+        elongations_obj = sim_output.get('elongations') or {}
+        forces_obj = sim_output.get('forces') or {}
+        png_bytes = render_force_elongation_png(
+            elongations_obj.get('value'),
+            forces_obj.get('value'),
+            elongation_unit=elongations_obj.get('unit') or '%',
+            force_unit=forces_obj.get('unit') or 'N',
+        )
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('simulation.json', json.dumps(record, indent=2, default=str))
+            if png_bytes:
+                zf.writestr('force_elongation.png', png_bytes)
+
+        return Response(
+            buf.getvalue(),
+            status=200,
+            mimetype='application/zip',
+            headers={
+                'Content-Disposition': f'attachment; filename="yarn-simulation-{simulation_id}.zip"',
+                'Cache-Control': 'no-store',
+            },
+        )

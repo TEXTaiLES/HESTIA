@@ -7,6 +7,10 @@
  *        Thin proxy to GET /dynamo/yarn-simulations/:id/visualization.glb on
  *        the Flask API, which builds (and caches in MinIO) a single GLB with
  *        morph-target animation from every OBJ in visualizationFiles.
+ * - GET  /dynamo/yarn-simulations/:id/download.zip
+ *        Thin proxy to GET /dynamo/yarn-simulations/:id/download.zip on
+ *        the Flask API, which generates a ZIP containing simulation.json
+ *        and force_elongation.png.
  */
 
 import { userIsAuthenticated } from '../utils/auth.js';
@@ -106,6 +110,34 @@ export default (router, { services }) => {
 		);
 		upstream.on('error', (err) => {
 			console.error('[yarn-simulation] visualization.glb proxy error:', err);
+			if (!res.headersSent) {
+				res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
+			} else {
+				res.end();
+			}
+		});
+		upstream.end();
+	});
+
+	// Download ZIP (simulation.json + force_elongation.png). Streamed and the
+	// Content-Disposition is forwarded so the browser triggers a save dialog.
+	router.get('/dynamo/yarn-simulations/:simulation_id/download.zip', (req, res) => {
+		const { simulation_id } = req.params;
+		const upstreamPath = `/dynamo/yarn-simulations/${encodeURIComponent(simulation_id)}/download.zip`;
+		const upstream = http.request(
+			`http://${API_INTERNAL}${upstreamPath}`,
+			{ method: 'GET', headers: { Authorization: `Bearer ${API_SECRET_KEY}` } },
+			(apiRes) => {
+				res.status(apiRes.statusCode || 502);
+				res.set('Content-Type', apiRes.headers['content-type'] || 'application/zip');
+				if (apiRes.headers['content-disposition']) res.set('Content-Disposition', apiRes.headers['content-disposition']);
+				if (apiRes.headers['content-length']) res.set('Content-Length', apiRes.headers['content-length']);
+				res.set('Cache-Control', 'no-store');
+				apiRes.pipe(res);
+			}
+		);
+		upstream.on('error', (err) => {
+			console.error('[yarn-simulation] download.zip proxy error:', err);
 			if (!res.headersSent) {
 				res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
 			} else {
