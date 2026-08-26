@@ -222,6 +222,12 @@ ${renderNavbar('collections', true)}
                     <span id="yarnVisualizationStatus" class="ms-2"></span>
                 </div>
                 <div id="yarnVisualizationViewer" style="height: 500px;"></div>
+                <div id="yarnForceElongationWrapper" class="mt-3" style="display:none;">
+                    <h6 class="text-muted mb-2">Force-Elongation Diagram</h6>
+                    <div style="position:relative; height:320px;">
+                        <canvas id="yarnForceElongationChart"></canvas>
+                    </div>
+                </div>
             </div>
 
             <script>
@@ -257,6 +263,55 @@ ${renderNavbar('collections', true)}
                         setStatus('<span class="text-success">Ready</span>');
                     }
 
+                    function renderForceElongationChart(out) {
+                        const elongations = (out.elongations && out.elongations.value) || [];
+                        const forces = (out.forces && out.forces.value) || [];
+                        if (!elongations.length || !forces.length || elongations.length !== forces.length) return;
+                        if (typeof Chart === 'undefined') {
+                            console.warn('Chart.js not loaded; skipping Force-Elongation chart.');
+                            return;
+                        }
+                        const elongationUnit = (out.elongations && out.elongations.unit) || '%';
+                        const forceUnit = (out.forces && out.forces.unit) || 'N';
+                        const points = elongations.map((e, i) => ({ x: e, y: forces[i] }));
+
+                        document.getElementById('yarnForceElongationWrapper').style.display = '';
+                        const ctx = document.getElementById('yarnForceElongationChart').getContext('2d');
+                        new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                datasets: [{
+                                    label: 'Force',
+                                    data: points,
+                                    borderColor: '#d62728',
+                                    backgroundColor: 'rgba(214, 39, 40, 0.1)',
+                                    borderWidth: 2,
+                                    pointRadius: 3,
+                                    pointHoverRadius: 5,
+                                    tension: 0.2,
+                                    fill: false,
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: (c) => 'Force: ' + c.parsed.y.toFixed(3) + ' ' + forceUnit
+                                                + ' at elongation ' + c.parsed.x.toFixed(3) + ' ' + elongationUnit
+                                        }
+                                    }
+                                },
+                                scales: {
+                                    x: { type: 'linear', title: { display: true, text: 'Elongation (' + elongationUnit + ')' } },
+                                    y: { title: { display: true, text: 'Force (' + forceUnit + ')' } }
+                                }
+                            }
+                        });
+                    }
+
                     showSpinner('Checking simulation status...');
                     // cache-bust so a stale 304 from before the simulator
                     // patched the output doesn't make us think it's still pending.
@@ -272,8 +327,10 @@ ${renderNavbar('collections', true)}
                             const files = (out && out.visualizationFiles) || [];
                             if (out && out.simulationCompleted && files.length > 0) {
                                 renderViewer();
+                                renderForceElongationChart(out);
                             } else if (out && out.simulationCompleted) {
                                 showError('Simulation completed but produced no visualization files.');
+                                renderForceElongationChart(out);
                             } else {
                                 setStatus('<i class="fas fa-hourglass-half"></i> Simulation pending — reload when ready.');
                             }
@@ -668,6 +725,7 @@ ${renderFooter()}`;
 				title: `${artefact.title || 'Artefact'} - Digital TEXTaiLES Archive`,
 				content,
 				includeModelViewer: true,
+				includeChartJs: true,
 				bodyClass: 'id="artefact" tabindex="0"',
 				cspPolicy: CSP_POLICY
 			});

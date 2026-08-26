@@ -27,7 +27,7 @@ export const renderFooter = () => `
     </div>
 </footer>`;
 
-export const renderHtmlPage = ({ title, content, includeModelViewer = false, bodyClass = '', cspPolicy = '' }) => `<!DOCTYPE html>
+export const renderHtmlPage = ({ title, content, includeModelViewer = false, includeChartJs = false, bodyClass = '', cspPolicy = '' }) => `<!DOCTYPE html>
 <html lang="en" dir="ltr" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
@@ -44,6 +44,7 @@ export const renderHtmlPage = ({ title, content, includeModelViewer = false, bod
     <link type="text/css" href="/archive/static/css/style.css" rel="stylesheet">
     <link type="text/css" href="/archive/static/css/hero.css" rel="stylesheet">
     ${includeModelViewer ? '<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>' : ''}
+    ${includeChartJs ? '<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>' : ''}
 </head>
 <body${bodyClass ? ` ${bodyClass}` : ''}>
 
