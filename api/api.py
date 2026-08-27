@@ -16,7 +16,7 @@ from resources.thumbnail import ThumbnailResource
 from resources.nefele_job import NefeleResource, NefeleJobResource, NefeleClaimResource, NefelePreviewResource
 # TODO: restoration.py is not yet on this branch — restore from portal/improvement before re-enabling.
 # from resources.restoration import RestorationResource
-from resources.yarn_simulation import YarnSimulationResource, YarnSimulationItemResource, YarnSimulationVisualizationResource, YarnSimulationDownloadResource
+from resources.thread_simulation import ThreadSimulationResource, ThreadSimulationItemResource, ThreadSimulationVisualizationResource, ThreadSimulationDownloadResource
 from resources.patch_simulation import PatchSimulationResource, PatchSimulationItemResource, PatchSimulationVisualizationResource, PatchSimulationDownloadResource
 
 # Setup
@@ -57,10 +57,10 @@ api.add_resource(NefeleJobResource, '/nefele/<string:job_id>')
 api.add_resource(NefeleClaimResource, '/nefele/claim')
 api.add_resource(NefelePreviewResource, '/nefele/<string:job_id>/preview')
 # api.add_resource(RestorationResource, '/restorations')
-api.add_resource(YarnSimulationResource, '/dynamo/yarn-simulations')
-api.add_resource(YarnSimulationItemResource, '/dynamo/yarn-simulations/<string:simulation_id>')
-api.add_resource(YarnSimulationVisualizationResource, '/dynamo/yarn-simulations/<string:simulation_id>/visualization.glb')
-api.add_resource(YarnSimulationDownloadResource, '/dynamo/yarn-simulations/<string:simulation_id>/download.zip')
+api.add_resource(ThreadSimulationResource, '/dynamo/thread-simulations')
+api.add_resource(ThreadSimulationItemResource, '/dynamo/thread-simulations/<string:simulation_id>')
+api.add_resource(ThreadSimulationVisualizationResource, '/dynamo/thread-simulations/<string:simulation_id>/visualization.glb')
+api.add_resource(ThreadSimulationDownloadResource, '/dynamo/thread-simulations/<string:simulation_id>/download.zip')
 api.add_resource(PatchSimulationResource, '/dynamo/patch-simulations')
 api.add_resource(PatchSimulationItemResource, '/dynamo/patch-simulations/<string:simulation_id>')
 api.add_resource(PatchSimulationVisualizationResource, '/dynamo/patch-simulations/<string:simulation_id>/visualization/<string:experiment>.glb')

@@ -19,7 +19,7 @@ from services.messaging import (
     TOPIC_DYNAMO_PATCH_SIMULATION_UPLOADED,
 )
 from services.storage import minio_client, MINIO_PATCH_SIMULATION_BUCKET
-from services.yarn_visualization import build_morph_target_glb
+from services.simulation_visualization import build_morph_target_glb
 
 logger = logging.getLogger(__name__)
 
@@ -27,16 +27,14 @@ INPUT_FILTERABLE_FIELDS = {'simulation_id', 'structure_type', 'weave_pattern'}
 
 # Pairs of (JSON side key, DB column prefix) for the warp/weft sub-objects.
 SIDES = (('warpInput', 'warp'), ('weftInput', 'weft'))
-# {unit, value} fields inside each side.
-# `yarnFriction` is required by DynaMo's PatchStructure (see YarnParameters in
-# TEXTaiLES_DynaMo_Tool.py — accesses dictWarpIn["yarnFriction"]["value"])
-# even though it is missing from the published patch schema. We carry it on
-# our side so submissions don't crash the simulator with a KeyError.
+# {unit, value} fields inside each side. Radius→Diameter rename in the new
+# schema (yarnDiameterRatio semantics also flipped: it's now major/minor axis
+# ratio capped at 1, where 1 = perfect circle).
 SIDE_UV_FIELDS = (
     ('youngsModulus', 'youngs_modulus'),
     ('poissonRatio', 'poisson_ratio'),
-    ('yarnRadius', 'yarn_radius'),
-    ('yarnRadiusRatio', 'yarn_radius_ratio'),
+    ('yarnDiameter', 'yarn_diameter'),
+    ('yarnDiameterRatio', 'yarn_diameter_ratio'),
     ('yarnCountPerDistance', 'yarn_count_per_distance'),
     ('yarnFriction', 'yarn_friction'),
 )
@@ -48,6 +46,17 @@ VIZ_KEYS = (
     'visualizationFiles_bending11',
     'visualizationFiles_bending22',
     'visualizationFiles_bending12',
+)
+# Homogenized stiffness metrics + polar-plot arrays added in the new schema.
+# Stored per-field as (unit TEXT, values JSONB). Value shape is always an
+# array of floats; the two `effective*` arrays are 4 floats (tensor
+# components), the plot arrays match plotDataAngles in length.
+STIFFNESS_OUTPUT_FIELDS = (
+    ('effectiveExtensionalStiffness', 'effective_extensional_stiffness'),
+    ('effectiveBendingStiffness',     'effective_bending_stiffness'),
+    ('plotDataAngles',                'plot_data_angles'),
+    ('plotDataExtensionalStiffness',  'plot_data_extensional_stiffness'),
+    ('plotDataBendingStiffness',      'plot_data_bending_stiffness'),
 )
 
 
@@ -69,10 +78,10 @@ INPUT_AVRO_SCHEMA = """
         {"name": "warp_youngs_modulus_unit", "type": ["null", "string"], "default": null},
         {"name": "warp_poisson_ratio_value", "type": ["null", "float"], "default": null},
         {"name": "warp_poisson_ratio_unit", "type": ["null", "string"], "default": null},
-        {"name": "warp_yarn_radius_value", "type": ["null", "float"], "default": null},
-        {"name": "warp_yarn_radius_unit", "type": ["null", "string"], "default": null},
-        {"name": "warp_yarn_radius_ratio_value", "type": ["null", "float"], "default": null},
-        {"name": "warp_yarn_radius_ratio_unit", "type": ["null", "string"], "default": null},
+        {"name": "warp_yarn_diameter_value", "type": ["null", "float"], "default": null},
+        {"name": "warp_yarn_diameter_unit", "type": ["null", "string"], "default": null},
+        {"name": "warp_yarn_diameter_ratio_value", "type": ["null", "float"], "default": null},
+        {"name": "warp_yarn_diameter_ratio_unit", "type": ["null", "string"], "default": null},
         {"name": "warp_yarn_count_per_distance_value", "type": ["null", "float"], "default": null},
         {"name": "warp_yarn_count_per_distance_unit", "type": ["null", "string"], "default": null},
         {"name": "warp_yarn_friction_value", "type": ["null", "float"], "default": null},
@@ -82,10 +91,10 @@ INPUT_AVRO_SCHEMA = """
         {"name": "weft_youngs_modulus_unit", "type": ["null", "string"], "default": null},
         {"name": "weft_poisson_ratio_value", "type": ["null", "float"], "default": null},
         {"name": "weft_poisson_ratio_unit", "type": ["null", "string"], "default": null},
-        {"name": "weft_yarn_radius_value", "type": ["null", "float"], "default": null},
-        {"name": "weft_yarn_radius_unit", "type": ["null", "string"], "default": null},
-        {"name": "weft_yarn_radius_ratio_value", "type": ["null", "float"], "default": null},
-        {"name": "weft_yarn_radius_ratio_unit", "type": ["null", "string"], "default": null},
+        {"name": "weft_yarn_diameter_value", "type": ["null", "float"], "default": null},
+        {"name": "weft_yarn_diameter_unit", "type": ["null", "string"], "default": null},
+        {"name": "weft_yarn_diameter_ratio_value", "type": ["null", "float"], "default": null},
+        {"name": "weft_yarn_diameter_ratio_unit", "type": ["null", "string"], "default": null},
         {"name": "weft_yarn_count_per_distance_value", "type": ["null", "float"], "default": null},
         {"name": "weft_yarn_count_per_distance_unit", "type": ["null", "string"], "default": null},
         {"name": "weft_yarn_friction_value", "type": ["null", "float"], "default": null},
@@ -111,6 +120,16 @@ OUTPUT_AVRO_SCHEMA = """
         {"name": "visualization_files_bending11", "type": ["null", "string"], "default": null},
         {"name": "visualization_files_bending22", "type": ["null", "string"], "default": null},
         {"name": "visualization_files_bending12", "type": ["null", "string"], "default": null},
+        {"name": "effective_extensional_stiffness_unit", "type": ["null", "string"], "default": null},
+        {"name": "effective_extensional_stiffness_values", "type": ["null", "string"], "default": null},
+        {"name": "effective_bending_stiffness_unit", "type": ["null", "string"], "default": null},
+        {"name": "effective_bending_stiffness_values", "type": ["null", "string"], "default": null},
+        {"name": "plot_data_angles_unit", "type": ["null", "string"], "default": null},
+        {"name": "plot_data_angles_values", "type": ["null", "string"], "default": null},
+        {"name": "plot_data_extensional_stiffness_unit", "type": ["null", "string"], "default": null},
+        {"name": "plot_data_extensional_stiffness_values", "type": ["null", "string"], "default": null},
+        {"name": "plot_data_bending_stiffness_unit", "type": ["null", "string"], "default": null},
+        {"name": "plot_data_bending_stiffness_values", "type": ["null", "string"], "default": null},
         {"name": "updated_at", "type": "string"}
     ]
 }
@@ -195,6 +214,13 @@ def _hydrate_record(input_row, output_row):
         for viz_key in VIZ_KEYS:
             col = viz_key.replace('visualizationFiles_', 'visualization_files_')
             simulation_output[viz_key] = output_row.get(col) or []
+        for json_key, db_prefix in STIFFNESS_OUTPUT_FIELDS:
+            unit = output_row.get(f'{db_prefix}_unit')
+            values = output_row.get(f'{db_prefix}_values')
+            if unit is None and values is None:
+                simulation_output[json_key] = None
+            else:
+                simulation_output[json_key] = {'unit': unit, 'value': values or []}
 
     return {
         'simulation_id': input_row['simulation_id'],
@@ -339,6 +365,9 @@ class PatchSimulationResource(Resource):
             }
             for viz_key in VIZ_KEYS:
                 empty_output_event[viz_key.replace('visualizationFiles_', 'visualization_files_')] = None
+            for _json_key, db_prefix in STIFFNESS_OUTPUT_FIELDS:
+                empty_output_event[f'{db_prefix}_unit'] = None
+                empty_output_event[f'{db_prefix}_values'] = None
             if not send_avro_message(
                 TOPIC_DYNAMO_PATCH_SIMULATION_OUTPUTS, simulation_id, empty_output_event, OUTPUT_AVRO_SCHEMA
             ):
@@ -415,7 +444,12 @@ class PatchSimulationItemResource(Resource):
             visualizationFiles_inplane12: [...],
             visualizationFiles_bending11: [...],
             visualizationFiles_bending22: [...],
-            visualizationFiles_bending12: [...]
+            visualizationFiles_bending12: [...],
+            effectiveExtensionalStiffness: {unit, value:[4 floats]},
+            effectiveBendingStiffness:     {unit, value:[4 floats]},
+            plotDataAngles:                {unit, value:[floats]},
+            plotDataExtensionalStiffness:  {unit, value:[floats]},
+            plotDataBendingStiffness:      {unit, value:[floats]}
           }
         Any subset of these fields can be provided.
         """
@@ -431,6 +465,11 @@ class PatchSimulationItemResource(Resource):
             if viz_key in sim_output:
                 col = viz_key.replace('visualizationFiles_', 'visualization_files_')
                 update_fields[col] = Json(sim_output[viz_key])
+        for json_key, db_prefix in STIFFNESS_OUTPUT_FIELDS:
+            if json_key in sim_output:
+                stiff = sim_output[json_key] or {}
+                update_fields[f'{db_prefix}_unit'] = stiff.get('unit')
+                update_fields[f'{db_prefix}_values'] = Json(stiff.get('value'))
         if 'simulationError' in sim_output:
             update_fields['simulation_error'] = sim_output['simulationError']
 
@@ -471,6 +510,10 @@ class PatchSimulationItemResource(Resource):
                 col = viz_key.replace('visualizationFiles_', 'visualization_files_')
                 val = refreshed.get(col)
                 output_event[col] = json.dumps(val) if val is not None else None
+            for _json_key, db_prefix in STIFFNESS_OUTPUT_FIELDS:
+                output_event[f'{db_prefix}_unit'] = refreshed.get(f'{db_prefix}_unit')
+                values = refreshed.get(f'{db_prefix}_values')
+                output_event[f'{db_prefix}_values'] = json.dumps(values) if values is not None else None
 
             if not send_avro_message(
                 TOPIC_DYNAMO_PATCH_SIMULATION_OUTPUTS, simulation_id, output_event, OUTPUT_AVRO_SCHEMA

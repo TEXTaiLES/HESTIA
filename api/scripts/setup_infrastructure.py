@@ -13,7 +13,7 @@ from services.storage import (
     MINIO_ROBOT_BUCKET,
     MINIO_RECONSTRUCTION_BUCKET,
     MINIO_NEFELE_BUCKET,
-    MINIO_YARN_SIMULATION_BUCKET,
+    MINIO_THREAD_SIMULATION_BUCKET,
     MINIO_PATCH_SIMULATION_BUCKET,
 )
 
@@ -93,60 +93,61 @@ def run_migrations():
         logger.info("Migration: nefele_jobs table ensured.")
 
         # Dynamo (numerical simulation) tables — kept in their own Postgres schema.
-        logger.info("Migration: Ensuring dynamo schema and yarn-simulation tables exist.")
+        logger.info("Migration: Ensuring dynamo schema exists.")
         cur.execute("CREATE SCHEMA IF NOT EXISTS dynamo;")
+
+        # Yarn → Thread migration. The old yarn_simulation_* tables have no
+        # column-level counterpart in the new Thread schema (per-level cores +
+        # outers replaced by a single structureInput block), so we drop them
+        # entirely and start fresh. Any dev data on these tables is discarded.
+        logger.info("Migration: Dropping legacy yarn_simulation_* tables.")
+        cur.execute("DROP TABLE IF EXISTS dynamo.yarn_simulation_output CASCADE;")
+        cur.execute("DROP TABLE IF EXISTS dynamo.yarn_simulation_input_level CASCADE;")
+        cur.execute("DROP TABLE IF EXISTS dynamo.yarn_simulation_input CASCADE;")
+
+        # Thread simulation tables — new flat schema (TEXTaiLES_DynaMo_Thread.scheme.json).
+        # Ply-level columns are nullable and only populated when hierarchy_level = 2.
+        logger.info("Migration: Ensuring dynamo thread-simulation tables exist.")
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS dynamo.yarn_simulation_input (
+            CREATE TABLE IF NOT EXISTS dynamo.thread_simulation_input (
                 simulation_id UUID PRIMARY KEY,
-                structure_type TEXT NOT NULL DEFAULT 'Yarn',
-                yarn_level_count INTEGER NOT NULL,
-                yarn_friction_value REAL,
-                yarn_friction_unit TEXT,
-                yarn_adhesion_value REAL,
-                yarn_adhesion_unit TEXT,
+                structure_type TEXT NOT NULL DEFAULT 'Thread',
+                friction_value REAL,
+                friction_unit TEXT,
+                adhesion_value REAL,
+                adhesion_unit TEXT,
                 discretization_period_count INTEGER,
                 discretization_nodes_per_period_count INTEGER,
                 applied_elongation_value REAL,
                 applied_elongation_unit TEXT,
+                hierarchy_level INTEGER NOT NULL,
+                thread_total_diameter_value REAL,
+                thread_total_diameter_unit TEXT,
+                thread_twist_direction TEXT,
+                thread_pitch_value REAL,
+                thread_pitch_unit TEXT,
+                thread_fold_count INTEGER,
+                single_yarn_diameter_value REAL,
+                single_yarn_diameter_unit TEXT,
+                single_yarn_material TEXT,
+                single_yarn_youngs_modulus_value REAL,
+                single_yarn_youngs_modulus_unit TEXT,
+                single_yarn_poisson_ratio_value REAL,
+                single_yarn_poisson_ratio_unit TEXT,
+                ply_total_diameter_value REAL,
+                ply_total_diameter_unit TEXT,
+                ply_twist_direction TEXT,
+                ply_pitch_value REAL,
+                ply_pitch_unit TEXT,
+                ply_fold_count INTEGER,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS dynamo.yarn_simulation_input_level (
-                level_id UUID PRIMARY KEY,
-                simulation_id UUID NOT NULL
-                    REFERENCES dynamo.yarn_simulation_input(simulation_id) ON DELETE CASCADE,
-                level_number INTEGER NOT NULL,
-                substructure_count INTEGER,
-                twist_core TEXT,
-                pitch_core_value REAL,
-                pitch_core_unit TEXT,
-                material_core TEXT,
-                youngs_modulus_core_value REAL,
-                youngs_modulus_core_unit TEXT,
-                poisson_ratio_core_value REAL,
-                poisson_ratio_core_unit TEXT,
-                radius_core_value REAL,
-                radius_core_unit TEXT,
-                outer_strand_count INTEGER,
-                twist_outer TEXT,
-                pitch_outer_value REAL,
-                pitch_outer_unit TEXT,
-                material_outer TEXT,
-                youngs_modulus_outer_value REAL,
-                youngs_modulus_outer_unit TEXT,
-                poisson_ratio_outer_value REAL,
-                poisson_ratio_outer_unit TEXT,
-                radius_outer_value REAL,
-                radius_outer_unit TEXT,
-                UNIQUE (simulation_id, level_number)
-            );
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS dynamo.yarn_simulation_output (
+            CREATE TABLE IF NOT EXISTS dynamo.thread_simulation_output (
                 simulation_id UUID PRIMARY KEY
-                    REFERENCES dynamo.yarn_simulation_input(simulation_id) ON DELETE CASCADE,
+                    REFERENCES dynamo.thread_simulation_input(simulation_id) ON DELETE CASCADE,
                 simulation_completed BOOLEAN NOT NULL DEFAULT FALSE,
                 elongations_unit TEXT,
                 elongations_values JSONB,
@@ -157,13 +158,11 @@ def run_migrations():
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
-        # Backfill column on existing deployments (added when the dynamo simulator
-        # link was wired up; lets the consumer record a failure marker on crashes).
-        cur.execute("ALTER TABLE dynamo.yarn_simulation_output ADD COLUMN IF NOT EXISTS simulation_error TEXT;")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_yarn_sim_input_level_simulation ON dynamo.yarn_simulation_input_level(simulation_id);")
 
         # Dynamo patch-simulation tables — 2 tables: warp/weft are fixed sides,
         # flattened into warp_* / weft_* column prefixes (no child table).
+        # New Patch schema renames Radius→Diameter and adds 5 output arrays
+        # for stiffness metrics + polar plot data.
         logger.info("Migration: Ensuring dynamo patch-simulation tables exist.")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS dynamo.patch_simulation_input (
@@ -177,10 +176,10 @@ def run_migrations():
                 warp_youngs_modulus_unit TEXT,
                 warp_poisson_ratio_value REAL,
                 warp_poisson_ratio_unit TEXT,
-                warp_yarn_radius_value REAL,
-                warp_yarn_radius_unit TEXT,
-                warp_yarn_radius_ratio_value REAL,
-                warp_yarn_radius_ratio_unit TEXT,
+                warp_yarn_diameter_value REAL,
+                warp_yarn_diameter_unit TEXT,
+                warp_yarn_diameter_ratio_value REAL,
+                warp_yarn_diameter_ratio_unit TEXT,
                 warp_yarn_count_per_distance_value REAL,
                 warp_yarn_count_per_distance_unit TEXT,
                 warp_yarn_friction_value REAL,
@@ -190,10 +189,10 @@ def run_migrations():
                 weft_youngs_modulus_unit TEXT,
                 weft_poisson_ratio_value REAL,
                 weft_poisson_ratio_unit TEXT,
-                weft_yarn_radius_value REAL,
-                weft_yarn_radius_unit TEXT,
-                weft_yarn_radius_ratio_value REAL,
-                weft_yarn_radius_ratio_unit TEXT,
+                weft_yarn_diameter_value REAL,
+                weft_yarn_diameter_unit TEXT,
+                weft_yarn_diameter_ratio_value REAL,
+                weft_yarn_diameter_ratio_unit TEXT,
                 weft_yarn_count_per_distance_value REAL,
                 weft_yarn_count_per_distance_unit TEXT,
                 weft_yarn_friction_value REAL,
@@ -214,14 +213,43 @@ def run_migrations():
                 visualization_files_bending11 JSONB,
                 visualization_files_bending22 JSONB,
                 visualization_files_bending12 JSONB,
+                effective_extensional_stiffness_unit TEXT,
+                effective_extensional_stiffness_values JSONB,
+                effective_bending_stiffness_unit TEXT,
+                effective_bending_stiffness_values JSONB,
+                plot_data_angles_unit TEXT,
+                plot_data_angles_values JSONB,
+                plot_data_extensional_stiffness_unit TEXT,
+                plot_data_extensional_stiffness_values JSONB,
+                plot_data_bending_stiffness_unit TEXT,
+                plot_data_bending_stiffness_values JSONB,
                 simulation_error TEXT,
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         """)
-        # Backfill columns on existing deployments (added alongside the dynamo
-        # patch-simulator link). yarnFriction per side is required by DynaMo
-        # but missing from the published schema; simulation_error matches the
-        # yarn output table.
+        # Patch column renames on existing deployments: yarn_radius → yarn_diameter.
+        # Idempotent: only rename if the old name still exists AND the new one
+        # doesn't (so re-running the migration is a no-op).
+        cur.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_schema='dynamo' AND table_name='patch_simulation_input'
+        """)
+        existing_patch_cols = {r[0] for r in cur.fetchall()}
+        for side in ('warp', 'weft'):
+            for stem in ('yarn_radius_value', 'yarn_radius_unit',
+                         'yarn_radius_ratio_value', 'yarn_radius_ratio_unit'):
+                old_col = f'{side}_{stem}'
+                new_col = old_col.replace('yarn_radius', 'yarn_diameter')
+                if old_col in existing_patch_cols and new_col not in existing_patch_cols:
+                    cur.execute(f'ALTER TABLE dynamo.patch_simulation_input RENAME COLUMN {old_col} TO {new_col};')
+                    logger.info(f'Migration: renamed dynamo.patch_simulation_input.{old_col} → {new_col}')
+        # Patch: backfill new stiffness output columns on existing deployments.
+        for stem in ('effective_extensional_stiffness', 'effective_bending_stiffness',
+                     'plot_data_angles', 'plot_data_extensional_stiffness',
+                     'plot_data_bending_stiffness'):
+            cur.execute(f'ALTER TABLE dynamo.patch_simulation_output ADD COLUMN IF NOT EXISTS {stem}_unit TEXT;')
+            cur.execute(f'ALTER TABLE dynamo.patch_simulation_output ADD COLUMN IF NOT EXISTS {stem}_values JSONB;')
+        # Backfill for yarnFriction + simulation_error on existing deployments.
         cur.execute("ALTER TABLE dynamo.patch_simulation_input ADD COLUMN IF NOT EXISTS warp_yarn_friction_value REAL;")
         cur.execute("ALTER TABLE dynamo.patch_simulation_input ADD COLUMN IF NOT EXISTS warp_yarn_friction_unit TEXT;")
         cur.execute("ALTER TABLE dynamo.patch_simulation_input ADD COLUMN IF NOT EXISTS weft_yarn_friction_value REAL;")
@@ -255,9 +283,9 @@ def setup_minio():
     init_minio_bucket(MINIO_NEFELE_BUCKET)
     set_public_read_policy(MINIO_NEFELE_BUCKET)
 
-    # Setup Yarn Simulation outputs (Public)
-    init_minio_bucket(MINIO_YARN_SIMULATION_BUCKET)
-    set_public_read_policy(MINIO_YARN_SIMULATION_BUCKET)
+    # Setup Thread Simulation outputs (Public)
+    init_minio_bucket(MINIO_THREAD_SIMULATION_BUCKET)
+    set_public_read_policy(MINIO_THREAD_SIMULATION_BUCKET)
 
     # Setup Patch Simulation outputs (Public)
     init_minio_bucket(MINIO_PATCH_SIMULATION_BUCKET)
@@ -278,9 +306,8 @@ def register_connectors():
         "restoration-sink.json",
         "restoration-media-sink.json",
         "restoration-result-sink.json",
-        "dynamo-yarn-simulation-sink.json",
-        "dynamo-yarn-simulation-level-sink.json",
-        "dynamo-yarn-simulation-output-sink.json",
+        "dynamo-thread-simulation-sink.json",
+        "dynamo-thread-simulation-output-sink.json",
         "dynamo-patch-simulation-sink.json",
         "dynamo-patch-simulation-output-sink.json"
     ]
