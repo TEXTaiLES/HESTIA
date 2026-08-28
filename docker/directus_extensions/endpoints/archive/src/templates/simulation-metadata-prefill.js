@@ -9,8 +9,11 @@
  *
  * Naming contract — no explicit map:
  *   - Top-level inputs   → looked up by `name="<metaKey>"` or `name="<metaKey>_value"/_unit"`
- *   - Yarn level fields  → looked up by `data-field="<metaKey>"` on each .yarn-level-card
  *   - Patch side fields  → looked up by `data-field="<metaKey>"` on each .patch-side-card
+ *
+ * The Thread modal has no repeating cards (flat form since the new
+ * hierarchyLevel schema replaced the old inputLevelN structure), so its
+ * helper only walks the top-level form.
  *
  * Metadata value shapes accepted:
  *   - { unit: "...", value: ... }  → fills value-unit pair inputs
@@ -92,21 +95,12 @@ export const renderSimulationMetadataPrefillScript = () => `
     }
 
     window.HestiaMetaPrefill = {
-        applyYarn: function (form) {
-            applyPrefill(form, window.HESTIA_PHYSICS_METADATA || {}, '.yarn-level-card');
+        applyThread: function (form) {
+            // Thread form is flat — no repeating cards.
+            applyPrefill(form, window.HESTIA_PHYSICS_METADATA || {}, null);
         },
         applyPatch: function (form) {
             applyPrefill(form, window.HESTIA_PHYSICS_METADATA || {}, '.patch-side-card');
-        },
-        // Called by addLevel() to prefill a newly added yarn level card.
-        applyYarnLevelCard: function (card) {
-            const meta = window.HESTIA_PHYSICS_METADATA || {};
-            if (!card) return;
-            for (const [key, val] of Object.entries(meta)) {
-                const isUv = val && typeof val === 'object' && ('unit' in val || 'value' in val);
-                if (isUv) fillValueUnitInCard(card, key, val);
-                else fillScalarInCard(card, key, val);
-            }
         },
     };
 })();

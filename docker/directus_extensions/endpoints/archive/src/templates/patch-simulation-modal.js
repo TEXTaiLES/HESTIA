@@ -96,8 +96,8 @@ export const renderPatchSimulationModal = () => `
                     \${valueUnitPairHtmlForSide('Poisson Ratio', 'poissonRatio', '', '')}
                 </div>
                 <div class="row g-3 mb-2">
-                    \${valueUnitPairHtmlForSide('Thread Radius', 'yarnRadius', '', '')}
-                    \${valueUnitPairHtmlForSide('Thread Radius Ratio', 'yarnRadiusRatio', '', '')}
+                    \${valueUnitPairHtmlForSide('Thread Diameter', 'yarnDiameter', '', '')}
+                    \${valueUnitPairHtmlForSide('Thread Diameter Ratio', 'yarnDiameterRatio', '', '')}
                 </div>
                 <div class="row g-3">
                     \${valueUnitPairHtmlForSide('Thread Count Per Distance', 'yarnCountPerDistance', '', '')}
@@ -150,8 +150,8 @@ export const renderPatchSimulationModal = () => `
             material: get('material'),
             youngsModulus: get('youngsModulus'),
             poissonRatio: get('poissonRatio'),
-            yarnRadius: get('yarnRadius'),
-            yarnRadiusRatio: get('yarnRadiusRatio'),
+            yarnDiameter: get('yarnDiameter'),
+            yarnDiameterRatio: get('yarnDiameterRatio'),
             yarnCountPerDistance: get('yarnCountPerDistance'),
             yarnFriction: get('yarnFriction'),
         };

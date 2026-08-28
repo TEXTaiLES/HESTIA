@@ -1,13 +1,16 @@
 /**
- * Patch Simulation Routes
+ * Thread Simulation Routes
  *
- * - POST /dynamo/patch-simulations                                  → JSON proxy (form submission)
- * - GET  /dynamo/patch-simulations/:id                              → JSON proxy (status + output)
- * - GET  /assets/patch-simulation/:id/visualization/:experiment.glb → streams the per-experiment morph GLB
- * - GET  /dynamo/patch-simulations/:id/download.zip                 → streams the simulation ZIP
- *
- * Patch produces 6 distinct OBJ animations (inplane11, inplane22, inplane12,
- * bending11, bending22, bending12); the page picks one at a time via a selector.
+ * - POST /dynamo/thread-simulations           → proxy to Flask API (form submission)
+ * - GET  /dynamo/thread-simulations/:id       → proxy to Flask API (status + output)
+ * - GET  /assets/thread-simulation/:id/visualization.glb
+ *        Thin proxy to GET /dynamo/thread-simulations/:id/visualization.glb on
+ *        the Flask API, which builds (and caches in MinIO) a single GLB with
+ *        morph-target animation from every OBJ in visualizationFiles.
+ * - GET  /dynamo/thread-simulations/:id/download.zip
+ *        Thin proxy to GET /dynamo/thread-simulations/:id/download.zip on
+ *        the Flask API, which generates a ZIP containing simulation.json
+ *        and force_elongation.png.
  */
 
 import { userIsAuthenticated } from '../utils/auth.js';
@@ -55,48 +58,49 @@ function apiRequestBuffered(method, pathname, { body = null } = {}) {
 export default (router, { services }) => {
 	const { AuthenticationService } = services;
 
-	router.post('/dynamo/patch-simulations', async (req, res) => {
+	router.post('/dynamo/thread-simulations', async (req, res) => {
 		try {
 			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
 			if (!isAuthenticated) return res.status(401).json({ error: 'Not authenticated' });
 
 			const body = await readBody(req);
-			const result = await apiRequestBuffered('POST', '/dynamo/patch-simulations', { body });
+			const result = await apiRequestBuffered('POST', '/dynamo/thread-simulations', { body });
 			res.status(result.statusCode || 502);
 			res.set('Content-Type', result.headers['content-type'] || 'application/json');
 			res.send(result.body);
 		} catch (err) {
-			console.error('[patch-simulation] POST error:', err);
+			console.error('[thread-simulation] POST error:', err);
 			res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
 		}
 	});
 
-	router.get('/dynamo/patch-simulations/:simulation_id', async (req, res) => {
+	router.get('/dynamo/thread-simulations/:simulation_id', async (req, res) => {
 		try {
 			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
 			if (!isAuthenticated) return res.status(401).json({ error: 'Not authenticated' });
 			const { simulation_id } = req.params;
-			const result = await apiRequestBuffered('GET', `/dynamo/patch-simulations/${encodeURIComponent(simulation_id)}`);
+			const result = await apiRequestBuffered('GET', `/dynamo/thread-simulations/${encodeURIComponent(simulation_id)}`);
 			res.status(result.statusCode || 502);
 			res.set('Content-Type', result.headers['content-type'] || 'application/json');
 			res.send(result.body);
 		} catch (err) {
-			console.error('[patch-simulation] GET error:', err);
+			console.error('[thread-simulation] GET error:', err);
 			res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
 		}
 	});
 
-	// Stream a per-experiment morph-target GLB. Mirror of the thread endpoint:
-	// keeps response streaming so the first chunk hits the browser as soon as
-	// the API has it; build+cache happens on the API side.
-	router.get('/assets/patch-simulation/:simulation_id/visualization/:experiment.glb', (req, res) => {
-		const { simulation_id, experiment } = req.params;
-		const upstreamPath = `/dynamo/patch-simulations/${encodeURIComponent(simulation_id)}/visualization/${encodeURIComponent(experiment)}.glb`;
+	// Stream the morph-target GLB. May be large (tens of MB) — stream rather
+	// than buffer so the first chunk hits the browser as soon as it leaves
+	// the API. Build/cache lives on the API side.
+	router.get('/assets/thread-simulation/:simulation_id/visualization.glb', (req, res) => {
+		const { simulation_id } = req.params;
+		const upstreamPath = `/dynamo/thread-simulations/${encodeURIComponent(simulation_id)}/visualization.glb`;
 		const upstream = http.request(
 			`http://${API_INTERNAL}${upstreamPath}`,
 			{ method: 'GET', headers: { Authorization: `Bearer ${API_SECRET_KEY}` } },
 			(apiRes) => {
 				res.status(apiRes.statusCode || 502);
+				// Forward content-type and cache headers; default to GLB mimetype.
 				res.set('Content-Type', apiRes.headers['content-type'] || 'model/gltf-binary');
 				if (apiRes.headers['cache-control']) res.set('Cache-Control', apiRes.headers['cache-control']);
 				if (apiRes.headers['content-length']) res.set('Content-Length', apiRes.headers['content-length']);
@@ -105,7 +109,7 @@ export default (router, { services }) => {
 			}
 		);
 		upstream.on('error', (err) => {
-			console.error('[patch-simulation] GLB proxy error:', err);
+			console.error('[thread-simulation] visualization.glb proxy error:', err);
 			if (!res.headersSent) {
 				res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
 			} else {
@@ -115,12 +119,11 @@ export default (router, { services }) => {
 		upstream.end();
 	});
 
-	// Download ZIP (simulation.json only for now; polar-plot PNGs land here once
-	// the new DynaMo schema is in place). Streamed and the Content-Disposition
-	// is forwarded so the browser triggers a save dialog.
-	router.get('/dynamo/patch-simulations/:simulation_id/download.zip', (req, res) => {
+	// Download ZIP (simulation.json + force_elongation.png). Streamed and the
+	// Content-Disposition is forwarded so the browser triggers a save dialog.
+	router.get('/dynamo/thread-simulations/:simulation_id/download.zip', (req, res) => {
 		const { simulation_id } = req.params;
-		const upstreamPath = `/dynamo/patch-simulations/${encodeURIComponent(simulation_id)}/download.zip`;
+		const upstreamPath = `/dynamo/thread-simulations/${encodeURIComponent(simulation_id)}/download.zip`;
 		const upstream = http.request(
 			`http://${API_INTERNAL}${upstreamPath}`,
 			{ method: 'GET', headers: { Authorization: `Bearer ${API_SECRET_KEY}` } },
@@ -134,7 +137,7 @@ export default (router, { services }) => {
 			}
 		);
 		upstream.on('error', (err) => {
-			console.error('[patch-simulation] download.zip proxy error:', err);
+			console.error('[thread-simulation] download.zip proxy error:', err);
 			if (!res.headersSent) {
 				res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
 			} else {

@@ -330,7 +330,7 @@ def build_morph_target_glb(obj_texts: list[str]) -> bytes:
             'weights': [0.0] * morph_count,
         }],
         'animations': [{
-            'name': 'yarn-deformation',
+            'name': 'deformation',
             'channels': [{
                 'sampler': 0,
                 'target': {'node': 0, 'path': 'weights'}

@@ -4,7 +4,7 @@ import { renderLoginPage } from '../templates/login.js';
 import { render401Page } from '../templates/error.js';
 import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
-import { renderYarnSimulationModal } from '../templates/yarn-simulation-modal.js';
+import { renderThreadSimulationModal } from '../templates/thread-simulation-modal.js';
 import { renderPatchSimulationModal } from '../templates/patch-simulation-modal.js';
 import { renderSimulationMetadataPrefillScript } from '../templates/simulation-metadata-prefill.js';
 
@@ -195,7 +195,7 @@ ${renderNavbar('collections', true)}
                     <button onclick="annotateWithThoth(${artefact.id})" class="btn btn-red">
                         <i class="fas fa-edit"></i> Annotate with THOTH
                     </button>
-                    <button type="button" class="btn btn-red" data-bs-toggle="modal" data-bs-target="#yarnSimulationModal">
+                    <button type="button" class="btn btn-red" data-bs-toggle="modal" data-bs-target="#threadSimulationModal">
                         <i class="fas fa-layer-group"></i> Thread Simulation
                     </button>
                     <button type="button" class="btn btn-red" data-bs-toggle="modal" data-bs-target="#patchSimulationModal">
@@ -211,26 +211,26 @@ ${renderNavbar('collections', true)}
             <script>window.HESTIA_PHYSICS_METADATA = ${JSON.stringify(extractPhysicsMetadata(artefact))};</script>
             ${renderSimulationMetadataPrefillScript()}
 
-            ${renderYarnSimulationModal()}
+            ${renderThreadSimulationModal()}
             ${renderPatchSimulationModal()}
 
-            <!-- Yarn Simulation Visualization (renders when ?yarn_simulation=<id> is set or a recent submission exists in sessionStorage) -->
-            <div id="yarnVisualizationSection" class="mt-4" style="display:none;">
+            <!-- Thread Simulation Visualization (renders when ?thread_simulation=<id> is set or a recent submission exists in sessionStorage) -->
+            <div id="threadVisualizationSection" class="mt-4" style="display:none;">
                 <div class="d-flex justify-content-between align-items-center border-bottom pb-2">
                     <h4 class="mb-0">Thread Simulation Result</h4>
-                    <a id="yarnDownloadBtn" href="#" class="btn btn-sm btn-outline-secondary" style="display:none;" download>
+                    <a id="threadDownloadBtn" href="#" class="btn btn-sm btn-outline-secondary" style="display:none;" download>
                         <i class="fas fa-download"></i> Download
                     </a>
                 </div>
                 <div class="text-muted small mt-2 mb-2">
-                    Simulation ID: <code id="yarnVisualizationSimId">—</code>
-                    <span id="yarnVisualizationStatus" class="ms-2"></span>
+                    Simulation ID: <code id="threadVisualizationSimId">—</code>
+                    <span id="threadVisualizationStatus" class="ms-2"></span>
                 </div>
-                <div id="yarnVisualizationViewer" style="height: 500px;"></div>
-                <div id="yarnForceElongationWrapper" class="mt-3" style="display:none;">
+                <div id="threadVisualizationViewer" style="height: 500px;"></div>
+                <div id="threadForceElongationWrapper" class="mt-3" style="display:none;">
                     <h6 class="text-muted mb-2">Force-Elongation Diagram</h6>
                     <div style="position:relative; height:320px;">
-                        <canvas id="yarnForceElongationChart"></canvas>
+                        <canvas id="threadForceElongationChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -239,18 +239,18 @@ ${renderNavbar('collections', true)}
                 (function () {
                     const ARTEFACT_ID = ${artefact.id};
                     const params = new URLSearchParams(window.location.search);
-                    const simId = params.get('yarn_simulation')
-                        || sessionStorage.getItem('yarn_simulation_' + ARTEFACT_ID);
+                    const simId = params.get('thread_simulation')
+                        || sessionStorage.getItem('thread_simulation_' + ARTEFACT_ID);
                     if (!simId) return;
 
-                    const section = document.getElementById('yarnVisualizationSection');
-                    const idEl = document.getElementById('yarnVisualizationSimId');
-                    const statusEl = document.getElementById('yarnVisualizationStatus');
-                    const viewerEl = document.getElementById('yarnVisualizationViewer');
-                    const dlBtn = document.getElementById('yarnDownloadBtn');
+                    const section = document.getElementById('threadVisualizationSection');
+                    const idEl = document.getElementById('threadVisualizationSimId');
+                    const statusEl = document.getElementById('threadVisualizationStatus');
+                    const viewerEl = document.getElementById('threadVisualizationViewer');
+                    const dlBtn = document.getElementById('threadDownloadBtn');
                     section.style.display = '';
                     idEl.textContent = simId;
-                    dlBtn.href = '/archive/dynamo/yarn-simulations/' + encodeURIComponent(simId) + '/download.zip';
+                    dlBtn.href = '/archive/dynamo/thread-simulations/' + encodeURIComponent(simId) + '/download.zip';
                     dlBtn.style.display = '';
 
                     function setStatus(html) { statusEl.innerHTML = html; }
@@ -262,10 +262,10 @@ ${renderNavbar('collections', true)}
                         setStatus('<span class="text-danger">' + msg + '</span>');
                     }
                     function renderViewer() {
-                        const url = '/archive/assets/yarn-simulation/' + encodeURIComponent(simId) + '/visualization.glb';
+                        const url = '/archive/assets/thread-simulation/' + encodeURIComponent(simId) + '/visualization.glb';
                         viewerEl.innerHTML = ''
                             + '<model-viewer src="' + url + '"'
-                            + ' camera-controls autoplay animation-name="yarn-deformation"'
+                            + ' camera-controls autoplay animation-name="deformation"'
                             + ' environment-image="legacy" exposure="1.2" shadow-intensity="0.5"'
                             + ' tone-mapping="commerce" style="width:100%; height:100%;"></model-viewer>';
                         setStatus('<span class="text-success">Ready</span>');
@@ -283,8 +283,8 @@ ${renderNavbar('collections', true)}
                         const forceUnit = (out.forces && out.forces.unit) || 'N';
                         const points = elongations.map((e, i) => ({ x: e, y: forces[i] }));
 
-                        document.getElementById('yarnForceElongationWrapper').style.display = '';
-                        const ctx = document.getElementById('yarnForceElongationChart').getContext('2d');
+                        document.getElementById('threadForceElongationWrapper').style.display = '';
+                        const ctx = document.getElementById('threadForceElongationChart').getContext('2d');
                         new Chart(ctx, {
                             type: 'line',
                             data: {
@@ -323,7 +323,7 @@ ${renderNavbar('collections', true)}
                     showSpinner('Checking simulation status...');
                     // cache-bust so a stale 304 from before the simulator
                     // patched the output doesn't make us think it's still pending.
-                    fetch('/archive/dynamo/yarn-simulations/' + encodeURIComponent(simId) + '?_=' + Date.now(),
+                    fetch('/archive/dynamo/thread-simulations/' + encodeURIComponent(simId) + '?_=' + Date.now(),
                         { cache: 'no-store' })
                         .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
                         .then(({ ok, data }) => {
@@ -416,7 +416,7 @@ ${renderNavbar('collections', true)}
                             + '/visualization/' + encodeURIComponent(experiment) + '.glb';
                         viewerEl.innerHTML = ''
                             + '<model-viewer src="' + url + '"'
-                            + ' camera-controls autoplay animation-name="yarn-deformation"'
+                            + ' camera-controls autoplay animation-name="deformation"'
                             + ' environment-image="legacy" exposure="1.2" shadow-intensity="0.5"'
                             + ' tone-mapping="commerce" style="width:100%; height:100%;"></model-viewer>';
                         setStatus('<span class="text-success">Showing: ' + experiment + '</span>');

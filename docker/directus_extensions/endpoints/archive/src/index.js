@@ -8,7 +8,7 @@ import toolboxRoutes from './routes/toolbox.js';
 import homeRoutes from './routes/home.js';
 import atonRoutes from './routes/aton.js';
 import metadataRoutes from './routes/metadata.js';
-import yarnSimulationRoutes from './routes/yarn-simulation.js';
+import threadSimulationRoutes from './routes/thread-simulation.js';
 import patchSimulationRoutes from './routes/patch-simulation.js';
 
 export default (router, context) => {
@@ -23,6 +23,6 @@ export default (router, context) => {
 	homeRoutes(router, context);
 	atonRoutes(router, context);
 	metadataRoutes(router, context);
-	yarnSimulationRoutes(router, context);
+	threadSimulationRoutes(router, context);
 	patchSimulationRoutes(router, context);
 };
