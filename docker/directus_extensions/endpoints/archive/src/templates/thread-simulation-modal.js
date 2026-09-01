@@ -1,3 +1,5 @@
+import { THREAD_MATERIAL_DEFAULTS, MATERIAL_NAMES, CUSTOM_MATERIAL_TOKEN } from '../utils/material-defaults.js';
+
 /**
  * Thread Simulation Modal
  *
@@ -90,8 +92,14 @@ export const renderThreadSimulationModal = () => `
                     <h6 class="border-bottom pb-2 mb-3">Single Yarn</h6>
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
-                            <label class="form-label">Material <span class="text-muted small">(optional)</span></label>
-                            <input type="text" class="form-control" name="singleYarnMaterial">
+                            <label class="form-label">Material</label>
+                            <select class="form-select" name="singleYarnMaterial" id="threadMaterialSelect">
+                                <option value="" selected>&mdash; Select material &mdash;</option>
+                                ${MATERIAL_NAMES.map(m => `<option value="${m}">${m}</option>`).join('')}
+                                <option value="${CUSTOM_MATERIAL_TOKEN}">Other (specify)&hellip;</option>
+                            </select>
+                            <input type="text" class="form-control mt-2" name="singleYarnMaterialCustom" id="threadMaterialCustom" placeholder="Custom material name" style="display:none;">
+                            <div class="form-text">Picking a preset fills the rest of the form with example defaults.</div>
                         </div>
                         ${renderValueUnitPair('Diameter', 'singleYarnDiameter', '', 'mm')}
                     </div>
@@ -152,6 +160,60 @@ export const renderThreadSimulationModal = () => `
         window.HestiaMetaPrefill.applyThread(form);
     }
 
+    // Material-preset auto-fill. Preset dictionaries and the "Other" sentinel
+    // are injected server-side so the browser doesn't need its own copy.
+    const THREAD_MATERIAL_DEFAULTS = ${JSON.stringify(THREAD_MATERIAL_DEFAULTS)};
+    const CUSTOM_MATERIAL_TOKEN = ${JSON.stringify(CUSTOM_MATERIAL_TOKEN)};
+    const materialSelect = document.getElementById('threadMaterialSelect');
+    const materialCustom = document.getElementById('threadMaterialCustom');
+
+    function setValueUnit(name, uv) {
+        if (!uv) return;
+        const v = form.querySelector('[name="' + name + '_value"]');
+        const u = form.querySelector('[name="' + name + '_unit"]');
+        if (v && uv.value != null) v.value = uv.value;
+        if (u && uv.unit != null) u.value = uv.unit;
+    }
+    function setScalar(name, val) {
+        const el = form.querySelector('[name="' + name + '"]');
+        if (el && val != null) el.value = val;
+    }
+    function applyThreadMaterial(materialKey) {
+        const defaults = THREAD_MATERIAL_DEFAULTS[materialKey];
+        if (!defaults) return;
+        for (const [key, val] of Object.entries(defaults)) {
+            if (val && typeof val === 'object' && ('unit' in val || 'value' in val)) {
+                setValueUnit(key, val);
+            } else {
+                setScalar(key, val);
+            }
+        }
+    }
+    materialSelect.addEventListener('change', () => {
+        const val = materialSelect.value;
+        if (val === CUSTOM_MATERIAL_TOKEN) {
+            materialCustom.style.display = '';
+            materialCustom.focus();
+        } else {
+            materialCustom.style.display = 'none';
+            materialCustom.value = '';
+            applyThreadMaterial(val);
+        }
+    });
+
+    // Reset the form when the modal closes (X, Cancel, backdrop, Esc). Bootstrap
+    // fires hidden.bs.modal after the closing animation finishes, so the user
+    // never sees the reset flicker. form.reset() doesn't fire change events, so
+    // we manually re-run the visibility handlers.
+    const modalEl = document.getElementById('threadSimulationModal');
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        form.reset();
+        alertBox.innerHTML = '';
+        materialCustom.value = '';
+        materialCustom.style.display = 'none';
+        updatePlyVisibility();
+    });
+
     // ----- Submit handler -----
     const alertBox = document.getElementById('threadSimulationAlert');
     const submitBtn = document.getElementById('threadSimulationSubmitBtn');
@@ -179,6 +241,14 @@ export const renderThreadSimulationModal = () => `
         return { unit: unit, value: value };
     }
 
+    // Material dropdown returns a preset name, '', or the sentinel meaning
+    // "Other". In the sentinel case the real name lives in the custom input.
+    function resolveMaterial(fd) {
+        const raw = str(fd.get('singleYarnMaterial'));
+        if (raw === CUSTOM_MATERIAL_TOKEN) return str(fd.get('singleYarnMaterialCustom'));
+        return raw;
+    }
+
     function buildPayload() {
         const fd = new FormData(form);
         const level = int(fd.get('hierarchyLevel'));
@@ -190,7 +260,7 @@ export const renderThreadSimulationModal = () => `
             threadPitch:             unitValue(fd, 'threadPitch'),
             threadFoldCount:         int(fd.get('threadFoldCount')),
             singleYarnDiameter:      unitValue(fd, 'singleYarnDiameter'),
-            singleYarnMaterial:      str(fd.get('singleYarnMaterial')),
+            singleYarnMaterial:      resolveMaterial(fd),
             singleYarnYoungsModulus: unitValue(fd, 'singleYarnYoungsModulus'),
             singleYarnPoissonRatio:  unitValue(fd, 'singleYarnPoissonRatio'),
         };

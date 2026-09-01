@@ -1,3 +1,5 @@
+import { PATCH_SIDE_MATERIAL_DEFAULTS, MATERIAL_NAMES, CUSTOM_MATERIAL_TOKEN } from '../utils/material-defaults.js';
+
 /**
  * Patch Simulation Modal
  *
@@ -5,7 +7,7 @@
  * POST /dynamo/patch-simulations. Warp and weft are fixed sides
  * (rendered as two non-removable cards). Only structureType is
  * pre-filled ("Patch"); every other field is empty so the submitter
- * fills it in.
+ * fills it in — or picks a material preset per side to auto-fill.
  */
 
 export const renderPatchSimulationModal = () => `
@@ -70,6 +72,13 @@ export const renderPatchSimulationModal = () => `
 
 <script>
 (function () {
+    // Material presets injected server-side. Each side's card carries its
+    // own <select> + custom text input; picking a preset fills only that
+    // side's fields (both sides can be different materials).
+    const MATERIAL_NAMES = ${JSON.stringify(MATERIAL_NAMES)};
+    const CUSTOM_MATERIAL_TOKEN = ${JSON.stringify(CUSTOM_MATERIAL_TOKEN)};
+    const PATCH_SIDE_MATERIAL_DEFAULTS = ${JSON.stringify(PATCH_SIDE_MATERIAL_DEFAULTS)};
+
     // Per-side fields use data-field instead of name= to avoid name
     // collisions between the warp and weft cards.
     const valueUnitPairHtmlForSide = (label, field, valueDefault, unitDefault) => \`
@@ -81,6 +90,10 @@ export const renderPatchSimulationModal = () => `
             </div>
         </div>\`;
 
+    const materialOptionsHtml = '<option value="" selected>&mdash; Select material &mdash;</option>'
+        + MATERIAL_NAMES.map(m => '<option value="' + m + '">' + m + '</option>').join('')
+        + '<option value="' + CUSTOM_MATERIAL_TOKEN + '">Other (specify)&hellip;</option>';
+
     const sideCardHtml = (sideKey, sideLabel) => \`
         <div class="card mb-3 patch-side-card" data-side="\${sideKey}">
             <div class="card-header py-2"><strong>\${sideLabel}</strong></div>
@@ -88,7 +101,9 @@ export const renderPatchSimulationModal = () => `
                 <div class="row g-3 mb-2">
                     <div class="col-md-6">
                         <label class="form-label">Material</label>
-                        <input type="text" class="form-control" data-field="material">
+                        <select class="form-select" data-field="material">\${materialOptionsHtml}</select>
+                        <input type="text" class="form-control mt-2" data-field="materialCustom" placeholder="Custom material name" style="display:none;">
+                        <div class="form-text">Picking a preset fills this side's fields.</div>
                     </div>
                 </div>
                 <div class="row g-3 mb-2">
@@ -116,6 +131,54 @@ export const renderPatchSimulationModal = () => `
     if (window.HestiaMetaPrefill) {
         window.HestiaMetaPrefill.applyPatch(document.getElementById('patchSimulationForm'));
     }
+
+    // Wire up per-side material auto-fill. Cards were just inserted, so
+    // we can bind directly instead of using event delegation.
+    function setCardValueUnit(card, field, uv) {
+        if (!uv) return;
+        const wrapper = card.querySelector('[data-field="' + field + '"]');
+        if (!wrapper) return;
+        const v = wrapper.querySelector('[data-part="value"]');
+        const u = wrapper.querySelector('[data-part="unit"]');
+        if (v && uv.value != null) v.value = uv.value;
+        if (u && uv.unit != null) u.value = uv.unit;
+    }
+    function applySideMaterial(card, materialKey) {
+        const defaults = PATCH_SIDE_MATERIAL_DEFAULTS[materialKey];
+        if (!defaults) return;
+        for (const [field, uv] of Object.entries(defaults)) {
+            setCardValueUnit(card, field, uv);
+        }
+    }
+    sidesContainer.querySelectorAll('.patch-side-card').forEach(card => {
+        const sel = card.querySelector('[data-field="material"]');
+        const custom = card.querySelector('[data-field="materialCustom"]');
+        if (!sel || !custom) return;
+        sel.addEventListener('change', () => {
+            if (sel.value === CUSTOM_MATERIAL_TOKEN) {
+                custom.style.display = '';
+                custom.focus();
+            } else {
+                custom.style.display = 'none';
+                custom.value = '';
+                applySideMaterial(card, sel.value);
+            }
+        });
+    });
+
+    // Reset the form when the modal closes (X, Cancel, backdrop, Esc). Bootstrap
+    // fires hidden.bs.modal after the closing animation finishes. form.reset()
+    // clears the standard inputs but doesn't touch our per-side custom-name
+    // inputs or hide them again, so we do that manually.
+    const modalEl = document.getElementById('patchSimulationModal');
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        form.reset();
+        alertBox.innerHTML = '';
+        sidesContainer.querySelectorAll('[data-field="materialCustom"]').forEach(c => {
+            c.value = '';
+            c.style.display = 'none';
+        });
+    });
 
     // ----- Submit handler -----
     const form = document.getElementById('patchSimulationForm');
@@ -146,8 +209,11 @@ export const renderPatchSimulationModal = () => `
             }
             return str(el.value);
         };
+        // Material dropdown: sentinel "Other" means read the custom name field.
+        const rawMaterial = get('material');
+        const material = rawMaterial === CUSTOM_MATERIAL_TOKEN ? get('materialCustom') : rawMaterial;
         return {
-            material: get('material'),
+            material: material,
             youngsModulus: get('youngsModulus'),
             poissonRatio: get('poissonRatio'),
             yarnDiameter: get('yarnDiameter'),
