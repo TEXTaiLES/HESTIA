@@ -20,6 +20,7 @@ from services.messaging import (
 )
 from services.storage import minio_client, MINIO_PATCH_SIMULATION_BUCKET
 from services.simulation_visualization import build_morph_target_glb
+from services.simulation_plots import render_polar_stiffness_png
 
 logger = logging.getLogger(__name__)
 
@@ -666,8 +667,11 @@ class PatchSimulationDownloadResource(Resource):
     GET /dynamo/patch-simulations/<simulation_id>/download.zip
 
     Returns a ZIP bundle with:
-      - simulation.json — the full sim record (input + output, hydrated)
-      
+      - simulation.json          — the full sim record (input + output, hydrated)
+      - extensional_stiffness.png — polar plot of plotDataAngles × plotDataExtensionalStiffness
+      - bending_stiffness.png     — polar plot of plotDataAngles × plotDataBendingStiffness
+
+    The two PNGs are skipped if their source arrays are missing/empty.
     """
     method_decorators = [require_api_key]
 
@@ -705,9 +709,37 @@ class PatchSimulationDownloadResource(Resource):
                 conn.close()
             return {'error': str(e)}, 500
 
+        sim_output = record.get('simulationOutput') or {}
+        angles_obj = sim_output.get('plotDataAngles') or {}
+        ext_obj = sim_output.get('plotDataExtensionalStiffness') or {}
+        bend_obj = sim_output.get('plotDataBendingStiffness') or {}
+        angles_values = angles_obj.get('value')
+        angle_unit = angles_obj.get('unit') or 'deg'
+
+        ext_png = render_polar_stiffness_png(
+            angles_values,
+            ext_obj.get('value'),
+            angle_unit=angle_unit,
+            value_unit=ext_obj.get('unit') or '',
+            title='Effective Extensional Stiffness',
+            color='#b8bf1a',
+        )
+        bend_png = render_polar_stiffness_png(
+            angles_values,
+            bend_obj.get('value'),
+            angle_unit=angle_unit,
+            value_unit=bend_obj.get('unit') or '',
+            title='Effective Bending Stiffness',
+            color='#17becf',
+        )
+
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr('simulation.json', json.dumps(record, indent=2, default=str))
+            if ext_png:
+                zf.writestr('extensional_stiffness.png', ext_png)
+            if bend_png:
+                zf.writestr('bending_stiffness.png', bend_png)
 
         return Response(
             buf.getvalue(),

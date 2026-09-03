@@ -371,6 +371,24 @@ ${renderNavbar('collections', true)}
                     </select>
                 </div>
                 <div id="patchVisualizationViewer" style="height: 500px;"></div>
+
+                <div id="patchStiffnessWrapper" class="mt-3" style="display:none;">
+                    <h6 class="text-muted mb-2">Directional Stiffness (polar projection in the textile plane)</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="text-center small text-muted mb-1">Effective Extensional Stiffness</div>
+                            <div style="position:relative; height:320px;">
+                                <canvas id="patchExtensionalStiffnessChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-center small text-muted mb-1">Effective Bending Stiffness</div>
+                            <div style="position:relative; height:320px;">
+                                <canvas id="patchBendingStiffnessChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <script>
@@ -424,6 +442,65 @@ ${renderNavbar('collections', true)}
 
                     selectEl.addEventListener('change', (e) => renderViewer(e.target.value));
 
+                    // Polar stiffness plots. Rendered only when the sim output carries
+                    // plotDataAngles + the matching stiffness array. Uses Chart.js radar
+                    // so each angle becomes a spoke. Angles arrive in degrees per the
+                    // schema; we leave them as-is for labelling.
+                    function renderPolarStiffness(canvasId, angles, values, valueUnit, color) {
+                        if (!angles || !values || angles.length === 0 || angles.length !== values.length) return false;
+                        if (typeof Chart === 'undefined') return false;
+                        const canvas = document.getElementById(canvasId);
+                        if (!canvas) return false;
+                        const existing = Chart.getChart(canvas);
+                        if (existing) existing.destroy();
+                        new Chart(canvas.getContext('2d'), {
+                            type: 'radar',
+                            data: {
+                                labels: angles.map(a => a.toFixed(0) + '°'),
+                                datasets: [{
+                                    label: 'Stiffness',
+                                    data: values,
+                                    borderColor: color,
+                                    backgroundColor: color.replace(')', ', 0.12)').replace('rgb', 'rgba'),
+                                    borderWidth: 2,
+                                    pointRadius: 1,
+                                    pointHoverRadius: 4,
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: { callbacks: {
+                                        label: (c) => c.parsed.r.toExponential(3) + (valueUnit ? ' ' + valueUnit : '')
+                                    } }
+                                },
+                                scales: {
+                                    r: {
+                                        beginAtZero: true,
+                                        ticks: { display: false },
+                                        pointLabels: { font: { size: 9 } },
+                                    }
+                                }
+                            }
+                        });
+                        return true;
+                    }
+
+                    function renderStiffnessPlots(out) {
+                        const angles = (out.plotDataAngles && out.plotDataAngles.value) || null;
+                        const ext = (out.plotDataExtensionalStiffness && out.plotDataExtensionalStiffness.value) || null;
+                        const bend = (out.plotDataBendingStiffness && out.plotDataBendingStiffness.value) || null;
+                        const extUnit = (out.plotDataExtensionalStiffness && out.plotDataExtensionalStiffness.unit) || '';
+                        const bendUnit = (out.plotDataBendingStiffness && out.plotDataBendingStiffness.unit) || '';
+                        const drewExt = renderPolarStiffness('patchExtensionalStiffnessChart', angles, ext, extUnit, 'rgb(184, 191, 26)');
+                        const drewBend = renderPolarStiffness('patchBendingStiffnessChart', angles, bend, bendUnit, 'rgb(23, 190, 207)');
+                        if (drewExt || drewBend) {
+                            document.getElementById('patchStiffnessWrapper').style.display = '';
+                        }
+                    }
+
                     setStatus('<i class="fas fa-spinner fa-spin"></i> Checking simulation status…');
                     fetch('/archive/dynamo/patch-simulations/' + encodeURIComponent(simId) + '?_=' + Date.now(),
                         { cache: 'no-store' })
@@ -446,13 +523,16 @@ ${renderNavbar('collections', true)}
                             }
                             if (totalFrames === 0) {
                                 showError('Simulation completed but produced no visualization files.');
-                                return;
+                            } else {
+                                const firstReady = Object.keys(expToField).find(e => experimentsReady[e]);
+                                if (firstReady) {
+                                    selectEl.value = firstReady;
+                                    renderViewer(firstReady);
+                                }
                             }
-                            const firstReady = Object.keys(expToField).find(e => experimentsReady[e]);
-                            if (firstReady) {
-                                selectEl.value = firstReady;
-                                renderViewer(firstReady);
-                            }
+                            // Stiffness plots are independent of the visualization files;
+                            // render whenever the arrays are present.
+                            renderStiffnessPlots(out);
                         })
                         .catch(err => showError('Network error: ' + err.message));
                 })();
