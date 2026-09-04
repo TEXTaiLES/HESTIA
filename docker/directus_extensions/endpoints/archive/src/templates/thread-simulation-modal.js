@@ -282,8 +282,14 @@ export const renderThreadSimulationModal = () => `
             structureInput:    structureInput,
         };
 
+        // artefact_id is taken from the current URL so the backend can
+        // scope the per-artefact experiment_id counter.
+        const artMatch = window.location.pathname.match(/\\/artefacts\\/(\\d+)/);
+        const artefactId = artMatch ? parseInt(artMatch[1], 10) : null;
+
         return {
             structureType: str(fd.get('structureType')) || 'Thread',
+            artefact_id: artefactId,
             simulationInput: simulationInput,
         };
     }

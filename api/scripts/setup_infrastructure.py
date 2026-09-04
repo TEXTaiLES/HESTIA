@@ -111,6 +111,8 @@ def run_migrations():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS dynamo.thread_simulation_input (
                 simulation_id UUID PRIMARY KEY,
+                artefact_id INTEGER,
+                experiment_id INTEGER,
                 structure_type TEXT NOT NULL DEFAULT 'Thread',
                 friction_value REAL,
                 friction_unit TEXT,
@@ -167,6 +169,8 @@ def run_migrations():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS dynamo.patch_simulation_input (
                 simulation_id UUID PRIMARY KEY,
+                artefact_id INTEGER,
+                experiment_id INTEGER,
                 structure_type TEXT NOT NULL DEFAULT 'Patch',
                 weave_pattern TEXT,
                 pattern_repetition_count_warp INTEGER,
@@ -255,6 +259,24 @@ def run_migrations():
         cur.execute("ALTER TABLE dynamo.patch_simulation_input ADD COLUMN IF NOT EXISTS weft_yarn_friction_value REAL;")
         cur.execute("ALTER TABLE dynamo.patch_simulation_input ADD COLUMN IF NOT EXISTS weft_yarn_friction_unit TEXT;")
         cur.execute("ALTER TABLE dynamo.patch_simulation_output ADD COLUMN IF NOT EXISTS simulation_error TEXT;")
+
+        # Per-artefact simulation listing: artefact_id + experiment_id (a
+        # per-artefact per-type running counter, e.g. Thread #1, #2, ...).
+        # The API requires artefact_id on POST — every simulation is
+        # submitted from an artefact page — so all new rows carry it. The
+        # DB columns are nullable only to accommodate any pre-migration rows
+        # that predate these columns; those rows won't appear in per-artefact
+        # lists but are still queryable. The unique index catches concurrent
+        # duplicate experiment_ids for the same artefact.
+        for table in ('thread_simulation_input', 'patch_simulation_input'):
+            cur.execute(f'ALTER TABLE dynamo.{table} ADD COLUMN IF NOT EXISTS artefact_id INTEGER;')
+            cur.execute(f'ALTER TABLE dynamo.{table} ADD COLUMN IF NOT EXISTS experiment_id INTEGER;')
+            cur.execute(f'CREATE INDEX IF NOT EXISTS idx_{table}_artefact ON dynamo.{table}(artefact_id);')
+            cur.execute(f"""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_{table}_artefact_experiment
+                ON dynamo.{table}(artefact_id, experiment_id)
+                WHERE artefact_id IS NOT NULL AND experiment_id IS NOT NULL;
+            """)
 
         conn.commit()
         cur.close()

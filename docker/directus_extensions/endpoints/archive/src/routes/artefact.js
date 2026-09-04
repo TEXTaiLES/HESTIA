@@ -6,6 +6,8 @@ import { renderNavbar } from '../templates/navbar.js';
 import { renderHtmlPage, renderFooter } from '../templates/layout.js';
 import { renderThreadSimulationModal } from '../templates/thread-simulation-modal.js';
 import { renderPatchSimulationModal } from '../templates/patch-simulation-modal.js';
+import { renderThreadViewerModal } from '../templates/thread-viewer-modal.js';
+import { renderPatchViewerModal } from '../templates/patch-viewer-modal.js';
 import { renderSimulationMetadataPrefillScript } from '../templates/simulation-metadata-prefill.js';
 
 /**
@@ -213,329 +215,205 @@ ${renderNavbar('collections', true)}
 
             ${renderThreadSimulationModal()}
             ${renderPatchSimulationModal()}
+            ${renderThreadViewerModal()}
+            ${renderPatchViewerModal()}
 
-            <!-- Thread Simulation Visualization (renders when ?thread_simulation=<id> is set or a recent submission exists in sessionStorage) -->
-            <div id="threadVisualizationSection" class="mt-4" style="display:none;">
-                <div class="d-flex justify-content-between align-items-center border-bottom pb-2">
-                    <h4 class="mb-0">Thread Simulation Result</h4>
-                    <a id="threadDownloadBtn" href="#" class="btn btn-sm btn-outline-secondary" style="display:none;" download>
-                        <i class="fas fa-download"></i> Download
-                    </a>
-                </div>
-                <div class="text-muted small mt-2 mb-2">
-                    Simulation ID: <code id="threadVisualizationSimId">—</code>
-                    <span id="threadVisualizationStatus" class="ms-2"></span>
-                </div>
-                <div id="threadVisualizationViewer" style="height: 500px;"></div>
-                <div id="threadForceElongationWrapper" class="mt-3" style="display:none;">
-                    <h6 class="text-muted mb-2">Force-Elongation Diagram</h6>
-                    <div style="position:relative; height:320px;">
-                        <canvas id="threadForceElongationChart"></canvas>
+            <!-- Per-artefact simulation lists. Rows are fetched from the API
+                 and clicking one opens the matching viewer modal (defined
+                 above). Submitting a new simulation still redirects to
+                 ?thread_simulation=<id> / ?patch_simulation=<id>, which the
+                 auto-open block below picks up. -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <h4 class="border-bottom pb-2">Thread Simulations</h4>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="threadSimulationsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 90px;">Experiment</th>
+                                    <th>Simulation ID</th>
+                                    <th style="width: 180px;">Submitted</th>
+                                    <th style="width: 120px;">Status</th>
+                                    <th style="width: 90px;">Download</th>
+                                </tr>
+                            </thead>
+                            <tbody id="threadSimulationsBody">
+                                <tr><td colspan="5" class="text-center text-muted small py-3">Loading…</td></tr>
+                            </tbody>
+                        </table>
                     </div>
+                    <div id="threadSimulationsPagination" class="d-flex justify-content-end align-items-center mt-2"></div>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <h4 class="border-bottom pb-2">Patch Simulations</h4>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="patchSimulationsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 90px;">Experiment</th>
+                                    <th>Simulation ID</th>
+                                    <th style="width: 180px;">Submitted</th>
+                                    <th style="width: 120px;">Status</th>
+                                    <th style="width: 90px;">Download</th>
+                                </tr>
+                            </thead>
+                            <tbody id="patchSimulationsBody">
+                                <tr><td colspan="5" class="text-center text-muted small py-3">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="patchSimulationsPagination" class="d-flex justify-content-end align-items-center mt-2"></div>
                 </div>
             </div>
 
             <script>
-                (function () {
-                    const ARTEFACT_ID = ${artefact.id};
-                    const params = new URLSearchParams(window.location.search);
-                    const simId = params.get('thread_simulation')
-                        || sessionStorage.getItem('thread_simulation_' + ARTEFACT_ID);
-                    if (!simId) return;
+            (function () {
+                const ARTEFACT_ID = ${artefact.id};
 
-                    const section = document.getElementById('threadVisualizationSection');
-                    const idEl = document.getElementById('threadVisualizationSimId');
-                    const statusEl = document.getElementById('threadVisualizationStatus');
-                    const viewerEl = document.getElementById('threadVisualizationViewer');
-                    const dlBtn = document.getElementById('threadDownloadBtn');
-                    section.style.display = '';
-                    idEl.textContent = simId;
-                    dlBtn.href = '/archive/dynamo/thread-simulations/' + encodeURIComponent(simId) + '/download.zip';
-                    dlBtn.style.display = '';
+                // Handle Directus's single-use refresh token race: on page load,
+                // two parallel fetches (thread list + patch list) each try to
+                // refresh the same token. Only one wins; the other gets 401 back
+                // from userIsAuthenticated. We retry once after a short delay so
+                // the browser has time to receive the Set-Cookie from the winner.
+                // Exposed on window so the viewer-modal scripts can reuse it.
+                window.fetchWithAuthRetry = async function (url, options) {
+                    options = options || {};
+                    let res = await fetch(url, options);
+                    if (res.status !== 401) return res;
+                    await new Promise(r => setTimeout(r, 350));
+                    return fetch(url, options);
+                };
 
-                    function setStatus(html) { statusEl.innerHTML = html; }
-                    function showSpinner(msg) {
-                        setStatus('<i class="fas fa-spinner fa-spin"></i> ' + msg);
-                        viewerEl.innerHTML = '';
+                function shortId(uuid) { return uuid ? uuid.slice(0, 8) + '…' : '—'; }
+                function fmtDate(iso) {
+                    if (!iso) return '—';
+                    try {
+                        const d = new Date(iso);
+                        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    } catch (e) { return iso; }
+                }
+                function statusBadge(out) {
+                    if (!out) return '<span class="badge bg-secondary">Pending</span>';
+                    if (out.simulationError) {
+                        const safe = String(out.simulationError).replace(/"/g, '&quot;');
+                        return '<span class="badge bg-danger" title="' + safe + '">Failed</span>';
                     }
-                    function showError(msg) {
-                        setStatus('<span class="text-danger">' + msg + '</span>');
-                    }
-                    function renderViewer() {
-                        const url = '/archive/assets/thread-simulation/' + encodeURIComponent(simId) + '/visualization.glb';
-                        viewerEl.innerHTML = ''
-                            + '<model-viewer src="' + url + '"'
-                            + ' camera-controls autoplay animation-name="deformation"'
-                            + ' environment-image="legacy" exposure="1.2" shadow-intensity="0.5"'
-                            + ' tone-mapping="commerce" style="width:100%; height:100%;"></model-viewer>';
-                        setStatus('<span class="text-success">Ready</span>');
+                    if (out.simulationCompleted) return '<span class="badge bg-success">Completed</span>';
+                    return '<span class="badge bg-secondary">Pending</span>';
+                }
+                function downloadCell(kind, simId) {
+                    return '<a href="/archive/dynamo/' + kind + '-simulations/' + encodeURIComponent(simId)
+                        + '/download.zip" class="btn btn-sm btn-outline-secondary" download'
+                        + ' onclick="event.stopPropagation();" title="Download ZIP">'
+                        + '<i class="fas fa-download"></i></a>';
+                }
+
+                // Client-side pagination: fetch everything once, slice into
+                // pages of PAGE_SIZE and let the arrows navigate slices.
+                // Cheaper than server-side pagination for the expected list
+                // sizes; swap for API paging if lists ever grow into hundreds.
+                const PAGE_SIZE = 5;
+                const state = {
+                    thread: { rows: [], page: 1 },
+                    patch:  { rows: [], page: 1 },
+                };
+
+                function renderPage(kind, tbodyId, openerName, paginationId) {
+                    const s = state[kind];
+                    const tbody = document.getElementById(tbodyId);
+                    const paginator = document.getElementById(paginationId);
+                    paginator.innerHTML = '';
+
+                    if (!s.rows || s.rows.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted small py-3">'
+                            + 'No simulations submitted for this artefact yet.</td></tr>';
+                        return;
                     }
 
-                    function renderForceElongationChart(out) {
-                        const elongations = (out.elongations && out.elongations.value) || [];
-                        const forces = (out.forces && out.forces.value) || [];
-                        if (!elongations.length || !forces.length || elongations.length !== forces.length) return;
-                        if (typeof Chart === 'undefined') {
-                            console.warn('Chart.js not loaded; skipping Force-Elongation chart.');
-                            return;
-                        }
-                        const elongationUnit = (out.elongations && out.elongations.unit) || '%';
-                        const forceUnit = (out.forces && out.forces.unit) || 'N';
-                        const points = elongations.map((e, i) => ({ x: e, y: forces[i] }));
+                    const totalPages = Math.max(1, Math.ceil(s.rows.length / PAGE_SIZE));
+                    if (s.page > totalPages) s.page = totalPages;
+                    if (s.page < 1) s.page = 1;
+                    const start = (s.page - 1) * PAGE_SIZE;
+                    const pageRows = s.rows.slice(start, start + PAGE_SIZE);
 
-                        document.getElementById('threadForceElongationWrapper').style.display = '';
-                        const ctx = document.getElementById('threadForceElongationChart').getContext('2d');
-                        new Chart(ctx, {
-                            type: 'line',
-                            data: {
-                                datasets: [{
-                                    label: 'Force',
-                                    data: points,
-                                    borderColor: '#d62728',
-                                    backgroundColor: 'rgba(214, 39, 40, 0.1)',
-                                    borderWidth: 2,
-                                    pointRadius: 3,
-                                    pointHoverRadius: 5,
-                                    tension: 0.2,
-                                    fill: false,
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    legend: { display: false },
-                                    tooltip: {
-                                        callbacks: {
-                                            label: (c) => 'Force: ' + c.parsed.y.toFixed(3) + ' ' + forceUnit
-                                                + ' at elongation ' + c.parsed.x.toFixed(3) + ' ' + elongationUnit
-                                        }
-                                    }
-                                },
-                                scales: {
-                                    x: { type: 'linear', title: { display: true, text: 'Elongation (' + elongationUnit + ')' } },
-                                    y: { title: { display: true, text: 'Force (' + forceUnit + ')' } }
-                                }
-                            }
+                    tbody.innerHTML = pageRows.map(r => {
+                        const expLabel = r.experiment_id != null ? '#' + r.experiment_id : '—';
+                        const expIdAttr = r.experiment_id != null ? r.experiment_id : '';
+                        return '<tr style="cursor:pointer;" data-sim-id="' + r.simulation_id + '"'
+                            + ' data-experiment-id="' + expIdAttr + '">'
+                            + '<td><strong>' + expLabel + '</strong></td>'
+                            + '<td><code class="small">' + shortId(r.simulation_id) + '</code></td>'
+                            + '<td class="small text-muted">' + fmtDate(r.created_at) + '</td>'
+                            + '<td>' + statusBadge(r.simulationOutput) + '</td>'
+                            + '<td>' + downloadCell(kind, r.simulation_id) + '</td>'
+                            + '</tr>';
+                    }).join('');
+                    tbody.querySelectorAll('tr[data-sim-id]').forEach(tr => {
+                        tr.addEventListener('click', () => {
+                            const simId = tr.getAttribute('data-sim-id');
+                            const expId = tr.getAttribute('data-experiment-id');
+                            const opener = window[openerName];
+                            if (opener) opener(simId, expId ? parseInt(expId, 10) : null);
+                        });
+                    });
+
+                    if (totalPages > 1) {
+                        const startNum = start + 1;
+                        const endNum = Math.min(start + PAGE_SIZE, s.rows.length);
+                        paginator.innerHTML =
+                            '<span class="small text-muted me-3">Showing ' + startNum + '–' + endNum
+                              + ' of ' + s.rows.length + '</span>'
+                            + '<button class="btn btn-sm btn-outline-secondary me-2" '
+                              + (s.page === 1 ? 'disabled' : '') + ' data-nav="prev">'
+                              + '<i class="fas fa-chevron-left"></i> Prev</button>'
+                            + '<span class="small me-2">Page ' + s.page + ' of ' + totalPages + '</span>'
+                            + '<button class="btn btn-sm btn-outline-secondary" '
+                              + (s.page === totalPages ? 'disabled' : '') + ' data-nav="next">'
+                              + 'Next <i class="fas fa-chevron-right"></i></button>';
+                        paginator.querySelectorAll('button[data-nav]').forEach(btn => {
+                            btn.addEventListener('click', () => {
+                                s.page += (btn.getAttribute('data-nav') === 'next') ? 1 : -1;
+                                renderPage(kind, tbodyId, openerName, paginationId);
+                            });
                         });
                     }
+                }
 
-                    showSpinner('Checking simulation status...');
-                    // cache-bust so a stale 304 from before the simulator
-                    // patched the output doesn't make us think it's still pending.
-                    fetch('/archive/dynamo/thread-simulations/' + encodeURIComponent(simId) + '?_=' + Date.now(),
-                        { cache: 'no-store' })
-                        .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                        .then(({ ok, data }) => {
-                            if (!ok) {
-                                showError('Could not load simulation: ' + (data.error || 'unknown error'));
-                                return;
-                            }
-                            const out = data.simulationOutput;
-                            const files = (out && out.visualizationFiles) || [];
-                            if (out && out.simulationCompleted && files.length > 0) {
-                                renderViewer();
-                                renderForceElongationChart(out);
-                            } else if (out && out.simulationCompleted) {
-                                showError('Simulation completed but produced no visualization files.');
-                                renderForceElongationChart(out);
-                            } else {
-                                setStatus('<i class="fas fa-hourglass-half"></i> Simulation pending — reload when ready.');
-                            }
-                        })
-                        .catch(err => showError('Network error: ' + err.message));
-                })();
-            </script>
-
-            <!-- Patch Simulation Visualization (renders when ?patch_simulation=<id> is set or a recent submission exists in sessionStorage) -->
-            <div id="patchVisualizationSection" class="mt-4" style="display:none;">
-                <div class="d-flex justify-content-between align-items-center border-bottom pb-2">
-                    <h4 class="mb-0">Patch Simulation Result</h4>
-                    <a id="patchDownloadBtn" href="#" class="btn btn-sm btn-outline-secondary" style="display:none;" download>
-                        <i class="fas fa-download"></i> Download
-                    </a>
-                </div>
-                <div class="text-muted small mt-2 mb-2">
-                    Simulation ID: <code id="patchVisualizationSimId">—</code>
-                    <span id="patchVisualizationStatus" class="ms-2"></span>
-                </div>
-                <div class="d-flex align-items-center gap-2 mb-2">
-                    <label for="patchExperimentSelect" class="form-label mb-0 small">Experiment:</label>
-                    <select id="patchExperimentSelect" class="form-select form-select-sm" style="width:auto;">
-                        <option value="inplane11">In-plane 11 (warp tension)</option>
-                        <option value="inplane22">In-plane 22 (weft tension)</option>
-                        <option value="inplane12">In-plane 12 (shear)</option>
-                        <option value="bending11">Bending 11 (warp bend)</option>
-                        <option value="bending22">Bending 22 (weft bend)</option>
-                        <option value="bending12">Bending 12 (torsion)</option>
-                    </select>
-                </div>
-                <div id="patchVisualizationViewer" style="height: 500px;"></div>
-
-                <div id="patchStiffnessWrapper" class="mt-3" style="display:none;">
-                    <h6 class="text-muted mb-2">Directional Stiffness (polar projection in the textile plane)</h6>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <div class="text-center small text-muted mb-1">Effective Extensional Stiffness</div>
-                            <div style="position:relative; height:320px;">
-                                <canvas id="patchExtensionalStiffnessChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="text-center small text-muted mb-1">Effective Bending Stiffness</div>
-                            <div style="position:relative; height:320px;">
-                                <canvas id="patchBendingStiffnessChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <script>
-                (function () {
-                    const ARTEFACT_ID = ${artefact.id};
-                    const params = new URLSearchParams(window.location.search);
-                    const simId = params.get('patch_simulation')
-                        || sessionStorage.getItem('patch_simulation_' + ARTEFACT_ID);
-                    if (!simId) return;
-
-                    const section = document.getElementById('patchVisualizationSection');
-                    const idEl = document.getElementById('patchVisualizationSimId');
-                    const statusEl = document.getElementById('patchVisualizationStatus');
-                    const viewerEl = document.getElementById('patchVisualizationViewer');
-                    const selectEl = document.getElementById('patchExperimentSelect');
-                    const dlBtn = document.getElementById('patchDownloadBtn');
-                    section.style.display = '';
-                    idEl.textContent = simId;
-                    dlBtn.href = '/archive/dynamo/patch-simulations/' + encodeURIComponent(simId) + '/download.zip';
-                    dlBtn.style.display = '';
-
-                    function setStatus(html) { statusEl.innerHTML = html; }
-                    function showError(msg) { setStatus('<span class="text-danger">' + msg + '</span>'); }
-
-                    // Maps dropdown key → JSON field on simulationOutput.
-                    const expToField = {
-                        inplane11: 'visualizationFiles_inplane11',
-                        inplane22: 'visualizationFiles_inplane22',
-                        inplane12: 'visualizationFiles_inplane12',
-                        bending11: 'visualizationFiles_bending11',
-                        bending22: 'visualizationFiles_bending22',
-                        bending12: 'visualizationFiles_bending12',
-                    };
-                    const experimentsReady = {};
-
-                    function renderViewer(experiment) {
-                        if (!experimentsReady[experiment]) {
-                            viewerEl.innerHTML = '<div class="text-muted">No frames available for ' + experiment + '.</div>';
-                            setStatus('<span class="text-warning">Empty: ' + experiment + '</span>');
-                            return;
-                        }
-                        const url = '/archive/assets/patch-simulation/' + encodeURIComponent(simId)
-                            + '/visualization/' + encodeURIComponent(experiment) + '.glb';
-                        viewerEl.innerHTML = ''
-                            + '<model-viewer src="' + url + '"'
-                            + ' camera-controls autoplay animation-name="deformation"'
-                            + ' environment-image="legacy" exposure="1.2" shadow-intensity="0.5"'
-                            + ' tone-mapping="commerce" style="width:100%; height:100%;"></model-viewer>';
-                        setStatus('<span class="text-success">Showing: ' + experiment + '</span>');
+                async function loadList(kind, tbodyId, openerName, paginationId) {
+                    const tbody = document.getElementById(tbodyId);
+                    try {
+                        const res = await window.fetchWithAuthRetry(
+                            '/archive/dynamo/' + kind + '-simulations?artefact_id='
+                                + ARTEFACT_ID + '&per_page=500&_=' + Date.now(),
+                            { cache: 'no-store' });
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        const rows = await res.json();
+                        // Newest first — most users want their latest submission on top.
+                        (rows || []).sort((a, b) => (b.experiment_id || 0) - (a.experiment_id || 0));
+                        state[kind].rows = rows || [];
+                        state[kind].page = 1;
+                        renderPage(kind, tbodyId, openerName, paginationId);
+                    } catch (err) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-danger small py-3">'
+                            + 'Error loading list: ' + err.message + '</td></tr>';
                     }
+                }
 
-                    selectEl.addEventListener('change', (e) => renderViewer(e.target.value));
+                loadList('thread', 'threadSimulationsBody', 'openThreadViewer', 'threadSimulationsPagination');
+                loadList('patch', 'patchSimulationsBody', 'openPatchViewer', 'patchSimulationsPagination');
 
-                    // Polar stiffness plots. Rendered only when the sim output carries
-                    // plotDataAngles + the matching stiffness array. Uses Chart.js radar
-                    // so each angle becomes a spoke. Angles arrive in degrees per the
-                    // schema; we leave them as-is for labelling.
-                    function renderPolarStiffness(canvasId, angles, values, valueUnit, color) {
-                        if (!angles || !values || angles.length === 0 || angles.length !== values.length) return false;
-                        if (typeof Chart === 'undefined') return false;
-                        const canvas = document.getElementById(canvasId);
-                        if (!canvas) return false;
-                        const existing = Chart.getChart(canvas);
-                        if (existing) existing.destroy();
-                        new Chart(canvas.getContext('2d'), {
-                            type: 'radar',
-                            data: {
-                                labels: angles.map(a => a.toFixed(0) + '°'),
-                                datasets: [{
-                                    label: 'Stiffness',
-                                    data: values,
-                                    borderColor: color,
-                                    backgroundColor: color.replace(')', ', 0.12)').replace('rgb', 'rgba'),
-                                    borderWidth: 2,
-                                    pointRadius: 1,
-                                    pointHoverRadius: 4,
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    legend: { display: false },
-                                    tooltip: { callbacks: {
-                                        label: (c) => c.parsed.r.toExponential(3) + (valueUnit ? ' ' + valueUnit : '')
-                                    } }
-                                },
-                                scales: {
-                                    r: {
-                                        beginAtZero: true,
-                                        ticks: { display: false },
-                                        pointLabels: { font: { size: 9 } },
-                                    }
-                                }
-                            }
-                        });
-                        return true;
-                    }
-
-                    function renderStiffnessPlots(out) {
-                        const angles = (out.plotDataAngles && out.plotDataAngles.value) || null;
-                        const ext = (out.plotDataExtensionalStiffness && out.plotDataExtensionalStiffness.value) || null;
-                        const bend = (out.plotDataBendingStiffness && out.plotDataBendingStiffness.value) || null;
-                        const extUnit = (out.plotDataExtensionalStiffness && out.plotDataExtensionalStiffness.unit) || '';
-                        const bendUnit = (out.plotDataBendingStiffness && out.plotDataBendingStiffness.unit) || '';
-                        const drewExt = renderPolarStiffness('patchExtensionalStiffnessChart', angles, ext, extUnit, 'rgb(184, 191, 26)');
-                        const drewBend = renderPolarStiffness('patchBendingStiffnessChart', angles, bend, bendUnit, 'rgb(23, 190, 207)');
-                        if (drewExt || drewBend) {
-                            document.getElementById('patchStiffnessWrapper').style.display = '';
-                        }
-                    }
-
-                    setStatus('<i class="fas fa-spinner fa-spin"></i> Checking simulation status…');
-                    fetch('/archive/dynamo/patch-simulations/' + encodeURIComponent(simId) + '?_=' + Date.now(),
-                        { cache: 'no-store' })
-                        .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                        .then(({ ok, data }) => {
-                            if (!ok) {
-                                showError('Could not load simulation: ' + (data.error || 'unknown error'));
-                                return;
-                            }
-                            const out = data.simulationOutput;
-                            if (!out || !out.simulationCompleted) {
-                                setStatus('<i class="fas fa-hourglass-half"></i> Simulation pending — reload when ready.');
-                                return;
-                            }
-                            let totalFrames = 0;
-                            for (const [exp, field] of Object.entries(expToField)) {
-                                const files = (out[field] || []);
-                                experimentsReady[exp] = files.length > 0;
-                                totalFrames += files.length;
-                            }
-                            if (totalFrames === 0) {
-                                showError('Simulation completed but produced no visualization files.');
-                            } else {
-                                const firstReady = Object.keys(expToField).find(e => experimentsReady[e]);
-                                if (firstReady) {
-                                    selectEl.value = firstReady;
-                                    renderViewer(firstReady);
-                                }
-                            }
-                            // Stiffness plots are independent of the visualization files;
-                            // render whenever the arrays are present.
-                            renderStiffnessPlots(out);
-                        })
-                        .catch(err => showError('Network error: ' + err.message));
-                })();
+                // Query-param auto-open — a form submission redirects to
+                // ?thread_simulation=<id> or ?patch_simulation=<id>, which
+                // opens the matching viewer modal on load.
+                const params = new URLSearchParams(window.location.search);
+                const threadId = params.get('thread_simulation');
+                const patchId = params.get('patch_simulation');
+                if (threadId && window.openThreadViewer) window.openThreadViewer(threadId, null);
+                if (patchId && window.openPatchViewer) window.openPatchViewer(patchId, null);
+            })();
             </script>
 
             <script>

@@ -59,7 +59,7 @@ from services.simulation_plots import render_force_elongation_png
 
 logger = logging.getLogger(__name__)
 
-INPUT_FILTERABLE_FIELDS = {'simulation_id', 'structure_type', 'hierarchy_level'}
+INPUT_FILTERABLE_FIELDS = {'simulation_id', 'structure_type', 'hierarchy_level', 'artefact_id'}
 
 # {unit, value} fields at the top of simulationInput.
 TOP_UV_FIELDS = (
@@ -94,6 +94,8 @@ INPUT_AVRO_SCHEMA = """
     "namespace": "com.textailes.dynamo",
     "fields": [
         {"name": "simulation_id", "type": "string"},
+        {"name": "artefact_id", "type": ["null", "int"], "default": null},
+        {"name": "experiment_id", "type": ["null", "int"], "default": null},
         {"name": "structure_type", "type": "string"},
         {"name": "friction_value", "type": ["null", "float"], "default": null},
         {"name": "friction_unit", "type": ["null", "string"], "default": null},
@@ -185,14 +187,20 @@ def _rows_to_dicts(cur, rows):
     return results
 
 
-def _build_input_row(body, simulation_id, now):
-    """Flatten a POST body's simulationInput + structureInput into flat DB columns."""
+def _build_input_row(body, simulation_id, now, artefact_id, experiment_id):
+    """Flatten a POST body's simulationInput + structureInput into flat DB columns.
+
+    artefact_id + experiment_id come from the caller so they can be assigned
+    server-side (experiment_id is a per-artefact counter; see POST handler).
+    """
     sim_input = body.get('simulationInput') or {}
     structure_input = sim_input.get('structureInput') or {}
     discretization = sim_input.get('discretization') or {}
 
     row = {
         'simulation_id': simulation_id,
+        'artefact_id': artefact_id,
+        'experiment_id': experiment_id,
         'structure_type': body.get('structureType', 'Thread'),
         'discretization_period_count': discretization.get('periodCount'),
         'discretization_nodes_per_period_count': discretization.get('nodesPerPeriodCount'),
@@ -269,6 +277,8 @@ def _hydrate_record(input_row, output_row):
 
     return {
         'simulation_id': input_row['simulation_id'],
+        'artefact_id': input_row.get('artefact_id'),
+        'experiment_id': input_row.get('experiment_id'),
         'structureType': input_row.get('structure_type'),
         'created_at': input_row.get('created_at'),
         'updated_at': input_row.get('updated_at'),
@@ -365,14 +375,33 @@ class ThreadSimulationResource(Resource):
         if hierarchy_level not in (1, 2):
             return {'error': "structureInput.hierarchyLevel must be 1 or 2"}, 400
 
+        # Every submission comes from an artefact page and is tied to that
+        # artefact. experiment_id is assigned server-side (per-artefact
+        # counter — Thread #1, #2, ...) so the UI can show a human-friendly
+        # identifier alongside the UUID.
+        raw_artefact_id = body.get('artefact_id')
+        if raw_artefact_id is None:
+            return {'error': "Missing 'artefact_id'"}, 400
+        try:
+            artefact_id = int(raw_artefact_id)
+        except (TypeError, ValueError):
+            return {'error': "'artefact_id' must be an integer"}, 400
+
         simulation_id = body.get('simulation_id') or str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
 
-        input_row = _build_input_row(body, simulation_id, now)
-
         try:
             with get_db_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COALESCE(MAX(experiment_id), 0) + 1 "
+                    "FROM dynamo.thread_simulation_input WHERE artefact_id = %s",
+                    (artefact_id,)
+                )
+                experiment_id = cur.fetchone()[0]
+
+                input_row = _build_input_row(body, simulation_id, now, artefact_id, experiment_id)
+
                 cur.execute(
                     f"""
                     INSERT INTO dynamo.thread_simulation_input ({', '.join(input_row.keys())})
@@ -424,6 +453,8 @@ class ThreadSimulationResource(Resource):
             return {
                 'message': "Thread simulation submitted.",
                 'simulation_id': simulation_id,
+                'artefact_id': artefact_id,
+                'experiment_id': experiment_id,
             }, 201
 
         except Exception as e:

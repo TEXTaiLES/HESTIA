@@ -24,7 +24,7 @@ from services.simulation_plots import render_polar_stiffness_png
 
 logger = logging.getLogger(__name__)
 
-INPUT_FILTERABLE_FIELDS = {'simulation_id', 'structure_type', 'weave_pattern'}
+INPUT_FILTERABLE_FIELDS = {'simulation_id', 'structure_type', 'weave_pattern', 'artefact_id'}
 
 # Pairs of (JSON side key, DB column prefix) for the warp/weft sub-objects.
 SIDES = (('warpInput', 'warp'), ('weftInput', 'weft'))
@@ -70,6 +70,8 @@ INPUT_AVRO_SCHEMA = """
     "namespace": "com.textailes.dynamo",
     "fields": [
         {"name": "simulation_id", "type": "string"},
+        {"name": "artefact_id", "type": ["null", "int"], "default": null},
+        {"name": "experiment_id", "type": ["null", "int"], "default": null},
         {"name": "structure_type", "type": "string"},
         {"name": "weave_pattern", "type": ["null", "string"], "default": null},
         {"name": "pattern_repetition_count_warp", "type": ["null", "int"], "default": null},
@@ -205,6 +207,8 @@ def _hydrate_record(input_row, output_row):
             'intermediateElementCount': input_row.get('discretization_intermediate_element_count'),
         },
     }
+    artefact_id = input_row.get('artefact_id')
+    experiment_id = input_row.get('experiment_id')
 
     simulation_output = None
     if output_row:
@@ -225,6 +229,8 @@ def _hydrate_record(input_row, output_row):
 
     return {
         'simulation_id': input_row['simulation_id'],
+        'artefact_id': artefact_id,
+        'experiment_id': experiment_id,
         'structureType': input_row.get('structure_type'),
         'created_at': input_row.get('created_at'),
         'updated_at': input_row.get('updated_at'),
@@ -313,27 +319,48 @@ class PatchSimulationResource(Resource):
         if not sim_input:
             return {'error': "Missing 'simulationInput'"}, 400
 
+        # Every submission comes from an artefact page and is tied to that
+        # artefact. experiment_id is assigned server-side (per-artefact
+        # counter — Patch #1, #2, ...) so the UI can show a human-friendly
+        # identifier alongside the UUID.
+        raw_artefact_id = body.get('artefact_id')
+        if raw_artefact_id is None:
+            return {'error': "Missing 'artefact_id'"}, 400
+        try:
+            artefact_id = int(raw_artefact_id)
+        except (TypeError, ValueError):
+            return {'error': "'artefact_id' must be an integer"}, 400
+
         simulation_id = body.get('simulation_id') or str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
 
         discretization = sim_input.get('discretization') or {}
 
-        input_row = {
-            'simulation_id': simulation_id,
-            'structure_type': body.get('structureType', 'Patch'),
-            'weave_pattern': sim_input.get('weavePattern'),
-            'pattern_repetition_count_warp': sim_input.get('patternRepetitionCountWarp'),
-            'pattern_repetition_count_weft': sim_input.get('patternRepetitionCountWeft'),
-            'discretization_intermediate_element_count': discretization.get('intermediateElementCount'),
-            'created_at': now,
-            'updated_at': now,
-        }
-        for json_key, db_prefix in SIDES:
-            input_row.update(_side_to_columns(sim_input.get(json_key), db_prefix))
-
         try:
             with get_db_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COALESCE(MAX(experiment_id), 0) + 1 "
+                    "FROM dynamo.patch_simulation_input WHERE artefact_id = %s",
+                    (artefact_id,)
+                )
+                experiment_id = cur.fetchone()[0]
+
+                input_row = {
+                    'simulation_id': simulation_id,
+                    'artefact_id': artefact_id,
+                    'experiment_id': experiment_id,
+                    'structure_type': body.get('structureType', 'Patch'),
+                    'weave_pattern': sim_input.get('weavePattern'),
+                    'pattern_repetition_count_warp': sim_input.get('patternRepetitionCountWarp'),
+                    'pattern_repetition_count_weft': sim_input.get('patternRepetitionCountWeft'),
+                    'discretization_intermediate_element_count': discretization.get('intermediateElementCount'),
+                    'created_at': now,
+                    'updated_at': now,
+                }
+                for json_key, db_prefix in SIDES:
+                    input_row.update(_side_to_columns(sim_input.get(json_key), db_prefix))
+
                 cur.execute(
                     f"""
                     INSERT INTO dynamo.patch_simulation_input ({', '.join(input_row.keys())})
@@ -385,6 +412,8 @@ class PatchSimulationResource(Resource):
             return {
                 'message': "Patch simulation submitted.",
                 'simulation_id': simulation_id,
+                'artefact_id': artefact_id,
+                'experiment_id': experiment_id,
             }, 201
 
         except Exception as e:

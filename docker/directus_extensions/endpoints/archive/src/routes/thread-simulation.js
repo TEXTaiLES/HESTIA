@@ -74,6 +74,26 @@ export default (router, { services }) => {
 		}
 	});
 
+	// List (collection). Forwards query params like ?artefact_id=<n>&per_page=200
+	// so the per-artefact table on the artefact page can fetch its rows.
+	// The frontend uses fetchWithAuthRetry() to survive the single-use
+	// refresh-token race on page load.
+	router.get('/dynamo/thread-simulations', async (req, res) => {
+		try {
+			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
+			if (!isAuthenticated) return res.status(401).json({ error: 'Not authenticated' });
+			const qs = new URLSearchParams(req.query).toString();
+			const upstream = '/dynamo/thread-simulations' + (qs ? '?' + qs : '');
+			const result = await apiRequestBuffered('GET', upstream);
+			res.status(result.statusCode || 502);
+			res.set('Content-Type', result.headers['content-type'] || 'application/json');
+			res.send(result.body);
+		} catch (err) {
+			console.error('[thread-simulation] LIST error:', err);
+			res.status(502).json({ error: 'API unreachable', message: err.message, code: err.code });
+		}
+	});
+
 	router.get('/dynamo/thread-simulations/:simulation_id', async (req, res) => {
 		try {
 			const isAuthenticated = await userIsAuthenticated(req, res, AuthenticationService);
