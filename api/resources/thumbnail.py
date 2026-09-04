@@ -3,6 +3,7 @@ from flask_restful import Resource
 import logging
 
 from middleware.security import require_api_key
+from services.utils import fetch_one_dict
 from services.database import get_db_connection
 from services.storage import MINIO_RECONSTRUCTION_BUCKET
 from services.thumbnail import render_glb_thumbnail
@@ -32,7 +33,7 @@ class ThumbnailResource(Resource):
                 "SELECT glb_location FROM reconstructions WHERE object_id = %s",
                 (object_id,)
             )
-            row = cur.fetchone()
+            row = fetch_one_dict(cur)
             cur.close()
             conn.close()
         except Exception as e:
@@ -42,7 +43,7 @@ class ThumbnailResource(Resource):
         if not row:
             return {'error': f"Reconstruction '{object_id}' not found"}, 404
 
-        glb_location = row[0]
+        glb_location = row['glb_location']
         if not glb_location:
             return {'error': 'No GLB file exists for this reconstruction yet'}, 400
 

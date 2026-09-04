@@ -36,7 +36,7 @@ def happy_pipeline(mocker, mock_db):
     return {
         'conn': conn,
         'cur': cur,
-        'minio': mocker.patch('resources.robot.minio_client'),
+        'minio': mocker.patch('services.utils.minio_client'),
         'avro': mocker.patch('resources.robot.send_avro_message', return_value=True),
         'simple': mocker.patch('resources.robot.send_simple_message', return_value=True),
     }
@@ -151,7 +151,7 @@ class TestGet:
         conn, cur = mock_db(description=self._description())
         client.get(URL, headers=auth_headers)
 
-        cur.close.assert_called_once()
+        cur.__exit__.assert_called_once()
         conn.close.assert_called_once()
 
     # A DB connection failure is caught by the outer try and surfaces as a 500.
@@ -218,15 +218,29 @@ class TestPostUpload:
     def test_uploads_object_under_scan_id_folder(self, client, auth_headers, happy_pipeline):
         data = _multipart({}, scan_id=SCAN_ID)
 
+        # upload_filestorage hands MinIO the live upload stream rather than a copy,
+        # and werkzeug closes that stream at request teardown — so the bytes have
+        # to be read inside the call, not from call_args afterwards.
+        uploaded = {}
+
+        def capture(bucket, object_name, stream, length, **kwargs):
+            uploaded.update(
+                bucket=bucket,
+                object_name=object_name,
+                data=stream.read(),
+                length=length,
+                content_type=kwargs.get('content_type'),
+            )
+
+        happy_pipeline['minio'].put_object.side_effect = capture
+
         client.post(URL, headers=auth_headers, data=data)
 
-        args, kwargs = happy_pipeline['minio'].put_object.call_args
-        bucket, object_name, stream, length = args
-        assert bucket == BUCKET
-        assert object_name == f'{SCAN_ID}/{FILENAME}'
-        assert stream.read() == IMAGE_BYTES
-        assert length == len(IMAGE_BYTES)
-        assert kwargs['content_type'] == 'image/png'
+        assert uploaded['bucket'] == BUCKET
+        assert uploaded['object_name'] == f'{SCAN_ID}/{FILENAME}'
+        assert uploaded['data'] == IMAGE_BYTES
+        assert uploaded['length'] == len(IMAGE_BYTES)
+        assert uploaded['content_type'] == 'image/png'
 
     # With no scan_id in the form the resource generates a UUID, and that same id is
     # used for the object path so the response and storage layout stay consistent.
@@ -363,7 +377,7 @@ class TestPostFailures:
     # An INSERT that affects no rows is treated as a failure and skips the notification.
     def test_insert_affecting_no_rows_returns_500(self, client, auth_headers, mock_db, mocker):
         _conn, cur = mock_db(rowcount=0)
-        mocker.patch('resources.robot.minio_client')
+        mocker.patch('services.utils.minio_client')
         mocker.patch('resources.robot.send_avro_message', return_value=True)
         simple = mocker.patch('resources.robot.send_simple_message', return_value=True)
 

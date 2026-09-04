@@ -1,15 +1,14 @@
-from flask import request, jsonify
-from flask_restful import Resource
+from flask import request
 from werkzeug.utils import secure_filename
 from datetime import datetime, timezone
 import uuid
 import io
 import os
-import json
 import logging
 import shutil
 
-from middleware.security import require_api_key
+from services.utils import convert_obj_to_glb, upload_filestorage
+from resources.resource_base import ResourceBase
 from services.database import get_db_connection
 from services.storage import (
     minio_client,
@@ -23,85 +22,40 @@ from services.messaging import (
     TOPIC_RECONSTRUCTION_UPLOADED
 )
 
-try:
-    from services.utils import convert_obj_to_glb
-except ImportError:
-    convert_obj_to_glb = None
-
 logger = logging.getLogger(__name__)
 
-RECONSTRUCTION_AVRO_SCHEMA = """
-{
-    "type": "record",
-    "name": "Reconstruction",
-    "namespace": "com.textailes.reconstruction",
-    "fields": [
-        {"name": "object_id", "type": "string"},
-        {"name": "scan_id", "type": "string"},
-        {"name": "filename", "type": "string"},
-        {"name": "model_location", "type": ["null", "string"], "default": null},
-        {"name": "texture_location", "type": ["null", "string"], "default": null},
-        {"name": "material_location", "type": ["null", "string"], "default": null},
-        {"name": "glb_location", "type": ["null", "string"], "default": null},
-        {"name": "public_url_model", "type": ["null", "string"], "default": null},
-        {"name": "public_url_texture", "type": ["null", "string"], "default": null},
-        {"name": "public_url_material", "type": ["null", "string"], "default": null},
-        {"name": "public_url_glb", "type": ["null", "string"], "default": null},
-        {"name": "timestamp", "type": "string"},
-        {"name": "artifact_id", "type": ["null", "string"], "default": null}
-    ]
-}
-"""
 
-class ReconstructionResource(Resource):
-    method_decorators = [require_api_key]
+class ReconstructionResource(ResourceBase):
+    avro_schema = """
+    {
+        "type": "record",
+        "name": "Reconstruction",
+        "namespace": "com.textailes.reconstruction",
+        "fields": [
+            {"name": "object_id", "type": "string"},
+            {"name": "scan_id", "type": "string"},
+            {"name": "filename", "type": "string"},
+            {"name": "model_location", "type": ["null", "string"], "default": null},
+            {"name": "texture_location", "type": ["null", "string"], "default": null},
+            {"name": "material_location", "type": ["null", "string"], "default": null},
+            {"name": "glb_location", "type": ["null", "string"], "default": null},
+            {"name": "public_url_model", "type": ["null", "string"], "default": null},
+            {"name": "public_url_texture", "type": ["null", "string"], "default": null},
+            {"name": "public_url_material", "type": ["null", "string"], "default": null},
+            {"name": "public_url_glb", "type": ["null", "string"], "default": null},
+            {"name": "timestamp", "type": "string"},
+            {"name": "artifact_id", "type": ["null", "string"], "default": null}
+        ]
+    }
+    """
+    table = "reconstructions"
+    order_by = "timestamp DESC"
 
-    def get(self):
-        """
-        Retrieve reconstructions from the Read-Database (populated by Kafka).
-        """
-        conn = None
-        try:
-            scan_id = request.args.get('scan_id')
-            page = int(request.args.get('page', 1))
-            per_page = int(request.args.get('per_page', 50))
-            offset = (page - 1) * per_page
-
-            sql = "SELECT * FROM reconstructions WHERE 1=1"
-            params = []
-
-            if scan_id:
-                sql += " AND scan_id = %s"
-                params.append(scan_id)
-
-            sql += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
-            params.extend([per_page, offset])
-
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute(sql, tuple(params))
-
-            rows = cur.fetchall()
-            results = []
-            if cur.description:
-                colnames = [desc[0] for desc in cur.description]
-                for row in rows:
-                    row_dict = {}
-                    for col, val in zip(colnames, row):
-                        if isinstance(val, datetime):
-                            row_dict[col] = val.isoformat()
-                        else:
-                            row_dict[col] = val
-                    results.append(row_dict)
-
-            cur.close()
-            conn.close()
-            return jsonify(results)
-
-        except Exception as e:
-            logger.error(f"Error fetching reconstructions: {e}")
-            if conn: conn.close()
-            return {'error': "Reconstructions not available yet (Kafka Sync pending) or DB Error."}, 500
+    def build_GET_conditions(self):
+        conditions = []
+        if scan_id := request.args.get('scan_id'):
+            conditions.append(('scan_id', '=', scan_id))
+        return conditions
 
     def post(self):
         files = request.files.getlist('file')
@@ -153,15 +107,11 @@ class ReconstructionResource(Resource):
                     if record['filename'] is None:
                         record['filename'] = filename
 
-                # Upload to Minio
+                # Upload to Minio. upload_filestorage sizes the spooled stream by
+                # seeking it, which also works for the small uploads werkzeug keeps
+                # in memory (those have no fileno() to fstat).
                 object_name = f"{object_id}/raw/{filename}"
-                minio_client.put_object(
-                    MINIO_RECONSTRUCTION_BUCKET,
-                    object_name,
-                    file,
-                    os.fstat(file.fileno()).st_size,
-                    content_type=file.content_type
-                )
+                upload_filestorage(MINIO_RECONSTRUCTION_BUCKET, object_name, file)
 
                 # Update Record
                 s3_loc = f"s3://{MINIO_RECONSTRUCTION_BUCKET}/{object_name}"
@@ -204,7 +154,7 @@ class ReconstructionResource(Resource):
                 record['filename'] = secure_filename(files[0].filename)
 
             # 3. Publish to Kafka
-            if not send_avro_message(TOPIC_RECONSTRUCTIONS, object_id, record, RECONSTRUCTION_AVRO_SCHEMA):
+            if not send_avro_message(TOPIC_RECONSTRUCTIONS, object_id, record, self.avro_schema):
                  return {'error': "Failed to publish to Kafka"}, 500
 
             keys = [key for key in record.keys()]

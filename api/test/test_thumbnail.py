@@ -9,6 +9,9 @@ URL = f'/reconstructions/{OBJECT_ID}/generate-thumbnail'
 
 GLB_OBJECT_NAME = 'sub/dir/model.glb'
 GLB_LOCATION = f's3://reconstructions/{GLB_OBJECT_NAME}'  # matches MINIO_RECONSTRUCTION_BUCKET
+# The resource reads the row by column name (fetch_one_dict), so the mocked
+# cursor has to carry a description just like a real psycopg2 one.
+ROW_DESC = [('glb_location',)]
 PNG_BYTES = b'\x89PNG\r\n\x1a\nfake'
 DIRECTUS_FILE_ID = 'file-xyz'
 
@@ -17,7 +20,7 @@ DIRECTUS_FILE_ID = 'file-xyz'
 def happy_pipeline(mocker, mock_db):
     """Wire the whole pipeline for a successful run; individual tests can override any step."""
     # Database returns a row with a valid GLB location.
-    conn, cur = mock_db(fetchone=(GLB_LOCATION,))
+    conn, cur = mock_db(fetchone=(GLB_LOCATION,), description=ROW_DESC)
     render = mocker.patch(
         'resources.thumbnail.render_glb_thumbnail',
         return_value=PNG_BYTES,
@@ -84,7 +87,7 @@ class TestDbLookup:
     # Checks two cases where the GLB location is either None or an empty string, but the reconstruction row exists.
     @pytest.mark.parametrize('glb_location', [None, ''])
     def test_returns_400_when_glb_location_empty(self, client, auth_headers, mock_db, mocker, glb_location):
-        mock_db(fetchone=(glb_location,))
+        mock_db(fetchone=(glb_location,), description=ROW_DESC)
         render = mocker.patch('resources.thumbnail.render_glb_thumbnail')
         upload = mocker.patch('resources.thumbnail.upload_file')
         set_thumb = mocker.patch('resources.thumbnail.set_artefact_thumbnail')

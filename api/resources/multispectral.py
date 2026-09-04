@@ -1,14 +1,14 @@
-import io
 import logging
 import mimetypes
 
 from pathlib import Path
 from urllib.parse import quote
-from flask import request, send_file
+from flask import request
 from flask_restful import Resource
 from minio.error import S3Error
 
 from middleware.security import require_api_key
+from services.utils import stream_object, upload_filestorage
 from services.storage import MINIO_ROBOT_BUCKET, build_public_url, minio_client
 
 
@@ -166,15 +166,8 @@ def _upload_multispectral_file(file, image_name: str) -> dict[str, str]:
     if band_name is None:
         raise ValueError(f"Unsupported band filename '{file.filename}'")
 
-    file_data = file.read()
     object_name = f"{MULTISPECTRAL_IMAGE_PREFIX}{dataset_name}/{band_name}"
-    minio_client.put_object(
-        MINIO_ROBOT_BUCKET,
-        object_name,
-        io.BytesIO(file_data),
-        len(file_data),
-        content_type=file.content_type or "application/octet-stream",
-    )
+    upload_filestorage(MINIO_ROBOT_BUCKET, object_name, file)
 
     return {
         "band": band_name,
@@ -281,10 +274,15 @@ class MultispectralImageFileResource(Resource):
             return {"error": f"Band '{band}' not found"}, 404
 
         object_name = f"{dataset_prefix}{band_name}"
-        response = None
+        mimetype = mimetypes.guess_type(band_name)[0] or "application/octet-stream"
         try:
-            response = minio_client.get_object(MINIO_ROBOT_BUCKET, object_name)
-            file_data = response.read()
+            return stream_object(
+                MINIO_ROBOT_BUCKET,
+                object_name,
+                download_name=band_name,
+                mimetype=mimetype,
+                as_attachment=False,
+            )
         except Exception as exc:
             logger.error(
                 "Failed to retrieve multispectral band '%s' from '%s': %s",
@@ -293,15 +291,3 @@ class MultispectralImageFileResource(Resource):
                 exc,
             )
             return {"error": f"Band '{band}' not found"}, 404
-        finally:
-            if response is not None:
-                response.close()
-                response.release_conn()
-
-        mimetype = mimetypes.guess_type(band_name)[0] or "application/octet-stream"
-        return send_file(
-            io.BytesIO(file_data),
-            mimetype=mimetype,
-            as_attachment=False,
-            download_name=band_name,
-        )

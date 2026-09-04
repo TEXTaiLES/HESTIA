@@ -100,7 +100,8 @@ def mock_db(request, mocker):
 
         conn.cursor.return_value = cur
 
-        mocker.patch(f'{target_resource}.get_db_connection', return_value=conn)
+        for target in (target_resource, 'resources.resource_base'):
+            mocker.patch(f'{target}.get_db_connection', return_value=conn)
         return conn, cur
 
     return _factory

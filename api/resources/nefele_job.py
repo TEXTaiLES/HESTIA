@@ -1,15 +1,12 @@
-from flask import request, jsonify
-from flask_restful import Resource
-from datetime import datetime
+from flask import request
 import uuid
-import io
 import json
 import logging
 
-from middleware.security import require_api_key
+from services.utils import fetch_one_dict, upload_filestorage
+from resources.resource_base import ResourceBase
 from services.database import get_db_connection
 from services.storage import (
-    minio_client,
     build_public_url,
     MINIO_NEFELE_BUCKET,
 )
@@ -21,94 +18,79 @@ from services.messaging import (
 
 logger = logging.getLogger(__name__)
 
-def _row_to_dict(colnames, row):
-    """psycopg2 row -> JSON-safe dict (datetime -> isoformat)."""
-    d = {}
-    for col, val in zip(colnames, row):
-        if isinstance(val, datetime):
-            d[col] = val.isoformat()
-        else:
-            d[col] = val
-    return d
 
+class NefeleResource(ResourceBase):
+    # NOTE:  Missing avro_schema
 
-def _fetch_one(cur, job_id):
-    cur.execute("SELECT * FROM nefele_jobs WHERE job_id = %s", (job_id,))
-    row = cur.fetchone()
-    if not row:
-        return None
-    return _row_to_dict([c[0] for c in cur.description], row)
+    table = "nefele_jobs"
+    order_by = "created_at DESC"
 
-
-class NefeleResource(Resource):
-    method_decorators = [require_api_key]
+    def build_GET_conditions(self):
+        conditions = []
+        if status := request.args.get('status'):
+            conditions.append(('status', '=', status))
+        if scan_id := request.args.get('scan_id'):
+            conditions.append(('scan_id', '=', scan_id))
+        return conditions
 
     def post(self):
         data = request.get_json(silent=True) or {}
-        scan_id      = data.get('scan_id')
+        scan_id = data.get('scan_id')
         dataset_name = data.get('dataset_name')
-        model        = data.get('model', 'sugar')
-        points_json  = data.get('points_json')
-        artifact_id  = data.get('artifact_id')
+        model = data.get('model')
 
+        # Validate
         if not scan_id or not dataset_name:
             return {'error': "scan_id and dataset_name are required"}, 400
         if model not in ('sugar', 'pgsr', 'fastpgsr'):
             model = 'sugar'
 
+        conn = None
         job_id = str(uuid.uuid4())
         try:
+            sql = """
+                INSERT INTO nefele_jobs (job_id, scan_id, dataset_name, model, points_json, status, artifact_id)
+                VALUES (%s, %s, %s, %s, %s, 'points_submitted', %s)
+            """
+            params = (
+                job_id,
+                scan_id,
+                dataset_name,
+                model,
+                json.dumps(points_json) if (points_json := data.get('points_json')) else None,
+                data.get('artifact_id'),
+            )
             with get_db_connection() as conn, conn.cursor() as cur:
-                cur.execute(
-                    """INSERT INTO nefele_jobs
-                       (job_id, scan_id, dataset_name, model, points_json, status, artifact_id)
-                       VALUES (%s, %s, %s, %s, %s, 'points_submitted', %s)""",
-                    (job_id, scan_id, dataset_name, model,
-                     json.dumps(points_json) if points_json is not None else None,
-                     artifact_id),
-                )
-                row = _fetch_one(cur, job_id)
+                cur.execute(sql, params)
+                cur.execute("SELECT * FROM nefele_jobs WHERE job_id = %s", (job_id,))
+                row = fetch_one_dict(cur)
 
-            send_simple_message(TOPIC_NEFELE_JOB_CREATED, job_id,
-                                {'job_id': job_id, 'scan_id': scan_id})
+            # Notify Listeners via Kafka
+            notification = {'job_id': job_id, 'scan_id': scan_id}
+            send_simple_message(TOPIC_NEFELE_JOB_CREATED, job_id, notification)
 
             return {'message': "nefele job created",
                     'job_id': job_id, 'data': row}, 201
         except Exception as e:
             logger.error(f"nefele create failed: {e}")
             return {'error': str(e)}, 500
-
-    def get(self):
-        status   = request.args.get('status')
-        scan_id  = request.args.get('scan_id')
-        page     = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 50))
-        offset   = (page - 1) * per_page
-
-        sql, params = "SELECT * FROM nefele_jobs WHERE 1=1", []
-        if status:
-            sql += " AND status = %s";  params.append(status)
-        if scan_id:
-            sql += " AND scan_id = %s"; params.append(scan_id)
-        sql += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
-        params += [per_page, offset]
-
-        with get_db_connection() as conn, conn.cursor() as cur:
-            cur.execute(sql, tuple(params))
-            cols = [c[0] for c in cur.description]
-            rows = [_row_to_dict(cols, r) for r in cur.fetchall()]
-        return jsonify(rows)
+        finally:
+            if conn is not None:
+                conn.close()
 
 
-class NefeleJobResource(Resource):
-    method_decorators = [require_api_key]
+class NefeleJobResource(ResourceBase):
+    # NOTE: Missing avro_schema
+
+    table = "nefele_jobs"
 
     def get(self, job_id):
         with get_db_connection() as conn, conn.cursor() as cur:
-            row = _fetch_one(cur, job_id)
+            cur.execute("SELECT * FROM nefele_jobs WHERE job_id = %s", (job_id,))
+            row = fetch_one_dict(cur)
         if row is None:
             return {'error': f"job {job_id} not found"}, 404
-        return jsonify(row)
+        return row, 200
 
     def patch(self, job_id):
         data = request.get_json(silent=True) or {}
@@ -162,8 +144,8 @@ class NefeleJobResource(Resource):
             return {'error': str(e)}, 500
 
 
-class NefeleClaimResource(Resource):
-    method_decorators = [require_api_key]
+class NefeleClaimResource(ResourceBase):
+    table = "nefele_jobs"
 
     def post(self):
         try:
@@ -181,22 +163,21 @@ class NefeleClaimResource(Resource):
                     RETURNING *
                     """
                 )
-                row = cur.fetchone()
-                if row is None:
+                result = fetch_one_dict(cur)
+                if result is None:
                     return '', 204
-                result = _row_to_dict([c[0] for c in cur.description], row)
 
             send_simple_message(TOPIC_NEFELE_JOB_MODIFIED, result['job_id'],
                                 {'job_id': result['job_id'], 'status': 'previewing'})
 
-            return jsonify(result)
+            return result, 200
         except Exception as e:
             logger.error(f"nefele claim failed: {e}")
             return {'error': str(e)}, 500
 
 
-class NefelePreviewResource(Resource):
-    method_decorators = [require_api_key]
+class NefelePreviewResource(ResourceBase):
+    table = "nefele_jobs"
 
     def post(self, job_id):
         files = request.files.getlist('file')
@@ -206,11 +187,9 @@ class NefelePreviewResource(Resource):
         urls = []
         try:
             for f in files:
-                blob = f.read()
                 object_name = f"{job_id}/{f.filename}"
-                minio_client.put_object(
-                    MINIO_NEFELE_BUCKET, object_name,
-                    io.BytesIO(blob), len(blob),
+                upload_filestorage(
+                    MINIO_NEFELE_BUCKET, object_name, f,
                     content_type=f.content_type or 'image/png',
                 )
                 urls.append(build_public_url(MINIO_NEFELE_BUCKET, object_name))
@@ -234,8 +213,8 @@ class NefelePreviewResource(Resource):
             return {'error': str(e)}, 500
 
 
-class NefeleCancelResource(Resource):
-    method_decorators = [require_api_key]
+class NefeleCancelResource(ResourceBase):
+    table = "nefele_jobs"
 
     def post(self, job_id):
         """POST /nefele/<id>/cancel — atomic cancel of a non-terminal job.

@@ -392,8 +392,8 @@ def real_client_artifact(client, mocker, postgres_config, kafka_config, real_min
 
 
 # Wires the amalthai_dataset resource against real Postgres + real MinIO.
-# amalthai_common.upload_filestorage / stream_object use services.storage.minio_client
-# (imported into resources.amalthai_common at module load), so we patch that
+# services.utils.upload_filestorage / stream_object use services.storage.minio_client
+# (imported into services.utils at module load), so we patch that
 # module-level reference to point at localhost. No Kafka involved.
 @pytest.fixture()
 def real_client_amalthai_dataset(client, mocker, postgres_config, real_minio_client):
@@ -403,7 +403,7 @@ def real_client_amalthai_dataset(client, mocker, postgres_config, real_minio_cli
     mocker.patch('services.database.PG_USER', postgres_config['user'])
     mocker.patch('services.database.PG_PASSWORD', postgres_config['password'])
 
-    mocker.patch('resources.amalthai_common.minio_client', real_minio_client)
+    mocker.patch('services.utils.minio_client', real_minio_client)
     return client
 
 
@@ -451,7 +451,8 @@ def real_client_nefele(client, mocker, postgres_config, kafka_config, real_minio
     mocker.patch('services.database.PG_USER', postgres_config['user'])
     mocker.patch('services.database.PG_PASSWORD', postgres_config['password'])
 
-    mocker.patch('resources.nefele_job.minio_client', real_minio_client)
+    # Preview uploads go through services.utils.upload_filestorage.
+    mocker.patch('services.utils.minio_client', real_minio_client)
 
     # kafka_config is a required dep so this fixture skips cleanly when Kafka
     # isn't reachable, matching the pattern of the other integration fixtures.

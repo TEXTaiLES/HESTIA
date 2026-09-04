@@ -1,13 +1,13 @@
-import io
 import logging
 import mimetypes
 from pathlib import Path
 
-from flask import request, send_file
+from flask import request
 from flask_restful import Resource
 from minio.error import S3Error
 
 from middleware.security import require_api_key
+from services.utils import stream_object, upload_filestorage
 from services.storage import MINIO_ROBOT_BUCKET, build_public_url, minio_client
 
 
@@ -85,15 +85,8 @@ def _upload_rgb_file(file) -> dict[str, str | None]:
     if image_name is None:
         raise ValueError(f"Unsupported RGB image filename '{file.filename}'")
 
-    file_data = file.read()
     object_name = f"{RGB_IMAGE_PREFIX}{image_name}"
-    minio_client.put_object(
-        MINIO_ROBOT_BUCKET,
-        object_name,
-        io.BytesIO(file_data),
-        len(file_data),
-        content_type=file.content_type or "application/octet-stream",
-    )
+    upload_filestorage(MINIO_ROBOT_BUCKET, object_name, file)
 
     return _build_descriptor(object_name)
 
@@ -157,22 +150,15 @@ class RgbImageFileResource(Resource):
         if object_name is None:
             return {"error": f"RGB image '{image_name}' not found"}, 404
 
-        response = None
+        mimetype = mimetypes.guess_type(image_name)[0] or "application/octet-stream"
         try:
-            response = minio_client.get_object(MINIO_ROBOT_BUCKET, object_name)
-            file_data = response.read()
+            return stream_object(
+                MINIO_ROBOT_BUCKET,
+                object_name,
+                download_name=Path(image_name).name,
+                mimetype=mimetype,
+                as_attachment=False,
+            )
         except Exception as exc:
             logger.error("Failed to retrieve RGB image '%s': %s", image_name, exc)
             return {"error": f"RGB image '{image_name}' not found"}, 404
-        finally:
-            if response is not None:
-                response.close()
-                response.release_conn()
-
-        mimetype = mimetypes.guess_type(image_name)[0] or "application/octet-stream"
-        return send_file(
-            io.BytesIO(file_data),
-            mimetype=mimetype,
-            as_attachment=False,
-            download_name=Path(image_name).name,
-        )

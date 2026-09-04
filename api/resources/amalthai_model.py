@@ -13,7 +13,7 @@ import logging
 from middleware.security import require_api_key
 from services.database import get_db_connection
 from services.storage import build_public_url, MINIO_AMALTHAI_MODELS_BUCKET
-from resources.amalthai_common import (
+from services.utils import (
     rows_to_dicts,
     fetch_one_dict,
     upload_filestorage,

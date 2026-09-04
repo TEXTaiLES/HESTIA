@@ -12,7 +12,7 @@ import logging
 
 from middleware.security import require_api_key
 from services.database import get_db_connection
-from resources.amalthai_common import rows_to_dicts, fetch_one_dict
+from services.utils import rows_to_dicts, fetch_one_dict
 
 logger = logging.getLogger(__name__)
 

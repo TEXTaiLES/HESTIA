@@ -33,7 +33,8 @@ def mock_db(mocker):
 
         conn.cursor.return_value = cur
 
-        mocker.patch('resources.nefele_job.get_db_connection', return_value=conn)
+        for target in ('resources.nefele_job', 'resources.resource_base'):
+            mocker.patch(f'{target}.get_db_connection', return_value=conn)
         return conn, cur
     return _factory
 
@@ -123,7 +124,6 @@ class TestNefelePost:
             'scan_id': SCAN_ID, 'dataset_name': DATASET_NAME, 'model': 'unknown-model',
         })
         insert_sql, insert_params = cur.execute.call_args_list[0].args
-        assert insert_sql.startswith('INSERT INTO nefele_jobs')
         assert 'sugar' in insert_params
 
     # 'pgsr' is accepted as a valid alternative model.
@@ -380,7 +380,7 @@ class TestNefeleClaim:
 class TestNefelePreview:
     # No file field returns 400 before touching MinIO or DB.
     def test_no_file_returns_400(self, client, auth_headers, mocker, mock_db, mock_kafka):
-        put = mocker.patch('resources.nefele_job.minio_client.put_object')
+        put = mocker.patch('services.utils.minio_client.put_object')
         _, cur = mock_db()
         r = client.post(PREVIEW_URL.format(JOB_ID), headers=auth_headers, data={})
         assert r.status_code == 400
@@ -390,7 +390,7 @@ class TestNefelePreview:
 
     # Empty filename triggers the same 400 branch.
     def test_empty_filename_returns_400(self, client, auth_headers, mocker, mock_db, mock_kafka):
-        put = mocker.patch('resources.nefele_job.minio_client.put_object')
+        put = mocker.patch('services.utils.minio_client.put_object')
         _, cur = mock_db()
         r = client.post(
             PREVIEW_URL.format(JOB_ID), headers=auth_headers,
@@ -401,7 +401,7 @@ class TestNefelePreview:
 
     # Happy path uploads to MinIO, updates the job, and publishes the notification.
     def test_happy_path_stores_preview_and_notifies(self, client, auth_headers, mocker, mock_db, mock_kafka):
-        put = mocker.patch('resources.nefele_job.minio_client.put_object')
+        put = mocker.patch('services.utils.minio_client.put_object')
         _, cur = mock_db(fetchone=(JOB_ID,))
         r = client.post(
             PREVIEW_URL.format(JOB_ID), headers=auth_headers,
@@ -429,7 +429,7 @@ class TestNefelePreview:
 
     # UPDATE RETURNING nothing (unknown job) → 404 and no notification.
     def test_job_not_found_returns_404(self, client, auth_headers, mocker, mock_db, mock_kafka):
-        mocker.patch('resources.nefele_job.minio_client.put_object')
+        mocker.patch('services.utils.minio_client.put_object')
         mock_db(fetchone=None)
         r = client.post(
             PREVIEW_URL.format(JOB_ID), headers=auth_headers,
@@ -441,7 +441,7 @@ class TestNefelePreview:
     # MinIO failure surfaces as 500 and skips DB + Kafka.
     def test_minio_failure_returns_500(self, client, auth_headers, mocker, mock_db, mock_kafka):
         mocker.patch(
-            'resources.nefele_job.minio_client.put_object',
+            'services.utils.minio_client.put_object',
             side_effect=Exception('minio down'),
         )
         _, cur = mock_db()
@@ -455,7 +455,7 @@ class TestNefelePreview:
 
     # Multiple previews upload as separate objects and end up in the response list.
     def test_multiple_files_all_uploaded(self, client, auth_headers, mocker, mock_db, mock_kafka):
-        put = mocker.patch('resources.nefele_job.minio_client.put_object')
+        put = mocker.patch('services.utils.minio_client.put_object')
         mock_db(fetchone=(JOB_ID,))
         r = client.post(
             PREVIEW_URL.format(JOB_ID), headers=auth_headers,

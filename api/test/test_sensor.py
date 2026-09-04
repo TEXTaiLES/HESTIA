@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 
-RESOURCE_MODULE = 'resources.sensor'
+RESOURCE_MODULE = 'resources.resource_base'
 
 URL = '/sensor-readings'
 SENSOR_ID = 'Teapot-Sensor-1'
@@ -146,13 +146,13 @@ class TestGet:
         conn, cur = mock_db(description=self._description())
         client.get(URL, headers=auth_headers)
 
-        cur.close.assert_called_once()
+        cur.__exit__.assert_called_once()
         conn.close.assert_called_once()
 
     # A DB connection failure is caught by the outer try and surfaces as a 500 with an error body.
     def test_db_error_returns_500(self, client, auth_headers, mocker):
         mocker.patch(
-            'resources.sensor.get_db_connection',
+            'resources.resource_base.get_db_connection',
             side_effect=Exception('db down'),
         )
         r = client.get(URL, headers=auth_headers)

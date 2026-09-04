@@ -1,12 +1,11 @@
-from flask import request, jsonify
-from flask_restful import Resource
+from flask import request
 from datetime import datetime, timezone
 import uuid
-import os
 import json
 import logging
 
-from middleware.security import require_api_key
+from services.utils import fetch_one_dict
+from resources.resource_base import ResourceBase, BadRequest
 from services.database import get_db_connection
 from services.messaging import (
     send_avro_message,
@@ -18,149 +17,129 @@ from services.messaging import (
 
 logger = logging.getLogger(__name__)
 
-# Avro Schema for Annotations (Scenes)
-ANNOTATION_AVRO_SCHEMA = """
-{
-    "type": "record",
-    "name": "Annotation",
-    "namespace": "com.textailes.annotation",
-    "fields": [
-        {"name": "scene_id", "type": "string"},
-        {"name": "object_id", "type": "string"},
-        {"name": "public_url", "type": ["null", "string"], "default": null},
-        {"name": "location", "type": ["null", "string"], "default": null},
-        {"name": "collaborative", "type": "boolean", "default": false},
-        {"name": "content", "type": ["null", "string"], "default": null},
-        {"name": "linked_objects", "type": ["null", "string"], "default": null},
-        {"name": "timestamp", "type": "string"},
-        {"name": "artifact_id", "type": ["null", "string"], "default": null}
-    ]
-}
-"""
 
+class AnnotationResource(ResourceBase):
+    avro_schema = """
+    {
+        "type": "record",
+        "name": "Annotation",
+        "namespace": "com.textailes.annotation",
+        "fields": [
+            {"name": "scene_id", "type": "string"},
+            {"name": "object_id", "type": "string"},
+            {"name": "public_url", "type": ["null", "string"], "default": null},
+            {"name": "location", "type": ["null", "string"], "default": null},
+            {"name": "collaborative", "type": "boolean", "default": false},
+            {"name": "content", "type": ["null", "string"], "default": null},
+            {"name": "linked_objects", "type": ["null", "string"], "default": null},
+            {"name": "timestamp", "type": "string"},
+            {"name": "artifact_id", "type": ["null", "string"], "default": null}
+        ]
+    }
+    """
+    table = "annotations"
+    order_by = "timestamp DESC"
 
-class AnnotationResource(Resource):
-    method_decorators = [require_api_key]
+    def build_GET_conditions(self):
+        conditions = []
+        if object_id := request.args.get('object_id'):
+            conditions.append(('object_id', '=', object_id))
+        return conditions
 
     def get(self):
         """Retrieve annotations/scenes from DB (populated by Kafka Sink)."""
         conn = None
         try:
-            conn = get_db_connection()
-            cur = conn.cursor()
+            payload, status_code = super().get()
+            if status_code != 200:
+                return payload, status_code
+            if payload:
+                return {'scenes': payload}, 200
+            # CHECK: Status codes are read as intended and execution flow is natural.
 
-            object_id = request.args.get('object_id')
-            page = int(request.args.get('page', 1))
-            per_page = int(request.args.get('per_page', 50))
-            offset = (page - 1) * per_page
-
-            sql = "SELECT * FROM annotations WHERE 1=1"
-            params: list = []
-
-            if object_id:
-                sql += " AND object_id = %s"
-                params.append(object_id)
-
-            sql += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
-            params.extend([per_page, offset])
-
-            cur.execute(sql, tuple(params))
-            rows: list[tuple] = cur.fetchall()
-
-            results = []
-            if cur.description:
-                colnames = [desc[0] for desc in cur.description]
-                for row in rows:
-                    row_dict = dict(zip(colnames, row))
-
-                    for k, v in row_dict.items():
-                        if isinstance(v, datetime):
-                            row_dict[k] = v.isoformat()
-                    results.append(row_dict)
-
-                cur.close()
-                conn.close()
-                return {'scenes': results}, 200 if results else 204
-
-            if object_id:
+            # TEST: Needs proper testing of newly created scene
+            if object_id := request.args.get('object_id'):
                 sql = "SELECT * FROM reconstructions WHERE object_id = %s"
-                cur.execute(sql, (object_id,))
-                if cur.description is None:
-                    return {'error': f"Object '{object_id}' does not exist."}, 400
+                # Everything below stays inside the `with`: conn.cursor() closes the
+                # cursor on exit, so fetching or inserting after it uses a dead cursor.
+                with get_db_connection() as conn, conn.cursor() as cur:
+                    cur.execute(sql, (object_id,))
+                    reconstruction = fetch_one_dict(cur)
+                    if reconstruction is None:
+                        raise BadRequest(f"Object '{object_id}' does not exist.")
 
-                row = cur.fetchone()
+                    # Prepare Record
+                    scene_id = str(uuid.uuid4())
+                    timestamp = datetime.now(timezone.utc).isoformat()
 
-                # Prepare Record
-                scene_id = str(uuid.uuid4())
-                timestamp = datetime.now(timezone.utc).isoformat()
+                    filename = reconstruction['filename']
+                    public_url = reconstruction['public_url_glb']
+                    location = reconstruction['glb_location']
+                    rec_artifact_id = reconstruction.get('artifact_id')
 
-                colnames = [desc[0] for desc in cur.description]
-                filename = row[colnames.index('filename')]
-                public_url = row[colnames.index('public_url_glb')]
-                location = row[colnames.index('glb_location')]
-                rec_artifact_id = row[colnames.index('artifact_id')] if 'artifact_id' in colnames else None
-
-                scene_data: dict = {
-                    "scene_id": scene_id,
-                    "object_id": object_id,
-                    "status": "complete",
-                    "collaborative": False,
-                    "scenegraph": {
-                        "nodes": {
-                            filename: {"urls": [public_url]}
+                    scene_data: dict = {
+                        "scene_id": scene_id,
+                        "object_id": object_id,
+                        "status": "complete",
+                        "collaborative": False,
+                        "scenegraph": {
+                            "nodes": {
+                                filename: {"urls": [public_url]}
+                            },
+                            "edges": {".": [filename]}
                         },
-                        "edges": {".": [filename]}
-                    },
-                    "linked_objects": {}
-                }
+                        "linked_objects": {}
+                    }
 
-                record = {
-                    'scene_id': scene_id,
-                    'object_id': object_id,
-                    'public_url': public_url,
-                    'location': location,
-                    'collaborative': scene_data['collaborative'],
-                    'content': json.dumps(scene_data['scenegraph']),
-                    'linked_objects': json.dumps(scene_data['linked_objects']),
-                    'timestamp': timestamp,
-                    'artifact_id': rec_artifact_id,
-                }
+                    record = {
+                        'scene_id': scene_id,
+                        'object_id': object_id,
+                        'public_url': public_url,
+                        'location': location,
+                        'collaborative': scene_data['collaborative'],
+                        'content': json.dumps(scene_data['scenegraph']),
+                        'linked_objects': json.dumps(scene_data['linked_objects']),
+                        'timestamp': timestamp,
+                        'artifact_id': rec_artifact_id,
+                    }
 
-                # Verify with Avro
-                if not send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, ANNOTATION_AVRO_SCHEMA):
-                    raise Exception("Failed to verify with Avro")
+                    # Verify with Avro
+                    if not send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, self.avro_schema):
+                        raise Exception("Failed to verify with Avro")
 
-                # Insert/Update record in DB
-                attributes = [key for key in record if record[key]]
-                sql = f"INSERT INTO annotations ({', '.join(attributes)})"
-                sql += f" VALUES ({', '.join(['%s' for _ in attributes])})"
-                params = [record[attribute] for attribute in attributes]
+                    # Insert/Update record in DB
+                    attributes = [key for key in record if record[key]]
+                    sql = f"INSERT INTO annotations ({', '.join(attributes)})"
+                    sql += f" VALUES ({', '.join(['%s' for _ in attributes])})"
+                    params = [record[attribute] for attribute in attributes]
 
-                cur.execute(sql, tuple(params))
-                if cur.rowcount == 0:
-                    raise Exception(f"Scene with object '{object_id}' could not be stored in DB.")
+                    cur.execute(sql, tuple(params))
+                    if cur.rowcount == 0:
+                        raise Exception(f"Scene with object '{object_id}' could not be stored in DB.")
 
                 # Send to Kafka
                 if not send_simple_message(TOPIC_ANNOTATION_UPLOADED, scene_id, {'status': 'completed'}):
                     raise Exception("Failed to send to Kafka")
-
-                cur.close()
-                conn.close()
 
                 return {
                     'message': "Scene created successfully.",
                     'data': record
                 }, 201
 
+        except BadRequest as e:
+            return {'error': str(e)}, 400
         except Exception as e:
-            if conn: conn.close()
             return {'error': str(e)}, 500
+        finally:
+            if conn:
+                conn.close()
 
     def post(self):
         scene_data = request.get_json()
         if not scene_data:
             return {'error': "No data provided"}, 400
 
+        # Validate
         # NOTE: Remove scene_id from JSON input?
         scene_id = scene_data.get('scene_id', str(uuid.uuid4()))
         object_id = scene_data.get('object_id')
@@ -181,33 +160,30 @@ class AnnotationResource(Resource):
         except (KeyError, IndexError, TypeError) as e:
             return {'error': f"Invalid scene structure: {str(e)}"}, 400
 
-        timestamp = datetime.now(timezone.utc).isoformat()
-        collaborative = scene_data.get('collaborative', False)
-        linked_objects: dict = scene_data.get('linked_objects', None)
-
-        # If caller provides artifact_id, it overrides the reconstruction's value.
-        override_artifact_id = scene_data.get('artifact_id')
-
         try:
-            # Prepare Record
+            # Construct metadata record to be inserted in DB
+
+            # If caller provides artifact_id, it overrides the reconstruction's value.
+            override_artifact_id = scene_data.get('artifact_id')
+
             record = {
                 'scene_id': scene_id,
                 'object_id': object_id,
-                'collaborative': collaborative,
+                'collaborative': scene_data.get('collaborative', False),
                 'public_url': public_url,
                 'location': None,
                 'content': json.dumps(scene_data['scenegraph']),
-                'linked_objects': json.dumps(linked_objects) if linked_objects else None,
-                'timestamp': timestamp,
+                'linked_objects': json.dumps(linked_objects) if (linked_objects := scene_data.get('linked_objects')) is not None else None,
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'artifact_id': override_artifact_id,
             }
 
-            # Verify with Avro
-            if not send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, ANNOTATION_AVRO_SCHEMA):
+            # Validate with Avro
+            if not send_avro_message(TOPIC_ANNOTATIONS, scene_id, record, self.avro_schema):
                 raise Exception("Failed to verify with Avro")
 
-            # Insert record in DB. artifact_id is sourced from the joined
-            # reconstruction unless the caller supplied an explicit override.
+            # Execute INSERT query
+            # artifact_id is sourced from the joined reconstruction unless the caller supplied an explicit override.
             with get_db_connection() as conn, conn.cursor() as cur:
                 sql = """
                     INSERT INTO annotations (scene_id, object_id, collaborative, public_url, content, linked_objects, timestamp, location, artifact_id)
@@ -224,17 +200,17 @@ class AnnotationResource(Resource):
                     record['content'],
                     record['linked_objects'],
                     record['timestamp'],
-                    override_artifact_id,
+                    record['artifact_id'],
                     record['object_id'],
                 )
-
                 cur.execute(sql, params)
                 inserted = cur.fetchone()
                 if not inserted:
+                    # TODO: Shouldn't this return '400' instead of '404'?
                     return {'error': f"Scene could not be stored; no reconstruction found for object_id '{object_id}'"}, 404
                 record['artifact_id'] = inserted[1]
 
-            # Send to Kafka
+            # Notify Listeners via Kafka
             if not send_simple_message(TOPIC_ANNOTATION_UPLOADED, scene_id, {'status': 'saved'}):
                 raise Exception("Failed to send to Kafka")
 
@@ -271,7 +247,7 @@ class AnnotationResource(Resource):
                 params = [id_value]
                 cur.execute(sql, tuple(params))
 
-                row = cur.fetchone()
+                row = fetch_one_dict(cur)
                 if not row:
                     return {'error': f"No scene was found with {id_key} '{id_value}'"}, 400
 
@@ -280,11 +256,13 @@ class AnnotationResource(Resource):
                         for secondary_field in [secondary_field for secondary_field in structure_dict[primary_field].keys() if secondary_field in fields_to_update[primary_field]]:
                             dict_to_store_the_change[secondary_field] = fields_to_update[primary_field][secondary_field]
 
-                content = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+                stored_content = row['content']
+                content = json.loads(stored_content) if isinstance(stored_content, str) else stored_content
                 content = content or {}
                 get_changes({'scenegraph': {'nodes': [], 'edges': []}}, content)
 
-                linked_objects = json.loads(row[1]) if isinstance(row[1], str) else row[1]
+                stored_links = row['linked_objects']
+                linked_objects = json.loads(stored_links) if isinstance(stored_links, str) else stored_links
                 linked_objects = linked_objects or {}
                 get_changes({'linked_objects': {'parent_object': None, 'child_objects': []}}, linked_objects)
 
