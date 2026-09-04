@@ -124,7 +124,7 @@ class TestGet:
     # A DB connection failure is caught by the outer try and surfaces as a 500 with an error body.
     def test_db_error_returns_500(self, client, auth_headers, mocker):
         mocker.patch(
-            'resources.annotation.get_db_connection',
+            'resources.resource_base.get_db_connection',
             side_effect=Exception('db down'),
         )
         r = client.get(URL, headers=auth_headers)
