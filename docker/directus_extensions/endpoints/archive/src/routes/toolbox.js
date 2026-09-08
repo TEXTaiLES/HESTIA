@@ -45,6 +45,10 @@ export default (router, { services }) => {
 				{ name: 'TexRevAIve', image: 'Logos/Tools/TexRevAIve_dark_logo_2.png', links: [
 					{ label: 'Documentation', url: 'https://textailes.github.io/TexRevAIve-documentation/' },
 					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/TexRevAIve' },
+				]},
+				{ name: 'MulAn', image: 'Logos/Tools/mulan-logo.svg', links: [
+					{ label: 'Documentation', url: 'https://textailes.github.io/mulan-documentation/' },
+					{ label: 'GitHub', url: 'https://github.com/TEXTaiLES/MulAn' },
 				]}
 			];
 
