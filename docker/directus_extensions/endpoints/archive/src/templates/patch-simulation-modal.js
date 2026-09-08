@@ -58,6 +58,39 @@ export const renderPatchSimulationModal = () => `
                     </div>
 
                     <div id="patchSidesContainer"></div>
+
+                    <h6 class="border-bottom pb-2 mb-3">Parameter Sweep <span class="text-muted small">(optional)</span></h6>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="patchSweepToggle">
+                        <label class="form-check-label" for="patchSweepToggle">Enable parameter sweep</label>
+                        <div class="form-text mt-0">Run several simulations that share one experiment number, varying one parameter across a range.</div>
+                    </div>
+                    <div id="patchSweepConfig" class="border rounded p-3 mb-3 bg-light" style="display:none;">
+                        <div class="row g-2">
+                            <div class="col-md-5">
+                                <label class="form-label small mb-1">Parameter</label>
+                                <select class="form-select form-select-sm" id="patchSweepParameter">
+                                    <option value="warpYarnDiameter">Warp Thread Diameter</option>
+                                    <option value="weftYarnDiameter">Weft Thread Diameter</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-1">From</label>
+                                <input type="number" step="any" class="form-control form-control-sm" id="patchSweepFrom">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small mb-1">To</label>
+                                <input type="number" step="any" class="form-control form-control-sm" id="patchSweepTo">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small mb-1">Steps</label>
+                                <input type="number" min="2" max="20" step="1" value="4" class="form-control form-control-sm" id="patchSweepSteps">
+                            </div>
+                        </div>
+                        <div class="form-text mt-2 mb-0">
+                            Generates linearly-spaced values from <em>From</em> to <em>To</em>. The selected side's diameter input above is disabled and its value comes from the sweep. Steps range: 2&ndash;20.
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -166,10 +199,54 @@ export const renderPatchSimulationModal = () => `
         });
     });
 
+    // Grab the form early so updateSweptFieldsState (called synchronously
+    // below) can query for inputs inside it. The submit handler further
+    // down still uses this same const.
+    const form = document.getElementById('patchSimulationForm');
+    const alertBox = document.getElementById('patchSimulationAlert');
+    const submitBtn = document.getElementById('patchSimulationSubmitBtn');
+
+    // Parameter sweep toggle: show/hide the sweep config block. Payload
+    // building reads the toggle state directly. Also disables the regular
+    // input(s) for the currently-selected parameter so the user can't type
+    // a value that would be silently overridden by the sweep. yarnDiameter
+    // targets both warp and weft cards because they're swept in lock-step.
+    const sweepToggle = document.getElementById('patchSweepToggle');
+    const sweepConfig = document.getElementById('patchSweepConfig');
+    const sweepParamEl = document.getElementById('patchSweepParameter');
+    // Scoped by data-side= so warp and weft can be swept independently.
+    const SWEEP_TARGET_SELECTORS = {
+        warpYarnDiameter: ['.patch-side-card[data-side="warp"] [data-field="yarnDiameter"] input'],
+        weftYarnDiameter: ['.patch-side-card[data-side="weft"] [data-field="yarnDiameter"] input'],
+    };
+    function updateSweepVisibility() {
+        sweepConfig.style.display = sweepToggle.checked ? '' : 'none';
+    }
+    function updateSweptFieldsState() {
+        for (const selectors of Object.values(SWEEP_TARGET_SELECTORS)) {
+            for (const sel of selectors) {
+                form.querySelectorAll(sel).forEach(el => { el.disabled = false; });
+            }
+        }
+        if (!sweepToggle.checked) return;
+        const selected = sweepParamEl.value;
+        for (const sel of (SWEEP_TARGET_SELECTORS[selected] || [])) {
+            form.querySelectorAll(sel).forEach(el => { el.disabled = true; });
+        }
+    }
+    sweepToggle.addEventListener('change', () => {
+        updateSweepVisibility();
+        updateSweptFieldsState();
+    });
+    sweepParamEl.addEventListener('change', updateSweptFieldsState);
+    updateSweepVisibility();
+    updateSweptFieldsState();
+
     // Reset the form when the modal closes (X, Cancel, backdrop, Esc). Bootstrap
     // fires hidden.bs.modal after the closing animation finishes. form.reset()
     // clears the standard inputs but doesn't touch our per-side custom-name
-    // inputs or hide them again, so we do that manually.
+    // inputs, hide them again, or reset the sweep controls (which live outside
+    // the <form>), so we do that manually.
     const modalEl = document.getElementById('patchSimulationModal');
     modalEl.addEventListener('hidden.bs.modal', () => {
         form.reset();
@@ -178,12 +255,18 @@ export const renderPatchSimulationModal = () => `
             c.value = '';
             c.style.display = 'none';
         });
+        sweepToggle.checked = false;
+        document.getElementById('patchSweepFrom').value = '';
+        document.getElementById('patchSweepTo').value = '';
+        document.getElementById('patchSweepSteps').value = '4';
+        sweepParamEl.selectedIndex = 0;
+        updateSweepVisibility();
+        updateSweptFieldsState();
     });
 
     // ----- Submit handler -----
-    const form = document.getElementById('patchSimulationForm');
-    const alertBox = document.getElementById('patchSimulationAlert');
-    const submitBtn = document.getElementById('patchSimulationSubmitBtn');
+    // form/alertBox/submitBtn already declared above so the sweep helpers
+    // (which run during setup) can reach the form.
 
     function num(v) {
         if (v === '' || v === null || v === undefined) return null;
@@ -244,11 +327,24 @@ export const renderPatchSimulationModal = () => `
         const artMatch = window.location.pathname.match(/\\/artefacts\\/(\\d+)/);
         const artefactId = artMatch ? parseInt(artMatch[1], 10) : null;
 
-        return {
+        const payload = {
             structureType: str(fd.get('structureType')) || 'Patch',
             artefact_id: artefactId,
             simulationInput: simulationInput,
         };
+
+        // Attach sweep spec if the toggle is on and inputs parse cleanly.
+        if (sweepToggle.checked) {
+            const parameter = document.getElementById('patchSweepParameter').value;
+            const from = parseFloat(document.getElementById('patchSweepFrom').value);
+            const to = parseFloat(document.getElementById('patchSweepTo').value);
+            const steps = parseInt(document.getElementById('patchSweepSteps').value, 10);
+            if (Number.isFinite(from) && Number.isFinite(to) && Number.isFinite(steps) && steps >= 2 && steps <= 20) {
+                payload.sweep = { parameter: parameter, from: from, to: to, steps: steps };
+            }
+        }
+
+        return payload;
     }
 
     function showAlert(type, msg) {

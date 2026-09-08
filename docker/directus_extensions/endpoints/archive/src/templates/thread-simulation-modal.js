@@ -129,6 +129,40 @@ export const renderThreadSimulationModal = () => `
                             ${renderValueUnitPair('Ply Pitch', 'plyPitch', '', 'mm')}
                         </div>
                     </div>
+
+                    <h6 class="border-bottom pb-2 mb-3">Parameter Sweep <span class="text-muted small">(optional)</span></h6>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="threadSweepToggle">
+                        <label class="form-check-label" for="threadSweepToggle">Enable parameter sweep</label>
+                        <div class="form-text mt-0">Run several simulations that share one experiment number, varying one parameter across a range.</div>
+                    </div>
+                    <div id="threadSweepConfig" class="border rounded p-3 mb-3 bg-light" style="display:none;">
+                        <div class="row g-2">
+                            <div class="col-md-5">
+                                <label class="form-label small mb-1">Parameter</label>
+                                <select class="form-select form-select-sm" id="threadSweepParameter">
+                                    <option value="appliedElongation">Applied Elongation</option>
+                                    <option value="singleYarnYoungsModulus">Single Yarn Young's Modulus</option>
+                                    <option value="threadPitch">Thread Pitch</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-1">From</label>
+                                <input type="number" step="any" class="form-control form-control-sm" id="threadSweepFrom">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small mb-1">To</label>
+                                <input type="number" step="any" class="form-control form-control-sm" id="threadSweepTo">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small mb-1">Steps</label>
+                                <input type="number" min="2" max="20" step="1" value="4" class="form-control form-control-sm" id="threadSweepSteps">
+                            </div>
+                        </div>
+                        <div class="form-text mt-2 mb-0">
+                            Generates linearly-spaced values from <em>From</em> to <em>To</em>. The selected parameter's regular input above is disabled and its value comes from the sweep. Steps range: 2&ndash;20.
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -154,6 +188,45 @@ export const renderThreadSimulationModal = () => `
     }
     hierarchyEl.addEventListener('change', updatePlyVisibility);
     updatePlyVisibility();
+
+    // Parameter sweep toggle: show/hide the sweep config block. Payload
+    // building reads the toggle state directly. Also disables the regular
+    // input for the currently-selected parameter so the user can't type a
+    // value that would be silently overridden by the sweep.
+    const sweepToggle = document.getElementById('threadSweepToggle');
+    const sweepConfig = document.getElementById('threadSweepConfig');
+    const sweepParamEl = document.getElementById('threadSweepParameter');
+    // Map sweep-parameter name → CSS selectors matching the form inputs to
+    // disable when that parameter is selected. Kept in sync with the backend
+    // SWEEPABLE_PARAMS whitelist.
+    const SWEEP_TARGET_SELECTORS = {
+        appliedElongation:       ['[name="appliedElongation_value"]', '[name="appliedElongation_unit"]'],
+        singleYarnYoungsModulus: ['[name="singleYarnYoungsModulus_value"]', '[name="singleYarnYoungsModulus_unit"]'],
+        threadPitch:             ['[name="threadPitch_value"]', '[name="threadPitch_unit"]'],
+    };
+    function updateSweepVisibility() {
+        sweepConfig.style.display = sweepToggle.checked ? '' : 'none';
+    }
+    function updateSweptFieldsState() {
+        // Reset first so switching between params doesn't leave stale disables.
+        for (const selectors of Object.values(SWEEP_TARGET_SELECTORS)) {
+            for (const sel of selectors) {
+                form.querySelectorAll(sel).forEach(el => { el.disabled = false; });
+            }
+        }
+        if (!sweepToggle.checked) return;
+        const selected = sweepParamEl.value;
+        for (const sel of (SWEEP_TARGET_SELECTORS[selected] || [])) {
+            form.querySelectorAll(sel).forEach(el => { el.disabled = true; });
+        }
+    }
+    sweepToggle.addEventListener('change', () => {
+        updateSweepVisibility();
+        updateSweptFieldsState();
+    });
+    sweepParamEl.addEventListener('change', updateSweptFieldsState);
+    updateSweepVisibility();
+    updateSweptFieldsState();
 
     // Hide any fields already known from artefact metadata.
     if (window.HestiaMetaPrefill) {
@@ -211,7 +284,18 @@ export const renderThreadSimulationModal = () => `
         alertBox.innerHTML = '';
         materialCustom.value = '';
         materialCustom.style.display = 'none';
+        // form.reset() clears the sweep checkbox and the range number inputs
+        // (they live inside the form), but the sweep <select> doesn't reset
+        // to its first option, and the disabled state of the swept regular
+        // inputs isn't recalculated automatically. Do both explicitly.
+        sweepToggle.checked = false;
+        document.getElementById('threadSweepFrom').value = '';
+        document.getElementById('threadSweepTo').value = '';
+        document.getElementById('threadSweepSteps').value = '4';
+        sweepParamEl.selectedIndex = 0;
         updatePlyVisibility();
+        updateSweepVisibility();
+        updateSweptFieldsState();
     });
 
     // ----- Submit handler -----
@@ -287,11 +371,26 @@ export const renderThreadSimulationModal = () => `
         const artMatch = window.location.pathname.match(/\\/artefacts\\/(\\d+)/);
         const artefactId = artMatch ? parseInt(artMatch[1], 10) : null;
 
-        return {
+        const payload = {
             structureType: str(fd.get('structureType')) || 'Thread',
             artefact_id: artefactId,
             simulationInput: simulationInput,
         };
+
+        // Attach sweep spec if the toggle is on and inputs parse cleanly.
+        // Backend rejects bad shapes; we do a light client-side check so
+        // silent typos don't turn into a single-shot submission by accident.
+        if (sweepToggle.checked) {
+            const parameter = document.getElementById('threadSweepParameter').value;
+            const from = parseFloat(document.getElementById('threadSweepFrom').value);
+            const to = parseFloat(document.getElementById('threadSweepTo').value);
+            const steps = parseInt(document.getElementById('threadSweepSteps').value, 10);
+            if (Number.isFinite(from) && Number.isFinite(to) && Number.isFinite(steps) && steps >= 2 && steps <= 20) {
+                payload.sweep = { parameter: parameter, from: from, to: to, steps: steps };
+            }
+        }
+
+        return payload;
     }
 
     function showAlert(type, msg) {

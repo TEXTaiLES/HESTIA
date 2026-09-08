@@ -3,6 +3,7 @@ from flask_restful import Resource
 from datetime import datetime, timezone
 from psycopg2.extras import Json
 from minio.error import S3Error
+import copy
 import io
 import json
 import uuid
@@ -60,6 +61,38 @@ STIFFNESS_OUTPUT_FIELDS = (
     ('plotDataBendingStiffness',      'plot_data_bending_stiffness'),
 )
 
+# Parameter-sweep whitelist. Key = parameter name the frontend sends; value =
+# list of dotted paths (relative to the submission body) whose `value` field
+# is replaced with each sweep step. Warp and weft yarn diameters are separate
+# knobs because they map to different DB columns (warp_yarn_diameter_value vs
+# weft_yarn_diameter_value) and are physically independent.
+SWEEPABLE_PARAMS = {
+    'warpYarnDiameter': [
+        ('simulationInput', 'warpInput', 'yarnDiameter', 'value'),
+    ],
+    'weftYarnDiameter': [
+        ('simulationInput', 'weftInput', 'yarnDiameter', 'value'),
+    ],
+}
+
+
+def _set_nested(obj, path, value):
+    """Assign obj[path[0]][path[1]]... = value, creating dicts on the way if needed."""
+    cur = obj
+    for key in path[:-1]:
+        if not isinstance(cur.get(key), dict):
+            cur[key] = {}
+        cur = cur[key]
+    cur[path[-1]] = value
+
+
+def _linear_values(from_val, to_val, n):
+    """N linearly-spaced values from from_val to to_val, inclusive."""
+    if n < 2:
+        return [float(from_val)]
+    step = (to_val - from_val) / (n - 1)
+    return [float(from_val + i * step) for i in range(n)]
+
 
 # Avro schemas are flat 1:1 with their tables. JSONB columns (the viz arrays)
 # ride as Avro `string` carrying JSON; the JDBC driver casts string→JSONB.
@@ -72,6 +105,7 @@ INPUT_AVRO_SCHEMA = """
         {"name": "simulation_id", "type": "string"},
         {"name": "artefact_id", "type": ["null", "int"], "default": null},
         {"name": "experiment_id", "type": ["null", "int"], "default": null},
+        {"name": "experiment_step", "type": ["null", "int"], "default": null},
         {"name": "structure_type", "type": "string"},
         {"name": "weave_pattern", "type": ["null", "string"], "default": null},
         {"name": "pattern_repetition_count_warp", "type": ["null", "int"], "default": null},
@@ -231,6 +265,7 @@ def _hydrate_record(input_row, output_row):
         'simulation_id': input_row['simulation_id'],
         'artefact_id': artefact_id,
         'experiment_id': experiment_id,
+        'experiment_step': input_row.get('experiment_step'),
         'structureType': input_row.get('structure_type'),
         'created_at': input_row.get('created_at'),
         'updated_at': input_row.get('updated_at'),
@@ -331,11 +366,31 @@ class PatchSimulationResource(Resource):
         except (TypeError, ValueError):
             return {'error': "'artefact_id' must be an integer"}, 400
 
-        simulation_id = body.get('simulation_id') or str(uuid.uuid4())
+        # Optional parameter sweep. When present, we generate N submissions
+        # sharing the same experiment_id (each with a different experiment_step)
+        # so the artefact-page list can group them as #N.1, #N.2, ....
+        sweep = body.get('sweep')
+        sweep_paths = None
+        sweep_values = [None]  # a single-shot run
+        if sweep:
+            param = sweep.get('parameter')
+            if param not in SWEEPABLE_PARAMS:
+                return {'error': f"sweep.parameter '{param}' is not sweepable. "
+                                 f"Allowed: {sorted(SWEEPABLE_PARAMS)}"}, 400
+            try:
+                steps = int(sweep.get('steps'))
+                from_val = float(sweep.get('from'))
+                to_val = float(sweep.get('to'))
+            except (TypeError, ValueError):
+                return {'error': "sweep.from, sweep.to must be numbers and sweep.steps an integer"}, 400
+            if steps < 2 or steps > 20:
+                return {'error': "sweep.steps must be between 2 and 20"}, 400
+            sweep_paths = SWEEPABLE_PARAMS[param]
+            sweep_values = _linear_values(from_val, to_val, steps)
+
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
-
-        discretization = sim_input.get('discretization') or {}
+        created = []  # (simulation_id, experiment_step, input_row) per created sim
 
         try:
             with get_db_connection() as conn, conn.cursor() as cur:
@@ -346,74 +401,92 @@ class PatchSimulationResource(Resource):
                 )
                 experiment_id = cur.fetchone()[0]
 
-                input_row = {
-                    'simulation_id': simulation_id,
-                    'artefact_id': artefact_id,
-                    'experiment_id': experiment_id,
-                    'structure_type': body.get('structureType', 'Patch'),
-                    'weave_pattern': sim_input.get('weavePattern'),
-                    'pattern_repetition_count_warp': sim_input.get('patternRepetitionCountWarp'),
-                    'pattern_repetition_count_weft': sim_input.get('patternRepetitionCountWeft'),
-                    'discretization_intermediate_element_count': discretization.get('intermediateElementCount'),
-                    'created_at': now,
-                    'updated_at': now,
+                for step_i, sweep_val in enumerate(sweep_values, start=1):
+                    # Deep-copy the body only when we actually need to mutate
+                    # it (sweep case). Single-shot reuses the original body.
+                    if sweep_val is not None:
+                        step_body = copy.deepcopy(body)
+                        for path in sweep_paths:
+                            _set_nested(step_body, path, sweep_val)
+                    else:
+                        step_body = body
+                    step_sim_input = step_body.get('simulationInput') or {}
+                    step_discretization = step_sim_input.get('discretization') or {}
+
+                    sim_id = str(uuid.uuid4())
+                    input_row = {
+                        'simulation_id': sim_id,
+                        'artefact_id': artefact_id,
+                        'experiment_id': experiment_id,
+                        'experiment_step': step_i,
+                        'structure_type': step_body.get('structureType', 'Patch'),
+                        'weave_pattern': step_sim_input.get('weavePattern'),
+                        'pattern_repetition_count_warp': step_sim_input.get('patternRepetitionCountWarp'),
+                        'pattern_repetition_count_weft': step_sim_input.get('patternRepetitionCountWeft'),
+                        'discretization_intermediate_element_count': step_discretization.get('intermediateElementCount'),
+                        'created_at': now,
+                        'updated_at': now,
+                    }
+                    for json_key, db_prefix in SIDES:
+                        input_row.update(_side_to_columns(step_sim_input.get(json_key), db_prefix))
+
+                    cur.execute(
+                        f"""
+                        INSERT INTO dynamo.patch_simulation_input ({', '.join(input_row.keys())})
+                        VALUES ({', '.join(['%s'] * len(input_row))})
+                        """,
+                        tuple(input_row.values())
+                    )
+                    cur.execute(
+                        """
+                        INSERT INTO dynamo.patch_simulation_output (simulation_id, simulation_completed, updated_at)
+                        VALUES (%s, FALSE, %s)
+                        """,
+                        (sim_id, now)
+                    )
+                    created.append((sim_id, step_i, input_row))
+
+            # Publish Kafka events for every sim in the batch.
+            for sim_id, step_i, input_row in created:
+                input_event = dict(input_row)
+                input_event['created_at'] = now_iso
+                input_event['updated_at'] = now_iso
+                if not send_avro_message(
+                    TOPIC_DYNAMO_PATCH_SIMULATIONS, sim_id, input_event, INPUT_AVRO_SCHEMA
+                ):
+                    logger.warning(f"Patch simulation {sim_id} saved but parent Avro publish failed.")
+
+                empty_output_event = {
+                    'simulation_id': sim_id,
+                    'simulation_completed': False,
+                    'updated_at': now_iso,
                 }
-                for json_key, db_prefix in SIDES:
-                    input_row.update(_side_to_columns(sim_input.get(json_key), db_prefix))
+                for viz_key in VIZ_KEYS:
+                    empty_output_event[viz_key.replace('visualizationFiles_', 'visualization_files_')] = None
+                for _json_key, db_prefix in STIFFNESS_OUTPUT_FIELDS:
+                    empty_output_event[f'{db_prefix}_unit'] = None
+                    empty_output_event[f'{db_prefix}_values'] = None
+                if not send_avro_message(
+                    TOPIC_DYNAMO_PATCH_SIMULATION_OUTPUTS, sim_id, empty_output_event, OUTPUT_AVRO_SCHEMA
+                ):
+                    logger.warning(f"Output for {sim_id} saved but Avro publish failed.")
 
-                cur.execute(
-                    f"""
-                    INSERT INTO dynamo.patch_simulation_input ({', '.join(input_row.keys())})
-                    VALUES ({', '.join(['%s'] * len(input_row))})
-                    """,
-                    tuple(input_row.values())
-                )
-
-                cur.execute(
-                    """
-                    INSERT INTO dynamo.patch_simulation_output (simulation_id, simulation_completed, updated_at)
-                    VALUES (%s, FALSE, %s)
-                    """,
-                    (simulation_id, now)
-                )
-
-            # Publish to Kafka (input + empty output topics).
-            input_event = dict(input_row)
-            input_event['created_at'] = now_iso
-            input_event['updated_at'] = now_iso
-            if not send_avro_message(
-                TOPIC_DYNAMO_PATCH_SIMULATIONS, simulation_id, input_event, INPUT_AVRO_SCHEMA
-            ):
-                logger.warning(f"Patch simulation {simulation_id} saved but parent Avro publish failed.")
-
-            empty_output_event = {
-                'simulation_id': simulation_id,
-                'simulation_completed': False,
-                'updated_at': now_iso,
-            }
-            for viz_key in VIZ_KEYS:
-                empty_output_event[viz_key.replace('visualizationFiles_', 'visualization_files_')] = None
-            for _json_key, db_prefix in STIFFNESS_OUTPUT_FIELDS:
-                empty_output_event[f'{db_prefix}_unit'] = None
-                empty_output_event[f'{db_prefix}_values'] = None
-            if not send_avro_message(
-                TOPIC_DYNAMO_PATCH_SIMULATION_OUTPUTS, simulation_id, empty_output_event, OUTPUT_AVRO_SCHEMA
-            ):
-                logger.warning(f"Output for {simulation_id} saved but Avro publish failed.")
-
-            # Notification — what wakes the simulator.
-            if not send_simple_message(
-                TOPIC_DYNAMO_PATCH_SIMULATION_UPLOADED,
-                simulation_id,
-                {'status': 'submitted', 'simulation_id': simulation_id}
-            ):
-                logger.warning(f"Patch simulation {simulation_id} saved but Kafka notification failed.")
+                if not send_simple_message(
+                    TOPIC_DYNAMO_PATCH_SIMULATION_UPLOADED,
+                    sim_id,
+                    {'status': 'submitted', 'simulation_id': sim_id}
+                ):
+                    logger.warning(f"Patch simulation {sim_id} saved but Kafka notification failed.")
 
             return {
-                'message': "Patch simulation submitted.",
-                'simulation_id': simulation_id,
+                'message': f"Patch simulation submitted ({len(created)} run{'s' if len(created) != 1 else ''}).",
                 'artefact_id': artefact_id,
                 'experiment_id': experiment_id,
+                'simulation_id': created[0][0],
+                'simulations': [
+                    {'simulation_id': sid, 'experiment_step': step}
+                    for sid, step, _ in created
+                ],
             }, 201
 
         except Exception as e:

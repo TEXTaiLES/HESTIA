@@ -315,10 +315,13 @@ ${renderNavbar('collections', true)}
                 // pages of PAGE_SIZE and let the arrows navigate slices.
                 // Cheaper than server-side pagination for the expected list
                 // sizes; swap for API paging if lists ever grow into hundreds.
+                // batchCounts maps experiment_id → row count; used to decide
+                // whether to render the label as "#N" (single) or "#N.step"
+                // (parameter-sweep batch).
                 const PAGE_SIZE = 5;
                 const state = {
-                    thread: { rows: [], page: 1 },
-                    patch:  { rows: [], page: 1 },
+                    thread: { rows: [], page: 1, batchCounts: {} },
+                    patch:  { rows: [], page: 1, batchCounts: {} },
                 };
 
                 function renderPage(kind, tbodyId, openerName, paginationId) {
@@ -339,8 +342,15 @@ ${renderNavbar('collections', true)}
                     const start = (s.page - 1) * PAGE_SIZE;
                     const pageRows = s.rows.slice(start, start + PAGE_SIZE);
 
+                    const counts = s.batchCounts;
                     tbody.innerHTML = pageRows.map(r => {
-                        const expLabel = r.experiment_id != null ? '#' + r.experiment_id : '—';
+                        let expLabel = '—';
+                        if (r.experiment_id != null) {
+                            const isBatch = (counts[r.experiment_id] || 0) > 1;
+                            expLabel = isBatch
+                                ? '#' + r.experiment_id + '.' + (r.experiment_step || 1)
+                                : '#' + r.experiment_id;
+                        }
                         const expIdAttr = r.experiment_id != null ? r.experiment_id : '';
                         return '<tr style="cursor:pointer;" data-sim-id="' + r.simulation_id + '"'
                             + ' data-experiment-id="' + expIdAttr + '">'
@@ -390,10 +400,24 @@ ${renderNavbar('collections', true)}
                                 + ARTEFACT_ID + '&per_page=500&_=' + Date.now(),
                             { cache: 'no-store' });
                         if (!res.ok) throw new Error('HTTP ' + res.status);
-                        const rows = await res.json();
-                        // Newest first — most users want their latest submission on top.
-                        (rows || []).sort((a, b) => (b.experiment_id || 0) - (a.experiment_id || 0));
-                        state[kind].rows = rows || [];
+                        const rows = (await res.json()) || [];
+                        // Sort: newest experiment first (DESC by experiment_id),
+                        // then ASC by experiment_step so a batch renders 1, 2, 3, 4.
+                        rows.sort((a, b) => {
+                            const de = (b.experiment_id || 0) - (a.experiment_id || 0);
+                            if (de !== 0) return de;
+                            return (a.experiment_step || 1) - (b.experiment_step || 1);
+                        });
+                        // Count rows per experiment_id so the renderer can decide
+                        // between "#N" (solo) and "#N.step" (parameter-sweep batch).
+                        const counts = {};
+                        for (const r of rows) {
+                            if (r.experiment_id != null) {
+                                counts[r.experiment_id] = (counts[r.experiment_id] || 0) + 1;
+                            }
+                        }
+                        state[kind].rows = rows;
+                        state[kind].batchCounts = counts;
                         state[kind].page = 1;
                         renderPage(kind, tbodyId, openerName, paginationId);
                     } catch (err) {
