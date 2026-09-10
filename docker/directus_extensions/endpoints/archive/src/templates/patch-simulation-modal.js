@@ -1,4 +1,4 @@
-import { PATCH_SIDE_MATERIAL_DEFAULTS, MATERIAL_NAMES, CUSTOM_MATERIAL_TOKEN } from '../utils/material-defaults.js';
+import { PATCH_SIDE_MATERIAL_DEFAULTS, MATERIAL_REFERENCES, MATERIAL_NAMES, CUSTOM_MATERIAL_TOKEN } from '../utils/material-defaults.js';
 
 /**
  * Patch Simulation Modal
@@ -133,10 +133,15 @@ export const renderPatchSimulationModal = () => `
             <div class="card-body">
                 <div class="row g-3 mb-2">
                     <div class="col-md-6">
-                        <label class="form-label">Material</label>
+                        <label class="form-label mb-1">
+                            Material
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-field="materialInfoBtn" style="display:none;" tabindex="0" aria-label="Material info">
+                                <i class="fas fa-info-circle text-muted"></i>
+                            </button>
+                        </label>
                         <select class="form-select" data-field="material">\${materialOptionsHtml}</select>
                         <input type="text" class="form-control mt-2" data-field="materialCustom" placeholder="Custom material name" style="display:none;">
-                        <div class="form-text">Picking a preset fills this side's fields.</div>
+                        <div class="form-text">Picking a preset fills this side's Young's modulus. Click the info icon for description, tensile strength, and source.</div>
                     </div>
                 </div>
                 <div class="row g-3 mb-2">
@@ -183,6 +188,56 @@ export const renderPatchSimulationModal = () => `
             setCardValueUnit(card, field, uv);
         }
     }
+    // Popovers live inside each card so warp and weft can carry different
+    // material info independently. One Popover instance per side, tracked in
+    // a WeakMap keyed by the card element so we don't leak on rerender.
+    const PATCH_MATERIAL_REFERENCES = ${JSON.stringify(MATERIAL_REFERENCES)};
+    const sideMaterialPopovers = new WeakMap();
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function renderMaterialInfoHtml(ref) {
+        const parts = [];
+        if (ref.description) {
+            parts.push('<div class="mb-2">' + escapeHtml(ref.description) + '</div>');
+        }
+        const ts = ref.tensileStrength;
+        if (ts && ts.value != null) {
+            const mean = ts.value.toFixed(1);
+            const sd = ts.standardDeviation != null ? ' &plusmn; ' + ts.standardDeviation.toFixed(1) : '';
+            parts.push('<div class="small mb-2"><strong>Tensile strength:</strong> ' + mean + sd + ' ' + escapeHtml(ts.unit || '') + '</div>');
+        }
+        if (ref.source) {
+            parts.push('<div class="small text-muted"><strong>Source:</strong> ' + escapeHtml(ref.source) + '</div>');
+        }
+        return parts.join('');
+    }
+    function updateSideMaterialInfo(card, materialKey) {
+        const btn = card.querySelector('[data-field="materialInfoBtn"]');
+        if (!btn) return;
+        const existing = sideMaterialPopovers.get(card);
+        if (existing) {
+            existing.dispose();
+            sideMaterialPopovers.delete(card);
+        }
+        const ref = PATCH_MATERIAL_REFERENCES[materialKey];
+        if (!ref) {
+            btn.style.display = 'none';
+            return;
+        }
+        btn.style.display = '';
+        const popover = new bootstrap.Popover(btn, {
+            html: true,
+            trigger: 'focus',
+            placement: 'right',
+            title: materialKey,
+            content: renderMaterialInfoHtml(ref),
+            customClass: 'material-info-popover',
+        });
+        sideMaterialPopovers.set(card, popover);
+    }
     sidesContainer.querySelectorAll('.patch-side-card').forEach(card => {
         const sel = card.querySelector('[data-field="material"]');
         const custom = card.querySelector('[data-field="materialCustom"]');
@@ -191,10 +246,12 @@ export const renderPatchSimulationModal = () => `
             if (sel.value === CUSTOM_MATERIAL_TOKEN) {
                 custom.style.display = '';
                 custom.focus();
+                updateSideMaterialInfo(card, null);
             } else {
                 custom.style.display = 'none';
                 custom.value = '';
                 applySideMaterial(card, sel.value);
+                updateSideMaterialInfo(card, sel.value);
             }
         });
     });
@@ -255,6 +312,7 @@ export const renderPatchSimulationModal = () => `
             c.value = '';
             c.style.display = 'none';
         });
+        sidesContainer.querySelectorAll('.patch-side-card').forEach(card => updateSideMaterialInfo(card, null));
         sweepToggle.checked = false;
         document.getElementById('patchSweepFrom').value = '';
         document.getElementById('patchSweepTo').value = '';

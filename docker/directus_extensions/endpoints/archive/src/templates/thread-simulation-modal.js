@@ -1,4 +1,4 @@
-import { THREAD_MATERIAL_DEFAULTS, MATERIAL_NAMES, CUSTOM_MATERIAL_TOKEN } from '../utils/material-defaults.js';
+import { THREAD_MATERIAL_DEFAULTS, MATERIAL_REFERENCES, MATERIAL_NAMES, CUSTOM_MATERIAL_TOKEN } from '../utils/material-defaults.js';
 
 /**
  * Thread Simulation Modal
@@ -92,14 +92,19 @@ export const renderThreadSimulationModal = () => `
                     <h6 class="border-bottom pb-2 mb-3">Single Yarn</h6>
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
-                            <label class="form-label">Material</label>
+                            <label class="form-label mb-1">
+                                Material
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" id="threadMaterialInfoBtn" style="display:none;" tabindex="0" aria-label="Material info">
+                                    <i class="fas fa-info-circle text-muted"></i>
+                                </button>
+                            </label>
                             <select class="form-select" name="singleYarnMaterial" id="threadMaterialSelect">
                                 <option value="" selected>&mdash; Select material &mdash;</option>
                                 ${MATERIAL_NAMES.map(m => `<option value="${m}">${m}</option>`).join('')}
                                 <option value="${CUSTOM_MATERIAL_TOKEN}">Other (specify)&hellip;</option>
                             </select>
                             <input type="text" class="form-control mt-2" name="singleYarnMaterialCustom" id="threadMaterialCustom" placeholder="Custom material name" style="display:none;">
-                            <div class="form-text">Picking a preset fills the rest of the form with example defaults.</div>
+                            <div class="form-text">Picking a preset fills the Young's modulus below with the reference value for that fiber. Click the info icon for description, tensile strength, and source.</div>
                         </div>
                         ${renderValueUnitPair('Diameter', 'singleYarnDiameter', '', 'mm')}
                     </div>
@@ -235,10 +240,57 @@ export const renderThreadSimulationModal = () => `
 
     // Material-preset auto-fill. Preset dictionaries and the "Other" sentinel
     // are injected server-side so the browser doesn't need its own copy.
+    // MATERIAL_REFERENCES also carries per-material description for the
+    // help text under the dropdown.
     const THREAD_MATERIAL_DEFAULTS = ${JSON.stringify(THREAD_MATERIAL_DEFAULTS)};
+    const MATERIAL_REFERENCES = ${JSON.stringify(MATERIAL_REFERENCES)};
     const CUSTOM_MATERIAL_TOKEN = ${JSON.stringify(CUSTOM_MATERIAL_TOKEN)};
     const materialSelect = document.getElementById('threadMaterialSelect');
     const materialCustom = document.getElementById('threadMaterialCustom');
+    const materialInfoBtn = document.getElementById('threadMaterialInfoBtn');
+    let materialPopover = null;
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function renderMaterialInfoHtml(ref) {
+        const parts = [];
+        if (ref.description) {
+            parts.push('<div class="mb-2">' + escapeHtml(ref.description) + '</div>');
+        }
+        const ts = ref.tensileStrength;
+        if (ts && ts.value != null) {
+            const mean = ts.value.toFixed(1);
+            const sd = ts.standardDeviation != null ? ' &plusmn; ' + ts.standardDeviation.toFixed(1) : '';
+            parts.push('<div class="small mb-2"><strong>Tensile strength:</strong> ' + mean + sd + ' ' + escapeHtml(ts.unit || '') + '</div>');
+        }
+        if (ref.source) {
+            parts.push('<div class="small text-muted"><strong>Source:</strong> ' + escapeHtml(ref.source) + '</div>');
+        }
+        return parts.join('');
+    }
+    function updateMaterialInfo(materialKey) {
+        if (materialPopover) {
+            materialPopover.dispose();
+            materialPopover = null;
+        }
+        const ref = MATERIAL_REFERENCES[materialKey];
+        if (!ref) {
+            materialInfoBtn.style.display = 'none';
+            return;
+        }
+        materialInfoBtn.style.display = '';
+        materialPopover = new bootstrap.Popover(materialInfoBtn, {
+            html: true,
+            trigger: 'focus',
+            placement: 'right',
+            title: materialKey,
+            content: renderMaterialInfoHtml(ref),
+            customClass: 'material-info-popover',
+        });
+    }
 
     function setValueUnit(name, uv) {
         if (!uv) return;
@@ -267,10 +319,12 @@ export const renderThreadSimulationModal = () => `
         if (val === CUSTOM_MATERIAL_TOKEN) {
             materialCustom.style.display = '';
             materialCustom.focus();
+            updateMaterialInfo(null);
         } else {
             materialCustom.style.display = 'none';
             materialCustom.value = '';
             applyThreadMaterial(val);
+            updateMaterialInfo(val);
         }
     });
 
@@ -284,6 +338,7 @@ export const renderThreadSimulationModal = () => `
         alertBox.innerHTML = '';
         materialCustom.value = '';
         materialCustom.style.display = 'none';
+        updateMaterialInfo(null);
         // form.reset() clears the sweep checkbox and the range number inputs
         // (they live inside the form), but the sweep <select> doesn't reset
         // to its first option, and the disabled state of the swept regular
