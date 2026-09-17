@@ -1,12 +1,6 @@
 /**
  * Reference fiber materials for the Thread and Patch simulation forms.
  *
- * NOTE on duplicate names: the JSON has two entries called "flax, wet"
- * (material_9 and material_10) with very different Young's-modulus values.
- * Given the dry/wet pairing pattern of the other materials, material_9 is
- * almost certainly "flax, dry" (17.5 GPa — the stiffer of the two, matching
- * dry-fiber behavior everywhere else).
- *
  * Two dropdown values are reserved as sentinels — see MATERIAL_NAMES:
  *   ''         → placeholder, no fill
  *   __other__  → reveal a text input for a custom name, no fill
@@ -64,16 +58,13 @@ export const MATERIAL_REFERENCES = {
         description: 'Natural fiber harvested from the leaves of the raffia palm, known for its lightweight, durable, and silky texture, commonly used in weaving, tying, and decorative crafts.',
         source: 'Harris, S., Haigh, S., Handley, A., and Sampson, W. (2017) Material Choices for Fibre in the Neolithic: An Approach through the Measurement of Mechanical Properties. Archaeometry, 59: 574-591. doi: 10.1111/arcm.12267.',
     },
-    // Two entries labelled "flax, wet" in the source JSON — likely material_9
-    // was meant to be "flax, dry" (matching the dry/wet pattern of every other
-    // material and the ~5x-stiffer value).
-    'flax, wet (17.5 GPa)': {
+    'flax, dry': {
         youngsModulus:   { unit: 'GPa', value: 17.523, standardDeviation: 5.293 },
         tensileStrength: { unit: 'MPa', value: 343.342, standardDeviation: 132.507 },
         description: 'Natural bast fiber from the stem of the flax plant, prized for its strength, durability, and softness, and used to make linen cloth, rope, and paper.',
         source: 'Harris, S., Haigh, S., Handley, A., and Sampson, W. (2017) Material Choices for Fibre in the Neolithic: An Approach through the Measurement of Mechanical Properties. Archaeometry, 59: 574-591. doi: 10.1111/arcm.12267.',
     },
-    'flax, wet (3.6 GPa)': {
+    'flax, wet': {
         youngsModulus:   { unit: 'GPa', value: 3.604, standardDeviation: 2.230 },
         tensileStrength: { unit: 'MPa', value: 69.843, standardDeviation: 22.520 },
         description: 'Natural bast fiber from the stem of the flax plant, prized for its strength, durability, and softness, and used to make linen cloth, rope, and paper.',
