@@ -63,16 +63,16 @@ STIFFNESS_OUTPUT_FIELDS = (
 
 # Parameter-sweep whitelist. Key = parameter name the frontend sends; value =
 # list of dotted paths (relative to the submission body) whose `value` field
-# is replaced with each sweep step. Warp and weft yarn diameters are separate
-# knobs because they map to different DB columns (warp_yarn_diameter_value vs
-# weft_yarn_diameter_value) and are physically independent.
+# is replaced with each sweep step. Warp and weft parameters are separate
+# knobs because they map to different DB columns and are physically
+# independent.
 SWEEPABLE_PARAMS = {
-    'warpYarnDiameter': [
-        ('simulationInput', 'warpInput', 'yarnDiameter', 'value'),
-    ],
-    'weftYarnDiameter': [
-        ('simulationInput', 'weftInput', 'yarnDiameter', 'value'),
-    ],
+    'warpYarnDiameter':         [('simulationInput', 'warpInput', 'yarnDiameter', 'value')],
+    'weftYarnDiameter':         [('simulationInput', 'weftInput', 'yarnDiameter', 'value')],
+    'warpYoungsModulus':        [('simulationInput', 'warpInput', 'youngsModulus', 'value')],
+    'weftYoungsModulus':        [('simulationInput', 'weftInput', 'youngsModulus', 'value')],
+    'warpYarnCountPerDistance': [('simulationInput', 'warpInput', 'yarnCountPerDistance', 'value')],
+    'weftYarnCountPerDistance': [('simulationInput', 'weftInput', 'yarnCountPerDistance', 'value')],
 }
 
 

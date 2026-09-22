@@ -142,30 +142,32 @@ export const renderThreadSimulationModal = () => `
                         <div class="form-text mt-0">Run several simulations that share one experiment number, varying one parameter across a range.</div>
                     </div>
                     <div id="threadSweepConfig" class="border rounded p-3 mb-3 bg-light" style="display:none;">
-                        <div class="row g-2">
+                        <div class="row g-2 align-items-end">
                             <div class="col-md-5">
                                 <label class="form-label small mb-1">Parameter</label>
                                 <select class="form-select form-select-sm" id="threadSweepParameter">
-                                    <option value="appliedElongation">Applied Elongation</option>
                                     <option value="singleYarnYoungsModulus">Single Yarn Young's Modulus</option>
+                                    <option value="singleYarnDiameter">Single Yarn Diameter</option>
                                     <option value="threadPitch">Thread Pitch</option>
+                                    <option value="threadTotalDiameter">Thread Total Diameter</option>
                                 </select>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label small mb-1">From</label>
-                                <input type="number" step="any" class="form-control form-control-sm" id="threadSweepFrom">
+                                <label class="form-label small mb-1">Reference value</label>
+                                <input type="number" step="any" class="form-control form-control-sm" id="threadSweepReference" placeholder="from form or type">
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label small mb-1">To</label>
-                                <input type="number" step="any" class="form-control form-control-sm" id="threadSweepTo">
+                                <label class="form-label small mb-1">Variation (%)</label>
+                                <input type="number" step="any" min="0" value="10" class="form-control form-control-sm" id="threadSweepPercent">
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small mb-1">Steps</label>
-                                <input type="number" min="2" max="20" step="1" value="4" class="form-control form-control-sm" id="threadSweepSteps">
+                                <input type="number" min="2" max="20" step="1" value="5" class="form-control form-control-sm" id="threadSweepSteps">
                             </div>
                         </div>
                         <div class="form-text mt-2 mb-0">
-                            Generates linearly-spaced values from <em>From</em> to <em>To</em>. The selected parameter's regular input above is disabled and its value comes from the sweep. Steps range: 2&ndash;20.
+                            The reference value is auto-filled from the form when a value is present there; otherwise please type it here. The sweep runs from <em>Reference &minus; variation%</em> to <em>Reference + variation%</em> in <em>Steps</em> linear points. Defaults: &plusmn;10%, 5 steps.
+                            <span id="threadSweepPreview" class="d-block mt-1 fw-semibold"></span>
                         </div>
                     </div>
                 </form>
@@ -201,13 +203,27 @@ export const renderThreadSimulationModal = () => `
     const sweepToggle = document.getElementById('threadSweepToggle');
     const sweepConfig = document.getElementById('threadSweepConfig');
     const sweepParamEl = document.getElementById('threadSweepParameter');
+    const sweepReferenceEl = document.getElementById('threadSweepReference');
+    const sweepPercentEl = document.getElementById('threadSweepPercent');
+    const sweepStepsEl = document.getElementById('threadSweepSteps');
+    const sweepPreviewEl = document.getElementById('threadSweepPreview');
     // Map sweep-parameter name → CSS selectors matching the form inputs to
     // disable when that parameter is selected. Kept in sync with the backend
     // SWEEPABLE_PARAMS whitelist.
     const SWEEP_TARGET_SELECTORS = {
-        appliedElongation:       ['[name="appliedElongation_value"]', '[name="appliedElongation_unit"]'],
         singleYarnYoungsModulus: ['[name="singleYarnYoungsModulus_value"]', '[name="singleYarnYoungsModulus_unit"]'],
+        singleYarnDiameter:      ['[name="singleYarnDiameter_value"]', '[name="singleYarnDiameter_unit"]'],
         threadPitch:             ['[name="threadPitch_value"]', '[name="threadPitch_unit"]'],
+        threadTotalDiameter:     ['[name="threadTotalDiameter_value"]', '[name="threadTotalDiameter_unit"]'],
+    };
+    // For each sweep parameter, the form field whose current value should
+    // seed the sweep reference. All the sweepable knobs are {unit, value}
+    // pairs so we always read the "_value" side.
+    const SWEEP_REFERENCE_SOURCE = {
+        singleYarnYoungsModulus: 'singleYarnYoungsModulus_value',
+        singleYarnDiameter:      'singleYarnDiameter_value',
+        threadPitch:             'threadPitch_value',
+        threadTotalDiameter:     'threadTotalDiameter_value',
     };
     function updateSweepVisibility() {
         sweepConfig.style.display = sweepToggle.checked ? '' : 'none';
@@ -225,13 +241,51 @@ export const renderThreadSimulationModal = () => `
             form.querySelectorAll(sel).forEach(el => { el.disabled = true; });
         }
     }
+    function pullReferenceFromForm() {
+        // Read whatever's currently in the corresponding form input (if any)
+        // and seed the sweep reference with it. Does nothing if the field
+        // is empty — user must then type a reference themselves.
+        const src = SWEEP_REFERENCE_SOURCE[sweepParamEl.value];
+        if (!src) return;
+        const el = form.querySelector('[name="' + src + '"]');
+        if (!el) return;
+        // Note: the source input is disabled while sweep is on, but its
+        // value attribute is still readable.
+        const raw = el.value;
+        if (raw !== '' && raw != null) sweepReferenceEl.value = raw;
+    }
+    function updateSweepPreview() {
+        const ref = parseFloat(sweepReferenceEl.value);
+        const pct = parseFloat(sweepPercentEl.value);
+        const steps = parseInt(sweepStepsEl.value, 10);
+        if (!Number.isFinite(ref) || !Number.isFinite(pct) || !Number.isFinite(steps) || steps < 2) {
+            sweepPreviewEl.textContent = '';
+            return;
+        }
+        const from = ref * (1 - pct / 100);
+        const to = ref * (1 + pct / 100);
+        sweepPreviewEl.textContent = 'Range: ' + from.toPrecision(4) + ' → ' + to.toPrecision(4) + ' in ' + steps + ' steps.';
+    }
     sweepToggle.addEventListener('change', () => {
         updateSweepVisibility();
         updateSweptFieldsState();
+        if (sweepToggle.checked) pullReferenceFromForm();
+        updateSweepPreview();
     });
-    sweepParamEl.addEventListener('change', updateSweptFieldsState);
+    sweepParamEl.addEventListener('change', () => {
+        updateSweptFieldsState();
+        // Clear the previous reference so we don't apply e.g. a pitch value
+        // to a Young's-modulus sweep. Then repopulate from the new field.
+        sweepReferenceEl.value = '';
+        pullReferenceFromForm();
+        updateSweepPreview();
+    });
+    sweepReferenceEl.addEventListener('input', updateSweepPreview);
+    sweepPercentEl.addEventListener('input', updateSweepPreview);
+    sweepStepsEl.addEventListener('input', updateSweepPreview);
     updateSweepVisibility();
     updateSweptFieldsState();
+    updateSweepPreview();
 
     // Hide any fields already known from artefact metadata.
     if (window.HestiaMetaPrefill) {
@@ -325,6 +379,13 @@ export const renderThreadSimulationModal = () => `
             materialCustom.value = '';
             applyThreadMaterial(val);
             updateMaterialInfo(val);
+            // If a sweep is active on the parameter whose form field the new
+            // material just updated (typically singleYarnYoungsModulus), pull
+            // the fresh reference in and refresh the preview.
+            if (sweepToggle.checked) {
+                pullReferenceFromForm();
+                updateSweepPreview();
+            }
         }
     });
 
@@ -344,13 +405,14 @@ export const renderThreadSimulationModal = () => `
         // to its first option, and the disabled state of the swept regular
         // inputs isn't recalculated automatically. Do both explicitly.
         sweepToggle.checked = false;
-        document.getElementById('threadSweepFrom').value = '';
-        document.getElementById('threadSweepTo').value = '';
-        document.getElementById('threadSweepSteps').value = '4';
+        sweepReferenceEl.value = '';
+        sweepPercentEl.value = '10';
+        sweepStepsEl.value = '5';
         sweepParamEl.selectedIndex = 0;
         updatePlyVisibility();
         updateSweepVisibility();
         updateSweptFieldsState();
+        updateSweepPreview();
     });
 
     // ----- Submit handler -----
@@ -435,12 +497,17 @@ export const renderThreadSimulationModal = () => `
         // Attach sweep spec if the toggle is on and inputs parse cleanly.
         // Backend rejects bad shapes; we do a light client-side check so
         // silent typos don't turn into a single-shot submission by accident.
+        // Reference + variation% get converted to from/to here so the backend
+        // keeps its existing (from, to, steps) contract.
         if (sweepToggle.checked) {
-            const parameter = document.getElementById('threadSweepParameter').value;
-            const from = parseFloat(document.getElementById('threadSweepFrom').value);
-            const to = parseFloat(document.getElementById('threadSweepTo').value);
-            const steps = parseInt(document.getElementById('threadSweepSteps').value, 10);
-            if (Number.isFinite(from) && Number.isFinite(to) && Number.isFinite(steps) && steps >= 2 && steps <= 20) {
+            const parameter = sweepParamEl.value;
+            const reference = parseFloat(sweepReferenceEl.value);
+            const percent = parseFloat(sweepPercentEl.value);
+            const steps = parseInt(sweepStepsEl.value, 10);
+            if (Number.isFinite(reference) && Number.isFinite(percent) && Number.isFinite(steps)
+                    && steps >= 2 && steps <= 20) {
+                const from = reference * (1 - percent / 100);
+                const to = reference * (1 + percent / 100);
                 payload.sweep = { parameter: parameter, from: from, to: to, steps: steps };
             }
         }

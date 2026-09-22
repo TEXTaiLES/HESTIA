@@ -66,29 +66,38 @@ export const renderPatchSimulationModal = () => `
                         <div class="form-text mt-0">Run several simulations that share one experiment number, varying one parameter across a range.</div>
                     </div>
                     <div id="patchSweepConfig" class="border rounded p-3 mb-3 bg-light" style="display:none;">
-                        <div class="row g-2">
+                        <div class="row g-2 align-items-end">
                             <div class="col-md-5">
                                 <label class="form-label small mb-1">Parameter</label>
                                 <select class="form-select form-select-sm" id="patchSweepParameter">
-                                    <option value="warpYarnDiameter">Warp Thread Diameter</option>
-                                    <option value="weftYarnDiameter">Weft Thread Diameter</option>
+                                    <optgroup label="Warp">
+                                        <option value="warpYarnDiameter">Thread Diameter</option>
+                                        <option value="warpYoungsModulus">Young's Modulus</option>
+                                        <option value="warpYarnCountPerDistance">Thread Count Per Distance</option>
+                                    </optgroup>
+                                    <optgroup label="Weft">
+                                        <option value="weftYarnDiameter">Thread Diameter</option>
+                                        <option value="weftYoungsModulus">Young's Modulus</option>
+                                        <option value="weftYarnCountPerDistance">Thread Count Per Distance</option>
+                                    </optgroup>
                                 </select>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label small mb-1">From</label>
-                                <input type="number" step="any" class="form-control form-control-sm" id="patchSweepFrom">
+                                <label class="form-label small mb-1">Reference value</label>
+                                <input type="number" step="any" class="form-control form-control-sm" id="patchSweepReference" placeholder="from form or type">
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label small mb-1">To</label>
-                                <input type="number" step="any" class="form-control form-control-sm" id="patchSweepTo">
+                                <label class="form-label small mb-1">Variation (%)</label>
+                                <input type="number" step="any" min="0" value="10" class="form-control form-control-sm" id="patchSweepPercent">
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small mb-1">Steps</label>
-                                <input type="number" min="2" max="20" step="1" value="4" class="form-control form-control-sm" id="patchSweepSteps">
+                                <input type="number" min="2" max="20" step="1" value="5" class="form-control form-control-sm" id="patchSweepSteps">
                             </div>
                         </div>
                         <div class="form-text mt-2 mb-0">
-                            Generates linearly-spaced values from <em>From</em> to <em>To</em>. The selected side's diameter input above is disabled and its value comes from the sweep. Steps range: 2&ndash;20.
+                            The reference value is auto-filled from the corresponding side's form input when a value is present there; otherwise please type it here. The sweep runs from <em>Reference &minus; variation%</em> to <em>Reference + variation%</em> in <em>Steps</em> linear points. Defaults: &plusmn;10%, 5 steps.
+                            <span id="patchSweepPreview" class="d-block mt-1 fw-semibold"></span>
                         </div>
                     </div>
                 </form>
@@ -252,6 +261,15 @@ export const renderPatchSimulationModal = () => `
                 custom.value = '';
                 applySideMaterial(card, sel.value);
                 updateSideMaterialInfo(card, sel.value);
+                // If a sweep is active on the side we just re-filled (e.g.
+                // Warp Young's Modulus), refresh the reference from the
+                // updated form field. pullReferenceFromForm() reads only
+                // from the swept param's designated selector, so a weft
+                // material change won't touch a warp sweep and vice versa.
+                if (sweepToggle.checked) {
+                    pullReferenceFromForm();
+                    updateSweepPreview();
+                }
             }
         });
     });
@@ -271,10 +289,28 @@ export const renderPatchSimulationModal = () => `
     const sweepToggle = document.getElementById('patchSweepToggle');
     const sweepConfig = document.getElementById('patchSweepConfig');
     const sweepParamEl = document.getElementById('patchSweepParameter');
+    const sweepReferenceEl = document.getElementById('patchSweepReference');
+    const sweepPercentEl = document.getElementById('patchSweepPercent');
+    const sweepStepsEl = document.getElementById('patchSweepSteps');
+    const sweepPreviewEl = document.getElementById('patchSweepPreview');
     // Scoped by data-side= so warp and weft can be swept independently.
     const SWEEP_TARGET_SELECTORS = {
-        warpYarnDiameter: ['.patch-side-card[data-side="warp"] [data-field="yarnDiameter"] input'],
-        weftYarnDiameter: ['.patch-side-card[data-side="weft"] [data-field="yarnDiameter"] input'],
+        warpYarnDiameter:         ['.patch-side-card[data-side="warp"] [data-field="yarnDiameter"] input'],
+        weftYarnDiameter:         ['.patch-side-card[data-side="weft"] [data-field="yarnDiameter"] input'],
+        warpYoungsModulus:        ['.patch-side-card[data-side="warp"] [data-field="youngsModulus"] input'],
+        weftYoungsModulus:        ['.patch-side-card[data-side="weft"] [data-field="youngsModulus"] input'],
+        warpYarnCountPerDistance: ['.patch-side-card[data-side="warp"] [data-field="yarnCountPerDistance"] input'],
+        weftYarnCountPerDistance: ['.patch-side-card[data-side="weft"] [data-field="yarnCountPerDistance"] input'],
+    };
+    // Where to read the reference value from when a sweep is enabled — the
+    // <input data-part="value"> inside the corresponding side's card.
+    const SWEEP_REFERENCE_SELECTORS = {
+        warpYarnDiameter:         '.patch-side-card[data-side="warp"] [data-field="yarnDiameter"] [data-part="value"]',
+        weftYarnDiameter:         '.patch-side-card[data-side="weft"] [data-field="yarnDiameter"] [data-part="value"]',
+        warpYoungsModulus:        '.patch-side-card[data-side="warp"] [data-field="youngsModulus"] [data-part="value"]',
+        weftYoungsModulus:        '.patch-side-card[data-side="weft"] [data-field="youngsModulus"] [data-part="value"]',
+        warpYarnCountPerDistance: '.patch-side-card[data-side="warp"] [data-field="yarnCountPerDistance"] [data-part="value"]',
+        weftYarnCountPerDistance: '.patch-side-card[data-side="weft"] [data-field="yarnCountPerDistance"] [data-part="value"]',
     };
     function updateSweepVisibility() {
         sweepConfig.style.display = sweepToggle.checked ? '' : 'none';
@@ -291,13 +327,44 @@ export const renderPatchSimulationModal = () => `
             form.querySelectorAll(sel).forEach(el => { el.disabled = true; });
         }
     }
+    function pullReferenceFromForm() {
+        const sel = SWEEP_REFERENCE_SELECTORS[sweepParamEl.value];
+        if (!sel) return;
+        const el = form.querySelector(sel);
+        if (!el) return;
+        const raw = el.value;
+        if (raw !== '' && raw != null) sweepReferenceEl.value = raw;
+    }
+    function updateSweepPreview() {
+        const ref = parseFloat(sweepReferenceEl.value);
+        const pct = parseFloat(sweepPercentEl.value);
+        const steps = parseInt(sweepStepsEl.value, 10);
+        if (!Number.isFinite(ref) || !Number.isFinite(pct) || !Number.isFinite(steps) || steps < 2) {
+            sweepPreviewEl.textContent = '';
+            return;
+        }
+        const from = ref * (1 - pct / 100);
+        const to = ref * (1 + pct / 100);
+        sweepPreviewEl.textContent = 'Range: ' + from.toPrecision(4) + ' → ' + to.toPrecision(4) + ' in ' + steps + ' steps.';
+    }
     sweepToggle.addEventListener('change', () => {
         updateSweepVisibility();
         updateSweptFieldsState();
+        if (sweepToggle.checked) pullReferenceFromForm();
+        updateSweepPreview();
     });
-    sweepParamEl.addEventListener('change', updateSweptFieldsState);
+    sweepParamEl.addEventListener('change', () => {
+        updateSweptFieldsState();
+        sweepReferenceEl.value = '';
+        pullReferenceFromForm();
+        updateSweepPreview();
+    });
+    sweepReferenceEl.addEventListener('input', updateSweepPreview);
+    sweepPercentEl.addEventListener('input', updateSweepPreview);
+    sweepStepsEl.addEventListener('input', updateSweepPreview);
     updateSweepVisibility();
     updateSweptFieldsState();
+    updateSweepPreview();
 
     // Reset the form when the modal closes (X, Cancel, backdrop, Esc). Bootstrap
     // fires hidden.bs.modal after the closing animation finishes. form.reset()
@@ -314,12 +381,13 @@ export const renderPatchSimulationModal = () => `
         });
         sidesContainer.querySelectorAll('.patch-side-card').forEach(card => updateSideMaterialInfo(card, null));
         sweepToggle.checked = false;
-        document.getElementById('patchSweepFrom').value = '';
-        document.getElementById('patchSweepTo').value = '';
-        document.getElementById('patchSweepSteps').value = '4';
+        sweepReferenceEl.value = '';
+        sweepPercentEl.value = '10';
+        sweepStepsEl.value = '5';
         sweepParamEl.selectedIndex = 0;
         updateSweepVisibility();
         updateSweptFieldsState();
+        updateSweepPreview();
     });
 
     // ----- Submit handler -----
@@ -392,12 +460,17 @@ export const renderPatchSimulationModal = () => `
         };
 
         // Attach sweep spec if the toggle is on and inputs parse cleanly.
+        // Reference + variation% get converted to from/to here so the backend
+        // keeps its existing (from, to, steps) contract.
         if (sweepToggle.checked) {
-            const parameter = document.getElementById('patchSweepParameter').value;
-            const from = parseFloat(document.getElementById('patchSweepFrom').value);
-            const to = parseFloat(document.getElementById('patchSweepTo').value);
-            const steps = parseInt(document.getElementById('patchSweepSteps').value, 10);
-            if (Number.isFinite(from) && Number.isFinite(to) && Number.isFinite(steps) && steps >= 2 && steps <= 20) {
+            const parameter = sweepParamEl.value;
+            const reference = parseFloat(sweepReferenceEl.value);
+            const percent = parseFloat(sweepPercentEl.value);
+            const steps = parseInt(sweepStepsEl.value, 10);
+            if (Number.isFinite(reference) && Number.isFinite(percent) && Number.isFinite(steps)
+                    && steps >= 2 && steps <= 20) {
+                const from = reference * (1 - percent / 100);
+                const to = reference * (1 + percent / 100);
                 payload.sweep = { parameter: parameter, from: from, to: to, steps: steps };
             }
         }

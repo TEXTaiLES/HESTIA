@@ -90,9 +90,10 @@ PLY_UV_FIELDS = (
 # knob drive several fields at once (currently unused for Thread but kept
 # for symmetry with the Patch resource).
 SWEEPABLE_PARAMS = {
-    'appliedElongation':        [('simulationInput', 'appliedElongation', 'value')],
     'singleYarnYoungsModulus':  [('simulationInput', 'structureInput', 'singleYarnYoungsModulus', 'value')],
+    'singleYarnDiameter':       [('simulationInput', 'structureInput', 'singleYarnDiameter', 'value')],
     'threadPitch':              [('simulationInput', 'structureInput', 'threadPitch', 'value')],
+    'threadTotalDiameter':      [('simulationInput', 'structureInput', 'threadTotalDiameter', 'value')],
 }
 
 
