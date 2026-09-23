@@ -17,6 +17,8 @@ import {
     fetchUserInfo,
 } from '../utils/egi.js';
 
+import { sanitizeRedirect } from '../utils/redirect.js';
+
 const crypto = require('crypto');
 
 // Short-lived cookies for the OAuth handshake (state + PKCE verifier + intended
@@ -31,28 +33,6 @@ const TEMP_COOKIE_OPTIONS = {
     path: '/archive/user/',
     maxAge: 10 * 60 * 1000, // 10 minutes — plenty for the round trip to EGI
     secure: (process.env.PUBLIC_URL || '').startsWith('https'),
-};
-
-// Allow same-origin paths, or absolute URLs whose hostname sits under the
-// shared cookie domain (so cross-tool SSO redirects like
-// https://nephele.textailes.athenarc.gr/... are permitted, but arbitrary
-// external hosts are not — prevents open-redirect abuse of ?redirect_url=).
-const sanitizeRedirect = (raw) => {
-    if (!raw || typeof raw !== 'string') return '/archive';
-    if (raw.startsWith('//')) return '/archive';
-    if (raw.startsWith('/')) return raw;
-
-    try {
-        const url = new URL(raw);
-        if (url.protocol !== 'https:' && url.protocol !== 'http:') return '/archive';
-        const cookieDomain = (process.env.REFRESH_TOKEN_COOKIE_DOMAIN || '').replace(/^\./, '');
-        if (!cookieDomain) return '/archive';
-        const host = url.hostname.toLowerCase();
-        if (host === cookieDomain || host.endsWith('.' + cookieDomain)) return raw;
-        return '/archive';
-    } catch {
-        return '/archive';
-    }
 };
 
 export default (router, { services }) => {

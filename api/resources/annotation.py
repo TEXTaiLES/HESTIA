@@ -41,7 +41,7 @@ class AnnotationResource(ResourceBase):
     order_by = "timestamp DESC"
 
     def build_GET_conditions(self):
-        conditions = []
+        conditions = [('kind', '=', 'scene')]
         if object_id := request.args.get('object_id'):
             conditions.append(('object_id', '=', object_id))
         return conditions

@@ -18,6 +18,8 @@ MINIO_NEFELE_BUCKET = 'nefele'
 MINIO_AMALTHAI_DATASETS_BUCKET = 'amalthai-datasets'
 MINIO_AMALTHAI_MODELS_BUCKET = 'amalthai-models'
 MINIO_AMALTHAI_INFERENCE_BUCKET = 'amalthai-inference'
+MINIO_MULTISPECTRAL_BUCKET = os.environ.get('MINIO_MUTLISPECTRAL_BUCKET', 'multispectral')
+MINIO_ANNOTATIONS_BUCKET = os.environ.get('MINIO_ANNOTATIONS_BUCKET', 'annotations')
 
 API_PUBLIC_ENDPOINT = os.environ.get("API_PUBLIC_ENDPOINT", "localhost:5000")
 API_PUBLIC_SHEME = os.environ.get("API_PUBLIC_SHEME", "https")

@@ -16,6 +16,8 @@ from services.storage import (
     MINIO_AMALTHAI_DATASETS_BUCKET,
     MINIO_AMALTHAI_MODELS_BUCKET,
     MINIO_AMALTHAI_INFERENCE_BUCKET,
+    MINIO_MULTISPECTRAL_BUCKET,
+    MINIO_ANNOTATIONS_BUCKET
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -201,6 +203,62 @@ def run_migrations():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_amalthai_inference_model ON amalthai_inference_runs (model_id)")
         logger.info("Migration: amalthai_* tables ensured.")
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS multispectral_images (
+               image_id       UUID         PRIMARY KEY,
+               filename       TEXT         NOT NULL,
+               object_key     TEXT         NOT NULL UNIQUE,
+               content_type   TEXT         NOT NULL,
+               size_bytes     BIGINT       NOT NULL,
+               width          INTEGER      NOT NULL,
+               height         INTEGER      NOT NULL,
+               channel_count  INTEGER      NOT NULL,
+               dtype          TEXT         NOT NULL,
+               channel_names  JSONB        NOT NULL,
+               georeferenced  BOOLEAN      NOT NULL,
+               crs            TEXT,
+               transform      JSONB,
+               created_by     UUID,
+               created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_multispectral_images_created_at ON multispectral_images (created_at)")
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS annotations (
+                scene_id        TEXT     PRIMARY KEY,
+                object_id       TEXT,
+                public_url      TEXT,
+                location        TEXT,
+                collaborative   BOOLEAN  NOT NULL DEFAULT false,
+                content         TEXT,
+                linked_objects  TEXT,
+                "timestamp"     TEXT     NOT NULL,
+                artifact_id     TEXT
+            )
+        """)
+        cur.execute("ALTER TABLE annotations ALTER COLUMN object_id DROP NOT NULL")
+        for column in (
+            "kind TEXT NOT NULL DEFAULT 'scene'",
+            "multispectral_image_id UUID REFERENCES multispectral_images (image_id)",
+            "mask_object_key TEXT",
+            "mask_dtype TEXT",
+            "annotation_metadata JSONB",
+            "format_version TEXT",
+            "revision INTEGER NOT NULL DEFAULT 1",
+            "created_by UUID",
+            "updated_by UUID",
+            "created_at TIMESTAMPTZ",
+            "updated_at TIMESTAMPTZ",
+        ):
+            cur.execute(f"ALTER TABLE annotations ADD COLUMN IF NOT EXISTS {column}")
+
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_annotations_multispectral_image_id
+            ON annotations (multispectral_image_id)
+        """)
+        logger.info("Migration: multispectral_images table and annotations mask columns ensured.")
+
         conn.commit()
         cur.close()
         conn.close()
@@ -235,6 +293,10 @@ def setup_minio():
     set_public_read_policy(MINIO_AMALTHAI_MODELS_BUCKET)
     init_minio_bucket(MINIO_AMALTHAI_INFERENCE_BUCKET)
     set_public_read_policy(MINIO_AMALTHAI_INFERENCE_BUCKET)
+
+    # Setup MulAn Buckets (Private)
+    init_minio_bucket(MINIO_MULTISPECTRAL_BUCKET)
+    init_minio_bucket(MINIO_ANNOTATIONS_BUCKET)
 
     logger.info("MinIO setup complete.")
 

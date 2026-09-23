@@ -27,17 +27,31 @@ from resources.multispectral import (
     MultispectralImageResource,
 )
 from resources.rgb import RgbImageFileResource, RgbImageListResource, RgbImageResource
+from resources.mulan import (
+    MULAN_ORIGINS,
+    MulanSessionResource,
+    MsImageListResource,
+    MsImageResource,
+    MsImageFileResource,
+    MsAnnotationResource,
+    MsAnnotationPackageResource
+)
 
 # Setup
 from scripts.setup_infrastructure import setup_minio, run_migrations, wait_for_postgres
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={
+    r'/api/v1/*': {'origins': MULAN_ORIGINS, 'supports_credentials': True},
+    r'/*': {'origins': '*'},
+})
+
 
 # Swagger Configuration
 @app.route('/swagger.json')
 def swagger_spec():
     return send_from_directory('static', 'swagger.json')
+
 
 Swagger(app, config={
     'specs': [
@@ -89,6 +103,13 @@ api.add_resource(MultispectralImageListResource, '/multispectral/images')
 api.add_resource(MultispectralImageResource, '/multispectral/image', '/multispectral/images/<path:image_name>')
 api.add_resource(MultispectralImageFileResource, '/multispectral/file')
 api.add_resource(SceneResource, '/scenes', '/scenes/<string:scene_id>')
+api.add_resource(MulanSessionResource, '/api/v1/session')
+api.add_resource(MsImageListResource, '/api/v1/multispectral/images')
+api.add_resource(MsImageResource, '/api/v1/multispectral/images/<string:image_id>')
+api.add_resource(MsImageFileResource, '/api/v1/multispectral/images/<string:image_id>/file')
+api.add_resource(MsAnnotationResource, '/api/v1/multispectral/images/<string:image_id>/annotation')
+api.add_resource(MsAnnotationPackageResource, '/api/v1/multispectral/images/<string:image_id>/annotation/package')
+
 
 @app.route('/health')
 def health_check():
@@ -97,6 +118,7 @@ def health_check():
         'status': 'healthy',
         'timestamp': datetime.now(timezone.utc).isoformat()
     })
+
 
 if __name__ == '__main__':
     print("--- Starting Infrastructure Setup ---")

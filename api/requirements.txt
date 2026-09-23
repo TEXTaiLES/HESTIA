@@ -41,6 +41,7 @@ pycparser==2.23
 pycryptodome==3.23.0
 pytz==2025.2
 PyYAML==6.0.3
+rasterio==1.4.3
 referencing==0.37.0
 requests==2.32.5
 rpds-py==0.27.1

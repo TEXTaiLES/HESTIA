@@ -1,6 +1,7 @@
 import { CSP_POLICY } from '../utils/constants.js';
 import { userIsAuthenticated } from '../utils/auth.js';
 import { renderLoginPage } from '../templates/login.js';
+import { sanitizeRedirect } from '../utils/redirect.js';
 
 export default (router, { services }) => {
     const { AuthenticationService } = services;
@@ -18,14 +19,14 @@ export default (router, { services }) => {
                     navbar: 'home',
                     title: 'User Login',
                     subtitle: 'Please login in order to view our collections.',
-                    redirectUrl: req.query.redirect_url,
+                    redirectUrl: sanitizeRedirect(req.query.redirect_url),
                 });
                 return res.send(html);
             }
             // Otherwise, check redirect_url from query params
             // and redirect to the specified URL or homepage.
             const redirectUrl = req.query.redirect_url || '/archive';
-            res.redirect(redirectUrl);
+            res.redirect(sanitizeRedirect(req.query.redirect_url));
         } catch (error) {
             console.error('User Login page error:', error);
             res.status(500).send('Error: ' + error.message);
@@ -45,7 +46,7 @@ export default (router, { services }) => {
                 res.clearCookie(cookieName, { domain: process.env.REFRESH_TOKEN_COOKIE_DOMAIN, path: '/' });
             }
 
-            res.redirect('/archive');
+            res.redirect(sanitizeRedirect(req.query.redirect_url));
         } catch (error) {
             console.error('User Logout error:', error);
             res.status(500).send('Error: ' + error.message);

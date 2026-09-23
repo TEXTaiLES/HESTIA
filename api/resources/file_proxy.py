@@ -4,7 +4,9 @@ import io
 import logging
 
 from middleware.security import require_api_key
-from services.storage import minio_client
+from services.storage import minio_client, MINIO_MULTISPECTRAL_BUCKET, MINIO_ANNOTATIONS_BUCKET
+
+PRIVATE_BUCKETS = {MINIO_MULTISPECTRAL_BUCKET, MINIO_ANNOTATIONS_BUCKET}
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,9 @@ class FileProxyResource(Resource):
             bucket_name (str): The destination MinIO bucket.
             object_name (str): The object key/path inside the bucket.
         """
+        if bucket_name in PRIVATE_BUCKETS:
+            return {'error': 'File not found or access denied.'}, 404
+
         try:
             # Fetch the object from internal MinIO
             response = minio_client.get_object(bucket_name, object_name)
