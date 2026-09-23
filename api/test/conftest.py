@@ -4,6 +4,7 @@ import middleware.security as security
 from api import app as flask_app
 
 API_KEY = 'test-api-key'
+MULAN_USER_ID = '3c4e8840-17c6-4e60-a4f8-7dc654c8f711'
 
 
 def pytest_ignore_collect(collection_path, config):
@@ -49,6 +50,36 @@ def client(app):
 @pytest.fixture()
 def auth_headers(api_key):
     return {'Authorization': f'Bearer {api_key}'}
+
+
+@pytest.fixture()
+def mulan_session():
+    """Factory for the rows MulAn's dispatch_request reads while resolving a session.
+
+    The MulAn resources don't use the master API key: they look the caller up in
+    directus_sessions / directus_users, then (unless the role has admin_access)
+    read directus_permissions. This returns the (user_row, permission_rows) pair
+    those two queries would produce, as RealDictCursor dicts.
+
+    Args:
+        admin: whether the role carries admin_access, which grants every
+            capability and skips the permissions query entirely.
+        permissions: (collection, action) pairs the role holds, e.g.
+            [('multispectral_images', 'read')]. Ignored when admin is True.
+    """
+    def _factory(admin=False, permissions=(), user_id=MULAN_USER_ID,
+                 email='user@example.org', display_name='Example User', role='role-1'):
+        user = {
+            'id': user_id,
+            'email': email,
+            'role': role,
+            'admin_access': admin,
+            'display_name': display_name,
+        }
+        rows = [{'collection': collection, 'action': action} for collection, action in permissions]
+        return user, rows
+
+    return _factory
 
 
 @pytest.fixture()

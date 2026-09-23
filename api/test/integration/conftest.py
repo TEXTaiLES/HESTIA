@@ -440,6 +440,116 @@ def test_amalthai_dataset_row(real_db_connection, real_minio_client):
     cur.close()
 
 
+# Wires the MulAn resources against real Postgres + real MinIO. resources.mulan
+# imports minio_client directly, and stream_object reaches for the one in
+# services.utils, so both singletons are replaced.
+@pytest.fixture()
+def real_client_mulan(client, mocker, postgres_config, real_minio_client):
+    mocker.patch('services.database.PG_HOST', postgres_config['host'])
+    mocker.patch('services.database.PG_PORT', postgres_config['port'])
+    mocker.patch('services.database.PG_DB', postgres_config['database'])
+    mocker.patch('services.database.PG_USER', postgres_config['user'])
+    mocker.patch('services.database.PG_PASSWORD', postgres_config['password'])
+
+    mocker.patch('resources.mulan.minio_client', real_minio_client)
+    mocker.patch('services.utils.minio_client', real_minio_client)
+    return client
+
+
+# A real directus_sessions row for the admin user, which is exactly what the
+# browser's textailes_refresh_token cookie carries. Inserting it directly keeps
+# the test independent of the login flow; the row is deleted on teardown.
+@pytest.fixture()
+def mulan_cookie(real_db_connection):
+    token = f'test-session-{uuid.uuid4().hex}'
+
+    cur = real_db_connection.cursor()
+    cur.execute("SELECT id FROM directus_users WHERE status = 'active' ORDER BY email LIMIT 1")
+    row = cur.fetchone()
+    if row is None:
+        cur.close()
+        pytest.skip('no active directus user to attach a session to')
+    user_id = row[0]
+
+    cur.execute(
+        "INSERT INTO directus_sessions (token, \"user\", expires) "
+        "VALUES (%s, %s, now() + interval '1 hour')",
+        (token, user_id),
+    )
+    real_db_connection.commit()
+    cur.close()
+
+    yield {'token': token, 'user_id': str(user_id)}
+
+    cur = real_db_connection.cursor()
+    cur.execute("DELETE FROM directus_sessions WHERE token = %s", (token,))
+    real_db_connection.commit()
+    cur.close()
+
+
+# Inserts a multispectral_images row plus its MinIO object, mirroring what the
+# upload endpoint stores. Yields the ids and bytes; removes both on teardown,
+# along with any annotation rows and masks the test created for it.
+@pytest.fixture()
+def test_multispectral_image(real_db_connection, real_minio_client):
+    image_id = str(uuid.uuid4())
+    object_key = f'{image_id}/source.tif'
+    content = _make_single_band_tiff(64, 48)
+
+    for bucket in ('multispectral', 'annotations'):
+        if not real_minio_client.bucket_exists(bucket):
+            pytest.skip(f'the {bucket} bucket does not exist — run the MinIO setup first')
+
+    real_minio_client.put_object(
+        'multispectral', object_key, io.BytesIO(content), len(content), content_type='image/tiff'
+    )
+
+    cur = real_db_connection.cursor()
+    cur.execute(
+        "INSERT INTO multispectral_images (image_id, filename, object_key, content_type, size_bytes,"
+        " width, height, channel_count, dtype, channel_names, georeferenced)"
+        " VALUES (%s, %s, %s, 'image/tiff', %s, 64, 48, 1, 'uint8', '[null]', false)",
+        (image_id, 'integration.tif', object_key, len(content)),
+    )
+    real_db_connection.commit()
+    cur.close()
+
+    yield {'image_id': image_id, 'object_key': object_key, 'content': content}
+
+    cur = real_db_connection.cursor()
+    cur.execute("SELECT mask_object_key FROM annotations WHERE multispectral_image_id = %s", (image_id,))
+    masks = [r[0] for r in cur.fetchall() if r[0]]
+    cur.execute("DELETE FROM annotations WHERE multispectral_image_id = %s", (image_id,))
+    cur.execute("DELETE FROM multispectral_images WHERE image_id = %s", (image_id,))
+    real_db_connection.commit()
+    cur.close()
+
+    for key in masks:
+        try:
+            real_minio_client.remove_object('annotations', key)
+        except Exception:
+            pass
+    for bucket, prefix in (('multispectral', image_id), ('annotations', image_id)):
+        try:
+            for obj in real_minio_client.list_objects(bucket, prefix=f'{prefix}/', recursive=True):
+                real_minio_client.remove_object(bucket, obj.object_name)
+        except Exception:
+            pass
+
+
+def _make_single_band_tiff(width, height, value=0) -> bytes:
+    """A real one-band uint8 GeoTIFF, written through rasterio in memory."""
+    import numpy as np
+    import rasterio
+    from rasterio.io import MemoryFile
+
+    with MemoryFile() as memfile:
+        with memfile.open(driver='GTiff', width=width, height=height,
+                          count=1, dtype='uint8') as dataset:
+            dataset.write(np.full((height, width), value, 'uint8'), 1)
+        return memfile.read()
+
+
 # Wires the nefele resource against real Postgres + real Kafka + real MinIO.
 # nefele publishes only simple JSON messages (no Avro / no schema registry),
 # but it does upload previews to MinIO — hence the client patch.
