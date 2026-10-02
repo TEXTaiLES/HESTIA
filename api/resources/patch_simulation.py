@@ -816,12 +816,11 @@ class PatchSimulationDownloadResource(Resource):
         ext_obj = sim_output.get('plotDataExtensionalStiffness') or {}
         bend_obj = sim_output.get('plotDataBendingStiffness') or {}
         angles_values = angles_obj.get('value')
-        angle_unit = angles_obj.get('unit') or 'deg'
+        # Angles are radians, so the renderer assumes rad.
 
         ext_png = render_polar_stiffness_png(
             angles_values,
             ext_obj.get('value'),
-            angle_unit=angle_unit,
             value_unit=ext_obj.get('unit') or '',
             title='Effective Extensional Stiffness',
             color='#b8bf1a',
@@ -829,7 +828,6 @@ class PatchSimulationDownloadResource(Resource):
         bend_png = render_polar_stiffness_png(
             angles_values,
             bend_obj.get('value'),
-            angle_unit=angle_unit,
             value_unit=bend_obj.get('unit') or '',
             title='Effective Bending Stiffness',
             color='#17becf',

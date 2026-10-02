@@ -43,7 +43,7 @@ export const renderPatchViewerModal = () => `
                         <option value="bending12">Bending 12 (torsion)</option>
                     </select>
                 </div>
-                <div id="patchViewerAnimation" style="height: 400px;"></div>
+                <div id="patchViewerAnimation" style="height: 400px; background-color: #e9ecef; border-radius: 0.375rem; overflow: hidden;"></div>
 
                 <div id="patchViewerStiffnessWrapper" class="mt-3" style="display:none;">
                     <h6 class="text-muted mb-2">Directional Stiffness (polar projection in the textile plane)</h6>
@@ -128,14 +128,38 @@ export const renderPatchViewerModal = () => `
         setStatus('<span class="text-success">Showing: ' + experiment + '</span>');
     }
 
+    // Fixed compass tick labels.
+    // Chart.js radar puts one label per spoke, so we blank the ones that
+    // aren't the nearest sample to a compass target.
+    const COMPASS_TARGETS_RAD = [0, Math.PI / 4, Math.PI / 2, 3 * Math.PI / 4,
+                                  Math.PI, 5 * Math.PI / 4, 3 * Math.PI / 2, 7 * Math.PI / 4];
+    const COMPASS_LABELS = ['0° (weft)', '45°', '90° (warp)', '135°', '180°', '225°', '270°', '315°'];
+
+    function buildCompassLabels(anglesRad) {
+        const labels = new Array(anglesRad.length).fill('');
+        for (let t = 0; t < COMPASS_TARGETS_RAD.length; t++) {
+            let bestIdx = 0;
+            let bestDist = Infinity;
+            for (let i = 0; i < anglesRad.length; i++) {
+                let d = Math.abs(anglesRad[i] - COMPASS_TARGETS_RAD[t]);
+                d = Math.min(d, 2 * Math.PI - d);
+                if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            labels[bestIdx] = COMPASS_LABELS[t];
+        }
+        return labels;
+    }
+
     function renderPolar(canvas, angles, values, valueUnit, color) {
         if (!angles || !values || angles.length === 0 || angles.length !== values.length) return false;
         const existing = Chart.getChart(canvas);
         if (existing) existing.destroy();
+        // plotDataAngles.unit is enum ["rad"],
+        // so we treat every angle as radians and convert for the tooltip.
         new Chart(canvas.getContext('2d'), {
             type: 'radar',
             data: {
-                labels: angles.map(a => a.toFixed(0) + '°'),
+                labels: buildCompassLabels(angles),
                 datasets: [{
                     label: 'Stiffness',
                     data: values,
@@ -149,6 +173,11 @@ export const renderPatchViewerModal = () => `
                 plugins: {
                     legend: { display: false },
                     tooltip: { callbacks: {
+                        title: (items) => {
+                            if (!items || !items.length) return '';
+                            const deg = (angles[items[0].dataIndex] * 180 / Math.PI);
+                            return deg.toFixed(1) + '°';
+                        },
                         label: (c) => c.parsed.r.toExponential(3) + (valueUnit ? ' ' + valueUnit : '')
                     } }
                 },
@@ -156,7 +185,7 @@ export const renderPatchViewerModal = () => `
                     r: {
                         beginAtZero: true,
                         ticks: { display: false },
-                        pointLabels: { font: { size: 9 } }
+                        pointLabels: { font: { size: 10 } }
                     }
                 }
             }

@@ -32,7 +32,7 @@ export const renderThreadViewerModal = () => `
                 </div>
             </div>
             <div class="modal-body">
-                <div id="threadViewerAnimation" style="height: 400px;"></div>
+                <div id="threadViewerAnimation" style="height: 400px; background-color: #e9ecef; border-radius: 0.375rem; overflow: hidden;"></div>
                 <div id="threadViewerChartWrapper" class="mt-3" style="display:none;">
                     <h6 class="text-muted mb-2">Force-Elongation Diagram</h6>
                     <div style="position:relative; height:320px;">

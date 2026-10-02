@@ -49,18 +49,23 @@ def render_force_elongation_png(elongations, forces, elongation_unit='%', force_
     return buf.getvalue()
 
 
+# Compass-style polar tick positions and labels, 0° = weft (X), 90° = warp (Y).
+_POLAR_TICK_ANGLES = [k * math.pi / 4 for k in range(8)]
+_POLAR_TICK_LABELS = ['0° (weft)', '45°', '90° (warp)', '135°', '180°', '225°', '270°', '315°']
+
+
 def render_polar_stiffness_png(
-    angles, values, angle_unit='deg', value_unit='', title='', color='#1f77b4', dpi=150
+    angles, values, value_unit='', title='', color='#1f77b4', dpi=150
 ):
     """Render a polar plot of stiffness vs. angle as PNG bytes.
 
-    `angles` and `values` are same-length numeric arrays. Angles must be in
-    'deg' or 'rad' (matches the plotDataAngles.unit schema field). We close
-    the curve by repeating the first sample so the polygon loops cleanly.
+    `angles` and `values` are same-length numeric arrays. Angles are in
+    **radians**. We close the curve by repeating the first sample so the
+    polygon loops cleanly.
 
-    Convention (from PDF page 2 & 6): 0° = X-direction (weft), 90° = Y (warp).
-    Matplotlib polar defaults already put 0° on the right and increase CCW,
-    so no rotation is needed for that convention.
+    Convention: 0° = X (weft), 90° = Y (warp). Matplotlib polar defaults
+    already put 0° on the right and increase CCW, so no rotation is needed.
+    Ticks are fixed at every 45°.
 
     Returns None if inputs are missing/empty/mismatched.
     """
@@ -72,11 +77,7 @@ def render_polar_stiffness_png(
         )
         return None
 
-    if angle_unit and angle_unit.lower() in ('deg', 'degrees'):
-        theta = [math.radians(a) for a in angles]
-    else:
-        theta = list(angles)
-
+    theta = list(angles)
     # Close the loop so the polygon doesn't have a gap.
     theta_closed = theta + [theta[0]]
     values_closed = list(values) + [values[0]]
@@ -85,6 +86,12 @@ def render_polar_stiffness_png(
     ax = fig.add_subplot(111, projection='polar')
     ax.plot(theta_closed, values_closed, color=color, linewidth=2)
     ax.fill(theta_closed, values_closed, color=color, alpha=0.12)
+
+    # Fixed 8-tick compass style.
+    ax.set_xticks(_POLAR_TICK_ANGLES)
+    ax.set_xticklabels(_POLAR_TICK_LABELS)
+    ax.tick_params(axis='x', which='major', pad=5)
+
     if title:
         ax.set_title(title, pad=20)
     if value_unit:
