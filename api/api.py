@@ -32,6 +32,7 @@ from resources.rgb import RgbImageFileResource, RgbImageListResource, RgbImageRe
 from scripts.setup_infrastructure import setup_minio, run_migrations, wait_for_postgres
 
 app = Flask(__name__)
+app.config['MAX_FORM_PARTS'] = 100000   # maximum parts a multipart upload can send
 CORS(app)
 
 # Swagger Configuration
