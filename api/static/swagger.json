@@ -81,6 +81,39 @@
                 }
             }
         },
+        "/sensor-alerts": {
+            "get": {
+                "tags": ["Sensors"],
+                "summary": "Retrieve sensor alerts",
+                "parameters": [
+                    { "name": "sensor_id", "in": "query", "schema": { "type": "string" } },
+                    { "name": "metric", "in": "query", "schema": { "type": "string", "example": "humidity" } },
+                    { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+                    { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+                    { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+                    { "name": "per_page", "in": "query", "schema": { "type": "integer", "default": 50 } }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of alerts",
+                        "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SensorAlert" } } } }
+                    }
+                }
+            },
+            "post": {
+                "tags": ["Sensors"],
+                "summary": "Record a reading that fell outside its accepted range",
+                "requestBody": {
+                    "required": true,
+                    "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SensorAlertInput" } } }
+                },
+                "responses": {
+                    "201": { "description": "Alert recorded" },
+                    "200": { "description": "Alert for this sensor, timestamp and metric already recorded" },
+                    "400": { "description": "Invalid input" }
+                }
+            }
+        },
         "/annotations": {
             "get": {
                 "tags": ["Annotations (Scenes)"],
@@ -201,6 +234,33 @@
                     "humidity": { "type": "number" },
                     "uv_intensity": { "type": "number" },
                     "luminosity": { "type": "number" }
+                }
+            },
+            "SensorAlertInput": {
+                "type": "object",
+                "required": ["sensor_id", "timestamp", "metric", "value"],
+                "properties": {
+                    "sensor_id": { "type": "string", "example": "TEXTaiLES-Indra-Box-0" },
+                    "timestamp": { "type": "string", "format": "date-time", "description": "Timestamp of the offending reading" },
+                    "metric": { "type": "string", "example": "humidity" },
+                    "value": { "type": "number", "example": 71.3 },
+                    "min_value": { "type": "number", "nullable": true, "example": 45 },
+                    "max_value": { "type": "number", "nullable": true, "example": 55 },
+                    "reading_id": { "type": "string", "description": "Defaults to {sensor_id}_{timestamp}, the id POST /sensor-readings returns" }
+                }
+            },
+            "SensorAlert": {
+                "type": "object",
+                "properties": {
+                    "alert_id": { "type": "string", "format": "uuid" },
+                    "reading_id": { "type": "string" },
+                    "sensor_id": { "type": "string" },
+                    "reading_timestamp": { "type": "string", "format": "date-time" },
+                    "metric": { "type": "string" },
+                    "value": { "type": "number" },
+                    "min_value": { "type": "number", "nullable": true },
+                    "max_value": { "type": "number", "nullable": true },
+                    "created_at": { "type": "string", "format": "date-time" }
                 }
             },
             "AnnotationInput": {

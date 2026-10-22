@@ -201,6 +201,27 @@ def run_migrations():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_amalthai_inference_model ON amalthai_inference_runs (model_id)")
         logger.info("Migration: amalthai_* tables ensured.")
 
+        # INDRA sensor alerts
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sensor_alerts (
+                alert_id          UUID              PRIMARY KEY,
+                reading_id        TEXT              NOT NULL,
+                sensor_id         TEXT              NOT NULL,
+                reading_timestamp TIMESTAMPTZ       NOT NULL,
+                metric            TEXT              NOT NULL,
+                value             DOUBLE PRECISION  NOT NULL,
+                min_value         DOUBLE PRECISION,
+                max_value         DOUBLE PRECISION,
+                created_at        TIMESTAMPTZ       NOT NULL DEFAULT now(),
+                UNIQUE (sensor_id, reading_timestamp, metric)
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_sensor_alerts_sensor_time
+            ON sensor_alerts (sensor_id, reading_timestamp DESC)
+        """)
+        logger.info("Migration: sensor_alerts table ensured.")
+
         conn.commit()
         cur.close()
         conn.close()
