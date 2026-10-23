@@ -8,6 +8,7 @@ import logging
 # Resources
 from resources.artifact import ArtifactResource, ArtifactItemResource, ArtifactAggregateResource
 from resources.sensor import SensorReadingResource
+from resources.sensor_alert import SensorAlertResource
 from resources.robot import RobotImageResource
 from resources.reconstruction import ReconstructionResource
 from resources.annotation import AnnotationResource
@@ -58,6 +59,7 @@ api.add_resource(ArtifactResource, '/artifacts')
 api.add_resource(ArtifactItemResource, '/artifacts/<string:artifact_id>')
 api.add_resource(ArtifactAggregateResource, '/artefacts/<string:artifact_id>')
 api.add_resource(SensorReadingResource, '/sensor-readings')
+api.add_resource(SensorAlertResource, '/sensor-alerts')
 api.add_resource(RobotImageResource, '/robot-images')
 api.add_resource(ReconstructionResource, '/reconstructions')
 api.add_resource(AnnotationResource, '/annotations')
